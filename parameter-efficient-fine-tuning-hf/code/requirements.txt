@@ -1,0 +1,5 @@
+bitsandbytes
+datasets
+accelerate
+loralib
+ipywidgets
