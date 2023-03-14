@@ -22,6 +22,8 @@ def generate_text(payload, endpoint_name_str):
         text = parse_alexa_response(result)
     elif endpoint_name_radio == 'GPT-NEOX-20B':
         text = parse_gpt_neox_response(result)
+    elif endpoint_name_radio == 'FLAN-T5':
+        text = parse_flan_t5_response(result)
     else:
         text = parse_gpt_response(result) # - result[0]['generated_text']
     return text 
@@ -45,6 +47,7 @@ endpoint_name_radio = st.sidebar.selectbox(
         'GPT-J',
         'ALEXA-20B',
         'GPT-NEOX-20B',
+        'FLAN-T5',
         'STABLE-DIFFUSION',
         'BLOOM-176B'
     ),
@@ -56,6 +59,7 @@ dict_endpoint = {
     "ALEXA-20B" : "jumpstart-example-infer-pytorch-textgen-2023-03-10-03-43-03-082",
     "GPT-NEOX-20B" : "gpt-neox-djl20-ds-2023-03-10-03-41-25-326-endpoint",
     "STABLE-DIFFUSION" : "stable-diffusion-2023-02-10-21-25-33-687",
+    "FLAN-T5" : "jumpstart-example-huggingface-text2text-2023-03-14-21-49-46-617",
 
 
 }
@@ -126,6 +130,10 @@ def parse_gpt_response(query_response):
 def parse_gpt_neox_response(query_response):
     return query_response['outputs'][0]
 
+def parse_flan_t5_response(query_response):
+    return query_response["generated_texts"]
+
+
 def get_params(curr_length, endpoint_name_radio):
     if endpoint_name_radio == 'ALEXA-20B':
         return get_params_alexa(curr_length)
@@ -133,6 +141,8 @@ def get_params(curr_length, endpoint_name_radio):
         return get_params_gptneox(curr_length)
     elif endpoint_name_radio == 'STABLE-DIFFUSION':
         return get_params_stable_diffusion(curr_length)
+    elif endpoint_name_radio == 'FLAN-T5':
+        return get_params_flant(curr_length)
     else:
         return get_params_gptj(curr_length)
 
@@ -164,6 +174,29 @@ def get_params_alexa(curr_length):
 
     print("ALEXA-20B", endpoint_name_radio, params, curr_length)
     return params
+
+def get_params_flant(curr_length):
+    print(do_sample_st,early_stopping)
+    params = {
+        "text_inputs": prompt,
+        "max_length": curr_length,
+        "num_return_sequences": 3,
+        "top_k": 50,
+        "top_p": 0.95,
+        "do_sample": 'True' == do_sample_st,
+        "temperature" : temp
+    }
+    if temp < 0.25 :
+        print("FLAN-T5: No temperature so no Diversity or rare tokens in generation")
+        params.pop('temperature')
+        params['do_sample'] = False
+
+
+    print("FLANT-T5::", endpoint_name_radio, params,curr_length)
+
+    return params
+
+# - https://www.fidelity.com/learning-center/personal-finance/personal-inflation-rate
 
 def get_params_gptj(curr_length):
     print(do_sample_st,early_stopping)
