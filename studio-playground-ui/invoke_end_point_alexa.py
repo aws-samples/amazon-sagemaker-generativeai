@@ -131,7 +131,7 @@ def parse_gpt_neox_response(query_response):
     return query_response['outputs'][0]
 
 def parse_flan_t5_response(query_response):
-    return query_response["generated_texts"]
+    return query_response["generated_texts"][0]
 
 
 def get_params(curr_length, endpoint_name_radio):
