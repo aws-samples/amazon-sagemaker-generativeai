@@ -1,0 +1,3 @@
+pip install boto3 streamlit -Uq
+
+streamlit run invoke_end_point_alexa.py
