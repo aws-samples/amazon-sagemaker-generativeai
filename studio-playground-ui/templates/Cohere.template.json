@@ -1,0 +1,8 @@
+modelName=FLAN-T5-XXL
+endpoint_name=huggingface-pytorch-inference-2023-03-09-02-00-08-813
+parameter.text_inputs={{ prompt }}
+parameter.max_length={{ curr_length }}
+parameter.num_return_sequences={{ num_seq }}
+parameter.top_k={{ top_k }}
+parameter.top_p={{ top_p }}
+parameter.temperature={{ temp }}
