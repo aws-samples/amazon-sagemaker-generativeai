@@ -1,0 +1,12 @@
+{
+"modelName":"FLAN-T5-XXL",
+"endpoint_name":"huggingface-pytorch-inference-2023-03-09-02-00-08-813",
+"parameter": {
+    "early_stopping": "True",
+    "length_penalty": 2.0,
+    "max_new_tokens": {{ curr_length }},
+    "temperature": {{ temp }},
+    "min_length": 10,
+    "no_repeat_ngram_size": 3
+    }
+}
