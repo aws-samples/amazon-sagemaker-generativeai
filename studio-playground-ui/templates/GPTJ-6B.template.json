@@ -1,0 +1,14 @@
+{
+  "modelName": "GPTJ",
+  "endpoint_name": "gptj-acc-2023-03-16-22-43-45-048",
+  "payload": {
+    "inputs": [
+        "how do I earn more money?"
+    ],
+    "parameters": {
+      "max_length": 50,
+      "temperature": 1.0,
+      "num_beams": 3
+    }
+  }
+}
