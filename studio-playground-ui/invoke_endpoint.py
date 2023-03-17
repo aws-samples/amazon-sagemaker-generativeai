@@ -15,37 +15,41 @@ def read_template_dir(dir_path):
     dir_path = dir_path
     count = 0
     fileList = []
+    fileNames = []
     # Iterate directory
     for path in os.listdir(dir_path):
         # check if current path is a file
         if os.path.isfile(os.path.join(dir_path, path)):
             count += 1
             fileList.append(path)
-    print('File count:', count)
-    print('File list: ', fileList)
-    return count, fileList
+            fileNames.append(path.split('.')[0])
+    return count, fileList, fileNames
 
-def read_template(template_path, curr_length, temp):
+def read_template(template_path):
     TEMPLATE_FILE = template_path
     template = templateEnv.get_template(TEMPLATE_FILE)
-    outputText = template.render(prompt=prompt, curr_length=curr_length,temp=temp)
+    outputText = template.render()
     return outputText
 
-def generate_text(payload, parameters, endpoint_name):
+def generate_text(payload, endpoint_name):
     encoded_input = json.dumps(payload).encode("utf-8")
     
     response = sagemaker_runtime.invoke_endpoint(
         EndpointName=endpoint_name,
         ContentType='application/json',
-        Body=json.dumps(
-        {
-            "inputs": payload,
-            "parameters": parameters,
-        }
+        Body=encoded_input
     )
-    )
+    print("Model input: \n", encoded_input)
     result = json.loads(response['Body'].read().decode()) # -
-    return result
+    for item in result:
+        if isinstance(item, list):
+            for element in item:
+                if isinstance(element, dict):
+                    print(element["generated_text"])
+                    return element["generated_text"]
+        else:
+            print(item["generated_text"])
+            return item["generated_text"]
 
 def handle_stable_diffusion(response):
     print(response)
@@ -53,51 +57,38 @@ def handle_stable_diffusion(response):
     placeholder  = st.image(img_res)
     return prompt
 
-count, fileList = read_template_dir('templates')
+count, fileList, fileNames = read_template_dir('templates')
+
 
 endpoint_name_radio = st.sidebar.selectbox(
     "Select the endpoint to run in SageMaker",
-    tuple(fileList)
+    tuple(fileNames)
 )
 
+output_text = read_template(f'templates/{endpoint_name_radio}.template.json')
+output = json.loads(output_text)
+
+parameters = output['payload']['parameters']
 
 ########## UI Code #############
-st.sidebar.title("LLM Model Parameters")
+st.sidebar.title("Model Parameters")
 st.image('./ml_image.jpg')
-st.header("Few Shot Playground")
-# Length control
-length_choice = st.sidebar.select_slider("Length",
-                                         options=['very short', 'short', 'medium', 'long', 'very long'],
-                                         value='medium',
-                                         help="Length of the model response")
-
-# early_stopping
-early_stopping = st.sidebar.selectbox("Early Stopping",['True', 'False' ] )
-
-# do_sample
-do_sample_st = st.sidebar.selectbox("Sample Probabilities",['True', 'False' ] )
-
-# Temperature control
-temp = st.sidebar.slider("Temperature", min_value=0.0, max_value=1.5, value=0.5,
-                         help="The creativity of the model")
-
-# Repetition penalty control 'no_repeat_ngram_size',
-rep_penalty = st.sidebar.slider("Repetition penalty", min_value=1, max_value=5, value=2,
-                                help="Penalises the model for repition, positive integer greater than 1")
-
-# Repetition penalty control 'no_repeat_ngram_size',
-beams_no = st.sidebar.slider("Beams Search For Greedy search", min_value=0, max_value=5, value=1,
-                                help="Beams for optimization of search, positive integer")
-
-# Repetition penalty control 'no_repeat_ngram_size',
-seed_no = st.sidebar.slider("SEED for consistency", min_value=1, max_value=5, value=1,
-                                help="Postive integer for consitent response, fix randomization")
-
-#  Max length 'max_length'
-#max_length = st.sidebar.text_input("Max length", value="50", max_chars=2)
-max_length = {'very short':10, 'short':20, 'medium':30, 'long':40, 'very long':50}
-
-
+st.header("Prompt Engineering Playground")
+for x in parameters: 
+    if isinstance(parameters[x], bool):
+        parameters[x] = st.sidebar.selectbox(x,['True', 'False' ] )
+    if isinstance(parameters[x], int):
+        if x == 'max_new_tokens' or x == 'max_length':
+            parameters[x] = st.sidebar.slider(x, min_value=0, max_value=500, value=100)
+        else: 
+            parameters[x] = st.sidebar.slider(x, min_value=0, max_value=10, value=2)
+    if isinstance(parameters[x], float):
+        if x == 'temperature':
+            parameters[x] =  st.sidebar.slider(x, min_value=0.0, max_value=1.5, value=0.5,
+                         help="Controls the randomness in the output. Higher temperature results in output sequence with low-probability words and lower temperature results in output sequence with high-probability words. If temperature → 0, it results in greedy decoding. If specified, it must be a positive float.")
+        else: 
+            parameters[x] = st.sidebar.slider(x, min_value=0.0, max_value=10.0, value=2.1)
+            
 
 st.markdown("""
 
@@ -114,12 +105,9 @@ placeholder = st.empty()
 
 if st.button("Run"):
     placeholder = st.empty()
-    curr_length = max_length.get(length_choice, 10)
-    curr_length = curr_length * 5 # for scaling
-    output_text = read_template(f'templates/{endpoint_name_radio}', curr_length,temp)
-    output = json.loads(output_text)
-    parameters = output['parameter']
     endpoint_name = output['endpoint_name']
-    generated_text = generate_text(prompt, parameters,endpoint_name)
-    #print(generated_text)
+    payload = {"inputs": [prompt,],  "parameters": parameters}
+    print(' generated payload for inference : ', payload)
+    generated_text = generate_text(payload,endpoint_name)
+    print(generated_text)
     st.write(generated_text)
