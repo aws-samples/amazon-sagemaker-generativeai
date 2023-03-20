@@ -5,6 +5,7 @@ import io
 import jinja2
 import os
 from pathlib import Path
+from PIL import Image
 
 sagemaker_runtime = boto3.client('runtime.sagemaker')
 templateLoader = jinja2.FileSystemLoader(searchpath="./")
@@ -72,8 +73,11 @@ parameters = output['payload']['parameters']
 
 ########## UI Code #############
 st.sidebar.title("Model Parameters")
-st.image('./ml_image.jpg')
-st.header("Prompt Engineering Playground")
+
+image = Image.open('./ml_image_prompt.png')
+new_image = image.resize((900, 200))
+st.image(new_image)
+# st.header("Prompt Engineering Playground")
 for x in parameters: 
     if isinstance(parameters[x], bool):
         parameters[x] = st.sidebar.selectbox(x,['True', 'False' ] )
@@ -92,15 +96,15 @@ for x in parameters:
 
 st.markdown("""
 
-Example :red[For Few Shot Learning]
+Example for :orange[ Few Shot Learning]
 
 **:blue[List the Country of origin of food.]**
-Pizza comes from Italy
-Burger comes from USA
-Curry comes from
+- Pizza comes from Italy
+- Burger comes from USA
+- Curry comes from
 """)
 
-prompt = st.text_area("Enter your prompt here:", height=350)
+prompt = st.text_area("Enter your prompt here:", height=400)
 placeholder = st.empty()
 
 if st.button("Run"):
