@@ -125,93 +125,100 @@ def handle_editor_content(input_str):
                 model_name = input_str["modelName"]
                 filename = model_name + ".template.json"
                 user_file_path = os.path.join("templates", filename)
-                json_out = json.dumps(input_str, sort_keys=False, indent=4)
+                with open(user_file_path, "w+") as f:
+                    json.dump(input_str, f)
                 st.write("json saved at " + str(user_file_path))
             except Exception as e:
                 st.write(e)
 
 
-count, fileList, fileNames = read_template_dir('templates')
+def main():
+    count, fileList, fileNames = read_template_dir('templates')
 
 
-endpoint_name_radio = st.sidebar.selectbox(
-    "Select the endpoint to run in SageMaker",
-    tuple(fileNames)
-)
-
-output_text = read_template(f'templates/{endpoint_name_radio}.template.json')
-output = json.loads(output_text)
-
-parameters = output['payload']['parameters']
-
-########## UI Code #############
-st.sidebar.title("Model Parameters")
-st.image('./ml_image_prompt.png')
-
-
-# Adding your own model
-st.header("Add a New Model")
-st.write(
-        """Add a new model by uploading a template.json file or by pasting the dictionary in
-        the editor. A model template
-        is a json dictionary containing a modelName, endpoint_name, and payload with
-        parameters.  \n \n Below is an
-        example of a template.json"""
+    endpoint_name_radio = st.sidebar.selectbox(
+        "Select the endpoint to run in SageMaker",
+        tuple(fileNames)
     )
-get_user_input()
-    
-# Spawn a new Ace editor and isplay editor's content as you type
-content = st_ace(
-    theme="tomorrow_night",
-    wrap=True,
-    show_gutter=True,
-    language="json",
-    value= code,
-    keybinding = "vscode",
-    min_lines = 15
-)
 
-if content != code:
-    input_str = json.loads(content)
-    handle_editor_content(input_str)
+    output_text = read_template(f'templates/{endpoint_name_radio}.template.json')
+    output = json.loads(output_text)
+
+    parameters = output['payload']['parameters']
+
+    ########## UI Code #############
+    st.sidebar.title("Model Parameters")
+    st.image('./ml_image_prompt.png')
 
 
+    # Adding your own model
+    st.header("Add a New Model")
+    st.write(
+            """Add a new model by uploading a template.json file or by pasting the dictionary in
+            the editor. A model template
+            is a json dictionary containing a modelName, endpoint_name, and payload with
+            parameters.  \n \n Below is an
+            example of a template.json"""
+        )
+    get_user_input()
 
-st.header("Prompt Engineering Playground")
-for x in parameters: 
-    if isinstance(parameters[x], bool):
-        parameters[x] = st.sidebar.selectbox(x,['True', 'False' ] )
-    if isinstance(parameters[x], int):
-        if x == 'max_new_tokens' or x == 'max_length':
-            parameters[x] = st.sidebar.slider(x, min_value=0, max_value=500, value=100)
-        else: 
-            parameters[x] = st.sidebar.slider(x, min_value=0, max_value=10, value=2)
-    if isinstance(parameters[x], float):
-        if x == 'temperature':
-            parameters[x] =  st.sidebar.slider(x, min_value=0.0, max_value=1.5, value=0.5,
-                         help="Controls the randomness in the output. Higher temperature results in output sequence with low-probability words and lower temperature results in output sequence with high-probability words. If temperature → 0, it results in greedy decoding. If specified, it must be a positive float.")
-        else: 
-            parameters[x] = st.sidebar.slider(x, min_value=0.0, max_value=10.0, value=2.1)
-            
+    # Spawn a new Ace editor and isplay editor's content as you type
+    content = st_ace(
+        theme="tomorrow_night",
+        wrap=True,
+        show_gutter=True,
+        language="json",
+        value= code,
+        keybinding = "vscode",
+        min_lines = 15
+    )
 
-st.markdown("""
+    if content != code:
+        input_str = json.loads(content)
+        handle_editor_content(input_str)
 
-Example :red[For Few Shot Learning]
 
-**:blue[List the Country of origin of food.]**
-Pizza comes from Italy
-Burger comes from USA
-Curry comes from
-""")
 
-prompt = st.text_area("Enter your prompt here:", height=350)
-placeholder = st.empty()
+    st.header("Prompt Engineering Playground")
+    for x in parameters: 
+        if isinstance(parameters[x], bool):
+            parameters[x] = st.sidebar.selectbox(x,['True', 'False' ] )
+        if isinstance(parameters[x], int):
+            if x == 'max_new_tokens' or x == 'max_length':
+                parameters[x] = st.sidebar.slider(x, min_value=0, max_value=500, value=100)
+            else: 
+                parameters[x] = st.sidebar.slider(x, min_value=0, max_value=10, value=2)
+        if isinstance(parameters[x], float):
+            if x == 'temperature':
+                parameters[x] =  st.sidebar.slider(x, min_value=0.0, max_value=1.5, value=0.5,
+                             help="Controls the randomness in the output. Higher temperature results in output sequence with low-probability words and lower temperature results in output sequence with high-probability words. If temperature → 0, it results in greedy decoding. If specified, it must be a positive float.")
+            else: 
+                parameters[x] = st.sidebar.slider(x, min_value=0.0, max_value=10.0, value=2.1)
 
-if st.button("Run"):
+
+    st.markdown("""
+
+    Example :red[For Few Shot Learning]
+
+    **:blue[List the Country of origin of food.]**
+    Pizza comes from Italy
+    Burger comes from USA
+    Curry comes from
+    """)
+
+    prompt = st.text_area("Enter your prompt here:", height=350)
     placeholder = st.empty()
-    endpoint_name = output['endpoint_name']
-    payload = {"inputs": [prompt,],  "parameters": parameters}
-    print(' generated payload for inference : ', payload)
-    generated_text = generate_text(payload,endpoint_name)
-    print(generated_text)
-    st.write(generated_text)
+
+    if st.button("Run"):
+        placeholder = st.empty()
+        endpoint_name = output['endpoint_name']
+        payload = {"inputs": [prompt,],  "parameters": parameters}
+        print(' generated payload for inference : ', payload)
+        generated_text = generate_text(payload,endpoint_name)
+        print(generated_text)
+        st.write(generated_text)
+    
+
+    
+if __name__ == "__main__":
+    main()
