@@ -125,18 +125,10 @@ def handle_editor_content(input_str):
                 model_name = input_str["modelName"]
                 filename = model_name + ".template.json"
                 user_file_path = os.path.join("templates", filename)
-                f = codecs.open(user_file_path, "w", encoding="utf-8")
                 json_out = json.dumps(input_str, sort_keys=False, indent=4)
-                f.write(json_out)
-                f.flush()
-                o = open(user_file_path)
-                ojson = o.read()
                 st.write("json saved at " + str(user_file_path))
             except Exception as e:
                 st.write(e)
-                
-
-
 
 
 count, fileList, fileNames = read_template_dir('templates')
@@ -166,7 +158,6 @@ st.write(
         parameters.  \n \n Below is an
         example of a template.json"""
     )
-st.code(code, language="json")
 get_user_input()
     
 # Spawn a new Ace editor and isplay editor's content as you type
@@ -175,12 +166,12 @@ content = st_ace(
     wrap=True,
     show_gutter=True,
     language="json",
-    placeholder= code,
+    value= code,
     keybinding = "vscode",
     min_lines = 15
 )
 
-if content:
+if content != code:
     input_str = json.loads(content)
     handle_editor_content(input_str)
 
