@@ -15,8 +15,9 @@ sagemaker_runtime = boto3.client("runtime.sagemaker")
 template_loader = jinja2.FileSystemLoader(searchpath="./")
 template_env = jinja2.Environment(loader=template_loader)
 
+
 code_example = """{
-  "model_name": "Example-Model",
+  "model_name": "model",
   "endpoint_name": "huggingface-inference-endpoint",
   "payload": {
     "parameters": {
@@ -102,7 +103,6 @@ def get_user_input():
                 user_file.write(uploaded_file.getbuffer())
             uploaded_file_location.write("Template Uploaded: " + str(user_file_path))
             st.session_state["new_template_added"] = True
-            # st.experimental_rerun()
         else:
             uploaded_file_location.warning(
                 "Invalid Input: please upload a valid template.json"
@@ -144,36 +144,26 @@ def handle_editor_content(input_str):
 
             st.write("json saved at " + str(user_file_path))
             st.session_state["new_template_added"] = True
-            # st.experimental_rerun()
 
         except Exception as e:
             st.write(e)
 
 
 def handle_parameters(parameters):
-    for x in parameters:
-        minimum = parameters[x]["min"]
-        maximum = parameters[x]["max"]
-        default = parameters[x]["default"]
+    for p in parameters:
+        minimum = parameters[p]["min"]
+        maximum = parameters[p]["max"]
+        default = parameters[p]["default"]
         if type(minimum) == int and type(maximum) == int and type(default) == int:
-            parameters[x] = st.sidebar.slider(
-                x, min_value=minimum, max_value=maximum, value=default
-            )
+            parameters[p] = st.sidebar.slider(
+                p, min_value=minimum, max_value=maximum, value=default, step= 1)
         if type(minimum) == bool and type(maximum) == bool and type(default) == bool:
-            parameters[x] = st.sidebar.selectbox(x, ["True", "False"])
+            parameters[p] = st.sidebar.selectbox(p, ["True", "False"])
         if type(minimum) == float and type(maximum) == float and type(default) == float:
-            if x == "temperature":
-                temperature_help = "Controls the randomness in the output. Higher temperature results in output sequence with low-probability words and lower temperature results in output sequence with high-probability words. If temperature → 0, it results in greedy decoding. If specified, it must be a positive float."
-                parameters[x] = st.sidebar.slider(
-                    x,
-                    min_value=minimum,
-                    max_value=maximum,
-                    value=default,
-                    help=temperature_help,
-                )
-            else:
-                parameters[x] = st.sidebar.slider(
-                    x, min_value=minimum, max_value=maximum, value=default
+            parameters[p] = st.sidebar.slider(
+                    p, min_value=float(minimum), 
+                    max_value=float(maximum), 
+                    value=float(default), step = 0.01
                 )
     return parameters
 
@@ -192,6 +182,12 @@ def main():
     # Adding your own model
     with st.expander("Add a New Model"):
         st.header("Add a New Model")
+        st.write(
+                """Add a new model by uploading a template.json file or by pasting the dictionary
+                in the editor. A model template is a json dictionary containing a modelName,
+                endpoint_name, and payload with parameters. [TO DO: instructions for getting parameters] \n \n Below is an example of a
+                template.json"""
+            )
         res = "".join(random.choices(string.ascii_uppercase + string.digits, k=N))
         get_user_input()
 
@@ -216,10 +212,9 @@ def main():
             selected_endpoint = sidebar_selectbox.selectbox(
                 label="Select the endpoint to run in SageMaker",
                 options=list_templates("templates"),
-                key="".join(
-                    random.choices(string.ascii_uppercase + string.digits, k=N)
-                ),
+                key=res
             )
+    
     # Prompt Engineering Playground
     st.header("Prompt Engineering Playground")
     output_text = read_template(f"templates/{selected_endpoint}.template.json")
@@ -229,8 +224,7 @@ def main():
     parameters = handle_parameters(parameters)
 
     st.markdown(
-        """
-
+    """
     Example:  :red[For Few Shot Learning]
 
     **:blue[List the Country of origin of food.]**
@@ -252,9 +246,7 @@ def main():
             ],
             "parameters": parameters,
         }
-        # print(' generated payload for inference : ', payload)
         generated_text = generate_text(payload, endpoint_name)
-        # print(generated_text)
         st.write(generated_text)
 
 
