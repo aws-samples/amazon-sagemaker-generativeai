@@ -1,12 +1,13 @@
-import streamlit as st
-from streamlit_ace import st_ace
 import boto3
-import json
+from collections import defaultdict
 import io
 import jinja2
+import json
 import os
 from pathlib import Path
 import random
+from streamlit_ace import st_ace
+import streamlit as st
 import string
 
 
@@ -17,22 +18,32 @@ template_env = jinja2.Environment(loader=template_loader)
 
 
 code_example = """{
-  "model_name": "model",
-  "endpoint_name": "huggingface-inference-endpoint",
+  "model_name": "example",
+  "endpoint_name": "jumpstart-example-infer-pytorch-textgen-2023-03-22-23-09-15-885",
   "payload": {
     "parameters": {
-      "length_penalty": {
-        "default": 2,
-        "min": 0,
-        "max": 100
+      "max_length": {
+        "default": 200,
+        "min": 10,
+        "max": 500
       },
-      "max_new_tokens": {
+      "num_return_sequences": {
         "default": 20,
         "min": 0,
-        "max": 100
+        "max": 10
+      },
+      "num_beams": {
+        "default": 3,
+        "min": 0,
+        "max": 10
+      },
+      "temperature": {
+        "default": 0.5,
+        "min": 0.0,
+        "max": 1.0
       },
       "early_stopping": {
-        "default": false,
+        "default": true,
         "min": true,
         "max": false
       }
@@ -40,6 +51,22 @@ code_example = """{
   }
 }
 """
+
+parameters_help_map = {
+    "max_length": "Model generates text until the output length (which includes the input context length) reaches max_length. If specified, it must be a positive integer.",
+    "num_return_sequences": "Number of output sequences returned. If specified, it must be a positive integer.",
+    "num_beams": "Number of beams used in the greedy search. If specified, it must be integer greater than or equal to num_return_sequences.",
+    "no_repeat_ngram_size": "Model ensures that a sequence of words of no_repeat_ngram_size is not repeated in the output sequence. If specified, it must be a positive integer greater than 1.",
+    "temperature": "Controls the randomness in the output. Higher temperature results in output sequence with low-probability words and lower temperature results in output sequence with high-probability words. If temperature -> 0, it results in greedy decoding. If specified, it must be a positive float.",
+    "early_stopping": "If True, text generation is finished when all beam hypotheses reach the end of stence token. If specified, it must be boolean.",
+    "do_sample": "If True, sample the next word as per the likelyhood. If specified, it must be boolean.",
+    "top_k": "In each step of text generation, sample from only the top_k most likely words. If specified, it must be a positive integer.",
+    "top_p": "In each step of text generation, sample from the smallest possible set of words with cumulative probability top_p. If specified, it must be a float between 0 and 1.",
+    "seed": "Fix the randomized state for reproducibility. If specified, it must be an integer.",
+}
+
+
+parameters_help_map = defaultdict(str, parameters_help_map)
 
 
 def list_templates(dir_path):
@@ -57,6 +84,12 @@ def read_template(template_path):
     template = template_env.get_template(template_path)
     output_text = template.render()
     return output_text
+
+
+def is_valid_default(parameter, minimum, maximum):
+    if parameter <= maximum and parameter >= minimum:
+        return True
+    return False
 
 
 def generate_text(payload, endpoint_name):
@@ -154,26 +187,55 @@ def handle_parameters(parameters):
         minimum = parameters[p]["min"]
         maximum = parameters[p]["max"]
         default = parameters[p]["default"]
-        if type(minimum) == int and type(maximum) == int and type(default) == int:
+        parameter_help = parameters_help_map[p]
+        print("parameter: ", p, " type: ", type(minimum), type(maximum), type(default))
+        print(type(minimum) == int)
+        if not is_valid_default(default, minimum, maximum):
+            st.warning(
+                "Invalid Default: "
+                + p
+                + " default value does not follow the convention default >= min and default <= max."
+            )
+        elif type(minimum) == int and type(maximum) == int and type(default) == int:
             parameters[p] = st.sidebar.slider(
-                p, min_value=minimum, max_value=maximum, value=default, step= 1)
-        if type(minimum) == bool and type(maximum) == bool and type(default) == bool:
-            parameters[p] = st.sidebar.selectbox(p, ["True", "False"])
-        if type(minimum) == float and type(maximum) == float and type(default) == float:
+                p,
+                min_value=minimum,
+                max_value=maximum,
+                value=default,
+                step=1,
+                help=parameter_help,
+            )
+        elif type(minimum) == bool and type(maximum) == bool and type(default) == bool:
+            parameters[p] = st.sidebar.selectbox(
+                p, ["True", "False"], help=parameter_help
+            )
+        elif (
+            type(minimum) == float and type(maximum) == float and type(default) == float
+        ):
             parameters[p] = st.sidebar.slider(
-                    p, min_value=float(minimum), 
-                    max_value=float(maximum), 
-                    value=float(default), step = 0.01
-                )
+                p,
+                min_value=float(minimum),
+                max_value=float(maximum),
+                value=float(default),
+                step=0.01,
+                help=parameter_help,
+            )
+        else:
+            st.warning(
+                "Invalid Parameter: "
+                + p
+                + " is not a valid parameter for this model or the parameter type is not supported in this demo."
+            )
     return parameters
 
 
 def main():
+    default_endpoint_option = "Select"
     st.session_state["new_template_added"] = False
     sidebar_selectbox = st.sidebar.empty()
     selected_endpoint = sidebar_selectbox.selectbox(
         label="Select the endpoint to run in SageMaker",
-        options=list_templates("templates"),
+        options=[default_endpoint_option] + list_templates("templates"),
     )
 
     st.sidebar.title("Model Parameters")
@@ -183,11 +245,11 @@ def main():
     with st.expander("Add a New Model"):
         st.header("Add a New Model")
         st.write(
-                """Add a new model by uploading a template.json file or by pasting the dictionary
+            """Add a new model by uploading a template.json file or by pasting the dictionary
                 in the editor. A model template is a json dictionary containing a modelName,
                 endpoint_name, and payload with parameters. [TO DO: instructions for getting parameters] \n \n Below is an example of a
                 template.json"""
-            )
+        )
         res = "".join(random.choices(string.ascii_uppercase + string.digits, k=N))
         get_user_input()
 
@@ -212,19 +274,20 @@ def main():
             selected_endpoint = sidebar_selectbox.selectbox(
                 label="Select the endpoint to run in SageMaker",
                 options=list_templates("templates"),
-                key=res
+                key=res,
             )
-    
+
     # Prompt Engineering Playground
     st.header("Prompt Engineering Playground")
-    output_text = read_template(f"templates/{selected_endpoint}.template.json")
-    output = json.loads(output_text)
+    if selected_endpoint != default_endpoint_option:
+        output_text = read_template(f"templates/{selected_endpoint}.template.json")
+        output = json.loads(output_text)
 
-    parameters = output["payload"]["parameters"]
-    parameters = handle_parameters(parameters)
+        parameters = output["payload"]["parameters"]
+        parameters = handle_parameters(parameters)
 
     st.markdown(
-    """
+        """
     Example:  :red[For Few Shot Learning]
 
     **:blue[List the Country of origin of food.]**
@@ -238,16 +301,18 @@ def main():
     placeholder = st.empty()
 
     if st.button("Run"):
-        placeholder = st.empty()
-        endpoint_name = output["endpoint_name"]
-        payload = {
-            "inputs": [
-                prompt,
-            ],
-            "parameters": parameters,
-        }
-        generated_text = generate_text(payload, endpoint_name)
-        st.write(generated_text)
+        if selected_endpoint != default_endpoint_option:
+            placeholder = st.empty()
+            endpoint_name = output["endpoint_name"]
+            payload = {
+                "inputs": [
+                    prompt,
+                ],
+                "parameters": parameters,
+            }
+
+            generated_text = generate_text(payload, endpoint_name)
+            st.write(generated_text)
 
 
 if __name__ == "__main__":
