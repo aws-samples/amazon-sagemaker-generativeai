@@ -1,6 +1,6 @@
 {
-  "modelName": "GPTJ",
-  "endpoint_name": "gptj-acc-2023-03-16-22-43-45-048",
+  "modelName": "GPTJ-6B",
+  "endpoint_name": "gptj-acc-2023-03-20-16-56-34-526",
   "payload": {
     "inputs": [
         "how do I earn more money?"
