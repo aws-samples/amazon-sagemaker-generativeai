@@ -28,7 +28,7 @@ code_example = """{
         "max": 500
       },
       "num_return_sequences": {
-        "default": 20,
+        "default": 10,
         "min": 0,
         "max": 10
       },
@@ -88,6 +88,8 @@ def read_template(template_path):
 
 def is_valid_default(parameter, minimum, maximum):
     if parameter <= maximum and parameter >= minimum:
+        return True
+    elif type(parameter) == bool and type(minimum) == bool and type(maximum) == bool:
         return True
     return False
 
@@ -245,9 +247,9 @@ def main():
     with st.expander("Add a New Model"):
         st.header("Add a New Model")
         st.write(
-            """Add a new model by uploading a template.json file or by pasting the dictionary
-                in the editor. A model template is a json dictionary containing a modelName,
-                endpoint_name, and payload with parameters. [TO DO: instructions for getting parameters] \n \n Below is an example of a
+            """Add a new model by uploading a .template.json file or by pasting the dictionary
+                in the editor. A model template is a json dictionary containing a model_name,
+                endpoint_name, and payload with parameters.  \n \n Below is an example of a
                 template.json"""
         )
         res = "".join(random.choices(string.ascii_uppercase + string.digits, k=N))
