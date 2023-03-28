@@ -24,28 +24,60 @@ code_example = """{
     "parameters": {
       "max_length": {
         "default": 200,
-        "min": 10,
-        "max": 500
+        "range": [
+          10,
+          500
+        ]
       },
       "num_return_sequences": {
         "default": 10,
-        "min": 0,
-        "max": 10
+        "range": [
+          0,
+          10
+        ]
       },
       "num_beams": {
         "default": 3,
-        "min": 0,
-        "max": 10
+        "range": [
+          0,
+          10
+        ]
       },
       "temperature": {
         "default": 0.5,
-        "min": 0.0,
-        "max": 1.0
+        "range": [
+          0,
+          1
+        ]
       },
       "early_stopping": {
         "default": true,
-        "min": true,
-        "max": false
+        "range": [
+          true,
+          false
+        ]
+      },
+      "stopwords_list": {
+        "default": [
+          "stop",
+          "dot"
+        ],
+        "range": [
+          "a",
+          "an",
+          "the",
+          "and",
+          "it",
+          "for",
+          "or",
+          "but",
+          "in",
+          "my",
+          "your",
+          "our",
+          "stop",
+          "dot"
+        ]
       }
     }
   }
@@ -87,9 +119,16 @@ def read_template(template_path):
 
 
 def is_valid_default(parameter, minimum, maximum):
+    # parameter is a list
+    if type(parameter) == list:
+        return True
+
+    # parameter is an int or float and is in valid range
     if parameter <= maximum and parameter >= minimum:
         return True
-    elif type(parameter) == bool and type(minimum) == bool and type(maximum) == bool:
+
+    # parameter is a bool
+    if type(parameter) == bool and type(minimum) == bool and type(maximum) == bool:
         return True
     return False
 
@@ -101,10 +140,9 @@ def generate_text(payload, endpoint_name):
         EndpointName=endpoint_name, ContentType="application/json", Body=encoded_input
     )
     print("Model input: \n", encoded_input)
-    result = json.loads(response["Body"].read().decode())  # -
+    result = json.loads(response["Body"].read().decode())
 
     # TO DO: results are either dictionary or list
-    print(result)
     for item in result:
         if isinstance(item, list):
             for element in item:
@@ -114,13 +152,6 @@ def generate_text(payload, endpoint_name):
         else:
             print(item["generated_text"])
             return item["generated_text"]
-
-
-def handle_stable_diffusion(response):
-    print(response)
-    img_res = io.BytesIO(response["Body"].read())
-    placeholder = st.image(img_res)
-    return prompt
 
 
 def get_user_input():
@@ -159,7 +190,9 @@ def validate_json_template(json_dictionary):
         )
         return False
 
-    if not "parameters" in json_dictionary["payload"].keys():
+    if not "parameters" in json_dictionary["payload"].keys() and not type(
+        json_dictionary["payload"]["parameters"] == list
+    ):
         st.warning(
             "Invalid Input: template.json must contain a payload key with parameters listed"
         )
@@ -186,18 +219,29 @@ def handle_editor_content(input_str):
 
 def handle_parameters(parameters):
     for p in parameters:
-        minimum = parameters[p]["min"]
-        maximum = parameters[p]["max"]
+        minimum = parameters[p]["range"][0]
+        maximum = parameters[p]["range"][-1]
         default = parameters[p]["default"]
+        parameter_range = parameters[p]["range"]
         parameter_help = parameters_help_map[p]
-        print("parameter: ", p, " type: ", type(minimum), type(maximum), type(default))
-        print(type(minimum) == int)
         if not is_valid_default(default, minimum, maximum):
             st.warning(
                 "Invalid Default: "
                 + p
                 + " default value does not follow the convention default >= min and default <= max."
             )
+        elif len(parameter_range) > 2:
+            if not set(default).issubset(set(parameter_range)):
+                st.warning(
+                    "Invalid Default: "
+                    + p
+                    + " Every Multiselect default value must exist in options"
+                )
+            else:
+                parameters[p] = st.sidebar.multiselect(
+                    p, options=parameter_range, default=default
+                )
+
         elif type(minimum) == int and type(maximum) == int and type(default) == int:
             parameters[p] = st.sidebar.slider(
                 p,
@@ -290,12 +334,13 @@ def main():
 
     st.markdown(
         """
-    Example:  :red[For Few Shot Learning]
+    Let's say we want to list the country of origin for foods. Example Input:  
 
-    **:blue[List the Country of origin of food.]**
+    **:red[
     Pizza comes from Italy
     Burger comes from USA
-    Curry comes from
+    Curry comes from ...
+    ]**
     """
     )
 
@@ -315,6 +360,8 @@ def main():
 
             generated_text = generate_text(payload, endpoint_name)
             st.write(generated_text)
+        else:
+            st.warning("Invalid Endpoint: Please select a valid endpoint")
 
 
 if __name__ == "__main__":
