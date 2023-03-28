@@ -119,15 +119,14 @@ def read_template(template_path):
 
 
 def is_valid_default(parameter, minimum, maximum):
-    
     # parameter is a list
     if type(parameter) == list:
         return True
-    
+
     # parameter is an int or float and is in valid range
     if parameter <= maximum and parameter >= minimum:
         return True
-    
+
     # parameter is a bool
     if type(parameter) == bool and type(minimum) == bool and type(maximum) == bool:
         return True
@@ -191,7 +190,9 @@ def validate_json_template(json_dictionary):
         )
         return False
 
-    if not "parameters" in json_dictionary["payload"].keys() and not type(json_dictionary["payload"]["parameters"] == list):
+    if not "parameters" in json_dictionary["payload"].keys() and not type(
+        json_dictionary["payload"]["parameters"] == list
+    ):
         st.warning(
             "Invalid Input: template.json must contain a payload key with parameters listed"
         )
@@ -231,10 +232,16 @@ def handle_parameters(parameters):
             )
         elif len(parameter_range) > 2:
             if not set(default).issubset(set(parameter_range)):
-                st.warning("Invalid Default: " + p + " Every Multiselect default value must exist in options")
+                st.warning(
+                    "Invalid Default: "
+                    + p
+                    + " Every Multiselect default value must exist in options"
+                )
             else:
-                parameters[p] = st.sidebar.multiselect(p, options=parameter_range, default=default)
-        
+                parameters[p] = st.sidebar.multiselect(
+                    p, options=parameter_range, default=default
+                )
+
         elif type(minimum) == int and type(maximum) == int and type(default) == int:
             parameters[p] = st.sidebar.slider(
                 p,
