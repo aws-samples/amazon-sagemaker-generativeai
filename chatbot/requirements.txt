@@ -1,0 +1,11 @@
+langchain==0.0.161 
+chromadb==0.3.21
+boto3==1.26.16
+botocore==1.29.27
+html2text 
+jinja2
+faiss-cpu==1.7.4
+pypdf==3.8.1
+transformers==4.24.0
+anthropic
+sentence_transformers==2.2.2
