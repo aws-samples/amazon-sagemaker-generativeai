@@ -55,21 +55,15 @@ In this lab, we are going to uncover how to setup SageMaker Studio for prompt en
 
 ![image](/images/jumpstart-panel.png)
 
-- Under `Foundation Models` search for `FLAN-T5 XXL` model and click on `view model`.
+- Under `Foundation Models` search for `FLAN-T5 XL` model and click on `view model`.
 
 ![image](/images/flant5xxl.png)
 
-- As executed in lab1, in a similar way, deploy the Flan-T5 XXL model. You can change the deployment configuration or security settings based on the desired settings but you can go ahead and click on `deploy` for this lab. For deployment of the LLM models -- you can also refer to : https://github.com/aws/amazon-sagemaker-examples/tree/main/inference/generativeai/llm-workshop.
+- As executed in lab1, in a similar way, deploy the Flan-T5 XL model. You can change the deployment configuration or security settings based on the desired settings but you can go ahead and click on `deploy` for this lab. For deployment of the LLM models -- you can also refer to : https://github.com/aws/amazon-sagemaker-examples/tree/main/inference/generativeai/llm-workshop.
 
 ![image](/images/flan-deploy.png)
 
 - Take note of the model Endpoint details: Endpoint arn, Endpoint name, and the model location. IT may take 5-10 minutes to deploy the model endpoint. Endpoint status should switch to `In Service` in some-time. You can also scroll down on the page to open a demo notebook in order to query your endpoint from Studio.
-
-![image](/images/flan-deployed.png)
-
-- Within the notebook for the deployed model, you should be able to check the advanced parameters supported by the model. We may specify any subset of the parameters mentioned below while invoking an endpoint.
-
-![image](/images/parameters.png)
 
 - Now that our endpoint is created (which can also be seen in SageMaker-Studio dashboard), navigate to `prompt-engineering-playground-with-sagemaker
 ` folder that you cloned. 
@@ -78,9 +72,10 @@ In this lab, we are going to uncover how to setup SageMaker Studio for prompt en
 
 - Check the instructions for creating GUI within the environment using Streamlit present in `start_playground.txt` file. In order to launch the GUI, click on `File` within SageMaker Studio tab, then click on `New` and navigate to `Terminal`.
   - Within the Terminal, run the following command: `pip install boto3 streamlit streamlit-ace -Uq`
+  - Please ignore any warnings or errors related to `pip's dependency..`. 
   - Create an empty `templates` folder within `amazon-sagemaker-generativeai` folder before launching the app.
-  - Next, run the next command found in start_playground.txt -- `streamlit run invoke_endpoint.py`. Make sure you are in the right directory to run this command in the terminal (`amazon-sagemaker-generativeai/studio-playground-ui/`). Once the command is executed, you can view your Streamlit app in your browser.
-  - Copy the URL for SageMaker Studio and update the same by appending `/proxy/<port_no>`. You would have received the port number after running the Streamlit app. Domain URL should look similar to `https://d-lcxav5wg2gdg.studio.us-east-1.sagemaker.aws/jupyter/default/proxy/8502/`
+  - Next, run the next command found in start_playground.txt -- `streamlit run main.py`. Make sure you are in the right directory to run this command in the terminal (`amazon-sagemaker-generativeai/studio-playground-ui/`). Once the command is executed, you can view your Streamlit app in your browser.
+  - Copy the URL for SageMaker Studio and update the same by appending `/proxy/<port_no>/`. You would have received the port number after running the Streamlit app. Domain URL should look similar to `https://d-lcxav5wg2gdg.studio.us-east-1.sagemaker.aws/jupyter/default/proxy/<port_no>/`
   - Once you open the domain link, you can update the json with your model details such as `endpoint_name` and `model parameters` including the ranges.
   > 📝 The the data type for the range should be the same as default parameter for e.g. if the default value is in `float` then the range values should be in `float` as well. 
   
