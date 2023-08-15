@@ -1,4 +1,4 @@
-langchain==0.0.161 
+langchain==0.0.236 
 chromadb==0.3.21
 boto3==1.26.16
 botocore==1.29.27
