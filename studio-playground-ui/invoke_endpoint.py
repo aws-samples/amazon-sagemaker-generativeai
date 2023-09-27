@@ -33,7 +33,7 @@ def generate_text_ai21(payload, endpoint_name):
     print("payload type: ", type(payload))
     print("payload: ", payload)
     encoded_input = json.dumps({
-        "prompt": payload["inputs"],
+        "prompt": payload["text_inputs"],
         "maxTokens": payload["maxTokens"],
         "temperature": payload["temperature"],
         "numResults": payload["numResults"]}).encode("utf-8")
@@ -48,7 +48,7 @@ def generate_text_ai21(payload, endpoint_name):
 
 def generate_text_ai21_summarize(payload, endpoint_name):
     encoded_input = json.dumps({
-        "source": payload["inputs"],
+        "source": payload["text_inputs"],
         "sourceType": "TEXT"}).encode("utf-8")
     response = sagemaker_runtime.invoke_endpoint(
         EndpointName=endpoint_name, ContentType="application/json", Body=encoded_input
@@ -60,10 +60,10 @@ def generate_text_ai21_summarize(payload, endpoint_name):
 
 
 def generate_text_ai21_context_qa(payload, question, endpoint_name):
-    print('----- Context -------', payload["inputs"])
+    print('----- Context -------', payload["text_inputs"])
     print('----- Question ------', question)
     encoded_input = json.dumps({
-        "context": payload["inputs"],
+        "context": payload["text_inputs"],
         "question": question}).encode("utf-8")
     response = sagemaker_runtime.invoke_endpoint(
         EndpointName=endpoint_name, ContentType="application/json", Body=encoded_input
