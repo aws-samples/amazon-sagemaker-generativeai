@@ -8,7 +8,7 @@ def generate_text(payload, endpoint_name):
     encoded_input = json.dumps(payload).encode("utf-8")
 
     response = sagemaker_runtime.invoke_endpoint(
-        EndpointName=endpoint_name, ContentType="application/json", Body=encoded_input, CustomAttributes="accept_eula=true"
+        EndpointName=endpoint_name, ContentType="application/json", Body=encoded_input
     )
     print("Model input: \n", encoded_input)
     result = json.loads(response["Body"].read())
