@@ -1,0 +1,2 @@
+einops
+git+https://github.com/lanking520/DeepSpeed.git@falcon
