@@ -18,6 +18,7 @@ N = 7
 template_loader = jinja2.FileSystemLoader(searchpath="./")
 template_env = jinja2.Environment(loader=template_loader)
 
+
 def list_templates(dir_path):
     # folder path
     templates = []
@@ -49,8 +50,10 @@ def is_valid_default(parameter, minimum, maximum):
         return True
     return False
 
+
 def get_user_input():
-    uploaded_file = st.file_uploader(label="Upload JSON Template", type=["json"])
+    uploaded_file = st.file_uploader(
+        label="Upload JSON Template", type=["json"])
     uploaded_file_location = st.empty()
 
     # user uploads an image
@@ -62,7 +65,8 @@ def get_user_input():
             )
             with open(user_file_path, "wb") as user_file:
                 user_file.write(uploaded_file.getbuffer())
-            uploaded_file_location.write("Template Uploaded: " + str(user_file_path))
+            uploaded_file_location.write(
+                "Template Uploaded: " + str(user_file_path))
             st.session_state["new_template_added"] = True
         else:
             uploaded_file_location.warning(
@@ -151,7 +155,8 @@ def handle_parameters(parameters):
                 p, ["True", "False"], help=parameter_help
             )
         elif (
-            type(minimum) == float and type(maximum) == float and type(default) == float
+            type(minimum) == float and type(
+                maximum) == float and type(default) == float
         ):
             parameters[p] = st.sidebar.slider(
                 p,
@@ -169,11 +174,14 @@ def handle_parameters(parameters):
             )
     return parameters
 
+
 def on_clicked():
     st.session_state.text = example_prompts_ai21[st.session_state.task]
 
+
 def on_clicked_qa():
     st.session_state.text = example_context_ai21_qa[st.session_state.taskqa]
+
 
 def main():
     default_endpoint_option = "Select"
@@ -186,7 +194,7 @@ def main():
 
     st.sidebar.title("Model Parameters")
     st.image("./ml_image_prompt.png")
-    
+
     # Adding your own model
     with st.expander("Add a New Model"):
         st.header("Add a New Model")
@@ -196,7 +204,8 @@ def main():
                 endpoint_name, and payload with parameters.  \n \n Below is an example of a
                 template.json"""
         )
-        res = "".join(random.choices(string.ascii_uppercase + string.digits, k=N))
+        res = "".join(random.choices(
+            string.ascii_uppercase + string.digits, k=N))
         get_user_input()
 
         # Spawn a new Ace editor and display editor's content as you type
@@ -216,7 +225,8 @@ def main():
             templates = list_templates("templates")
 
         if st.session_state["new_template_added"]:
-            res = "".join(random.choices(string.ascii_uppercase + string.digits, k=N))
+            res = "".join(random.choices(
+                string.ascii_uppercase + string.digits, k=N))
             selected_endpoint = sidebar_selectbox.selectbox(
                 label="Select the endpoint to run in SageMaker",
                 options=list_templates("templates"),
@@ -226,7 +236,8 @@ def main():
     # Prompt Engineering Playground
     st.header("Prompt Engineering Playground")
     if selected_endpoint != default_endpoint_option:
-        output_text = read_template(f"templates/{selected_endpoint}.template.json")
+        output_text = read_template(
+            f"templates/{selected_endpoint}.template.json")
         output = json.loads(output_text)
         parameters = output["payload"]["parameters"]
         print("parameters ------------------ ", parameters)
@@ -234,22 +245,22 @@ def main():
             parameters = handle_parameters(parameters)
 
         st.markdown(
-           output["description"]
+            output["description"]
         )
     if selected_endpoint == "AI21-J2-GRANDE-INSTRUCT":
         selected_task = st.selectbox(
             label="Example prompts",
-            options=example_list, 
-            on_change=on_clicked, 
+            options=example_list,
+            on_change=on_clicked,
             key="task"
-            )
+        )
     if selected_endpoint == "AI21-CONTEXT-QA":
         selected_task = st.selectbox(
             label="Example context",
-            options=example_context_ai21_qa, 
-            on_change=on_clicked_qa, 
+            options=example_context_ai21_qa,
+            on_change=on_clicked_qa,
             key="taskqa"
-            )
+        )
     if selected_endpoint == "AI21-SUMMARY" or selected_endpoint == "AI21-CONTEXT-QA":
         uploaded_file = st.file_uploader("Choose a file")
         if uploaded_file is not None:
@@ -258,50 +269,48 @@ def main():
             string_data = stringio.read()
             st.session_state.text = string_data
             prompt = st.session_state.text
-        
+
     prompt = st.text_area("Enter your prompt here:", height=350, key="text")
     if selected_endpoint == "AI21-CONTEXT-QA":
-        question = st.text_area("Enter your question here", height=80, key="question")
+        question = st.text_area(
+            "Enter your question here", height=80, key="question")
     placeholder = st.empty()
 
     if st.button("Run"):
-        final_text=""
+        final_text = ""
         if selected_endpoint != default_endpoint_option:
             placeholder = st.empty()
             endpoint_name = output["endpoint_name"]
             print(parameters)
-            # payload = {
-            #     "text_inputs": [
-            #         prompt,
-            #     ],
-            #     parameters
-            # }
             if parameters != "None":
-                payload = {"text_inputs": prompt, **parameters}
-            else: 
-                payload = {"text_inputs": prompt}
+                payload = {"inputs": prompt, "parameters": {**parameters}}
+            else:
+                payload = {"inputs": prompt}
             if output["model_type"] == "AI21":
                 print('-------- Payload ----------', payload)
                 generated_text = generate_text_ai21(payload, endpoint_name)
-                final_text = f''' {generated_text} ''' # to take care of multi line prompt
+                final_text = f''' {generated_text} '''  # to take care of multi line prompt
                 st.write(final_text)
             elif output["model_type"] == "AI21-SUMMARY":
-                generated_text = generate_text_ai21_summarize(payload, endpoint_name)
+                generated_text = generate_text_ai21_summarize(
+                    payload, endpoint_name)
                 summaries = generated_text.split("\n")
                 for summary in summaries:
                     st.markdown("- " + summary)
-                    final_text+=summary
+                    final_text += summary
             elif output["model_type"] == "AI21-CONTEXT-QA":
-                generated_text = generate_text_ai21_context_qa(payload, question, endpoint_name)
-                final_text = f''' {generated_text} ''' # to take care of multi line prompt
+                generated_text = generate_text_ai21_context_qa(
+                    payload, question, endpoint_name)
+                final_text = f''' {generated_text} '''  # to take care of multi line prompt
                 st.write(final_text)
-            else: 
+            else:
                 generated_text = generate_text(payload, endpoint_name)
-                final_text = f''' {generated_text} ''' # to take care of multi line prompt
+                final_text = f''' {generated_text} '''  # to take care of multi line prompt
                 st.write(final_text)
         else:
             st.warning("Invalid Endpoint: Please select a valid endpoint")
         st.download_button("Download", final_text, file_name="output.txt")
+
 
 if __name__ == "__main__":
     main()
