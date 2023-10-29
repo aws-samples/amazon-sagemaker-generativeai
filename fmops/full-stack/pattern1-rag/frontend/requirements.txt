@@ -1,0 +1,5 @@
+streamlit
+langchain
+requests-aws4auth
+opensearch-py
+boto3

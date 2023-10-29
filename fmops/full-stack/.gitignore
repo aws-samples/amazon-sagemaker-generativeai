@@ -1,0 +1,7 @@
+*.code-workspace
+node_modules
+TODO
+pattern1-rag/cdk/lambda/bedrockhelper/boto3-1.26.162-py3-none-any.whl
+pattern1-rag/cdk/lambda/bedrockhelper/bedrock-python-sdk.zip
+pattern1-rag/cdk/lambda/bedrockhelper/botocore-1.29.162-py3-none-any.whl
+.DS_Store
