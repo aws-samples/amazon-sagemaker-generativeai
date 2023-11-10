@@ -1,0 +1,37 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": [
+                "aoss:BatchGetLifecyclePolicy",
+                "aoss:GetAccessPolicy",
+                "aoss:CreateAccessPolicy",
+                "aoss:APIAccessAll",
+                "aoss:CreateLifecyclePolicy",
+                "aoss:ListAccessPolicies",
+                "aoss:ListSecurityPolicies",
+                "aoss:GetSecurityPolicy",
+                "aoss:ListTagsForResource",
+                "aoss:BatchGetCollection",
+                "aoss:ListLifecyclePolicies",
+                "aoss:ListSecurityConfigs",
+                "aoss:CreateSecurityConfig",
+                "aoss:CreateSecurityPolicy",
+                "aoss:TagResource",
+                "aoss:BatchGetVpcEndpoint",
+                "aoss:GetPoliciesStats",
+                "aoss:ListVpcEndpoints",
+                "aoss:DashboardsAccessAll",
+                "aoss:GetAccountSettings",
+                "aoss:GetSecurityConfig",
+                "aoss:CreateVpcEndpoint",
+                "aoss:BatchGetEffectiveLifecyclePolicy",
+                "aoss:ListCollections",
+                "aoss:CreateCollection"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
