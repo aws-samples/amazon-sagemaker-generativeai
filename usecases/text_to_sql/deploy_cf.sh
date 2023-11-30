@@ -18,5 +18,5 @@ aws s3 cp $ZIP_FILE s3://$BUCKET/lab-5-text2sql-demo/
 cd ..
 # create cloudformation stack
 aws cloudformation create-stack --stack-name $STACK_NAME --template-body file://template.yaml --parameters ParameterKey=DBUser,ParameterValue=$DBUSER ParameterKey=DBPwd,ParameterValue=$DBPASSWORD
-# give elastic beanstalk permission to invoke sagemaker endpoint !!TODO overpermissive!!
+# give elastic beanstalk permission to invoke sagemaker endpoint !!overpermissive, dont use in production!!
 aws iam attach-role-policy --role-name aws-elasticbeanstalk-ec2-role --policy-arn arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
