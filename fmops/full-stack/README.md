@@ -34,11 +34,11 @@ Using the deployment parameters noted above, deploy the CDK stack. See [here](ht
 > **NOTE:** Ensure Docker is installed and running on the workstation that will be used for CDK deployment
 
     $ cd pattern1-rag/cdk
-    $ cdk deploy BackendStack
+    $ cdk deploy BackendStack --exclusively 
         -c textModelEndpointName=<Enter the SageMaker Endpoint Name for the Text generation model> \
         -c embeddingsModelEndpointName=<Enter the SageMaker Endpoint Name for the Text embeddings model>
 
-Alternatively, you can enter the seven context values in a file called `cdk.context.json` in the `pattern1-rag/cdk` directory and run `cdk deploy BackendStack`.
+Alternatively, you can enter the seven context values in a file called `cdk.context.json` in the `pattern1-rag/cdk` directory and run `cdk deploy BackendStack --exclusively`.
 
 The deployment will print out outputs, some of which will be needed to run the notebook.
 
