@@ -1,5 +1,4 @@
-streamlit
-langchain
-requests-aws4auth
-opensearch-py
-boto3
+streamlit==1.27.2
+langchain==0.0.317
+opensearch-py==2.4.2
+boto3==1.28.17

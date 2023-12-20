@@ -108,7 +108,8 @@ export class FrontendStack extends cdk.Stack {
     taskDefinition.addToTaskRolePolicy(new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
-          'dynamodb:*'
+          "dynamodb:PutItem",
+          "dynamodb:GetItem"
           ],
           resources: [conversationMemoryTable.tableArn]
         }))
@@ -139,9 +140,9 @@ export class FrontendStack extends cdk.Stack {
     taskDefinition.addToTaskRolePolicy(new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
-          'es:*'
+          'es:ESHttp*'
           ],
-        resources: [props.openSearchDomainArn]
+        resources: [props.openSearchDomainArn + "/*"]
       }))
     appContainer.addPortMappings({ containerPort: 8501, protocol: ecs.Protocol.TCP});
     
@@ -204,7 +205,7 @@ export class FrontendStack extends cdk.Stack {
 
     // Setup cognito for user authentication
     const userPool = new UserPool(this, 'UserPool', {
-      selfSignUpEnabled: true,
+      selfSignUpEnabled: false,
       signInAliases: { email: true },
     });
     const userPoolClient = userPool.addClient('UserPoolClient', {
@@ -295,6 +296,9 @@ export class FrontendStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, 'AppURL', {
       value: `https://${appCustomDomainName}`
+    });
+    new cdk.CfnOutput(this, 'CognitoUserPool', {
+      value: userPool.userPoolId
     });
   }
 }
