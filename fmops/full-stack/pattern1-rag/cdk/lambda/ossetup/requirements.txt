@@ -1,1 +1,3 @@
 requests
+opensearch-py
+aws-requests-auth
