@@ -61,7 +61,7 @@ SageMaker Canvas also provides some example prompts which can be useful to see h
 
 SageMaker Canvas supports 9 foundation models from Amazon Bedrock and 13 open-source models from Amazon SageMaker JumpStart:
 
-![Bedrock models](./bedrock-models.png)
+![Bedrock models](./images/bedrock-models.png)
 
 With respect to pricing, Amazon SageMaker Canvas **does not charge any extra** on top of the services being queried behind the scenes, and the hourly pricing for the Canvas app itself. It is important to note that Amazon Bedrock models are priced by the token, and do not require deployment on an endpoint. SageMaker Canvas open-source models are powered by Amazon SageMaker JumpStart - this means that, in order to use models, you will have to deploy them to an Amazon SageMaker endpoint. Amazon SageMaker Canvas takes care of automatically shutting down the endpoints after two hours of inactivity, however this requires the SageMaker Canvas app to be running.
 
