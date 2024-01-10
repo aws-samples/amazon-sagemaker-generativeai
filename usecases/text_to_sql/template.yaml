@@ -1,0 +1,190 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Natural Language to SQL Application"
+
+Parameters:
+  DBUser:
+    Type: String
+    Default: dbadmin
+    Description: Username for database admin
+  DBPwd: 
+    NoEcho: true
+    Description: The database admin account password
+    Type: String
+    MinLength: 1
+    MaxLength: 41
+    AllowedPattern: ^[a-zA-Z0-9]*$
+
+Resources:
+  # Elastic Beanstalk Application
+  EBApplication:
+    Type: "AWS::ElasticBeanstalk::Application"
+    Properties:
+      ApplicationName: "NaturalLanguageToSQLApp"
+
+  # Elastic Beanstalk Application version
+  EBAppVersion: 
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties: 
+      ApplicationName: !Ref EBApplication
+      Description: "v1"
+      SourceBundle: 
+        S3Bucket: "sagemaker-us-east-1-352564752819"
+        S3Key: "lab-5-text2sql-demo/myapp.zip"
+
+  # Elastic Beanstalk Security Group
+  EBSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Elastic Beanstalk Security Group"
+      VpcId: !Ref DefaultVPC
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        IpProtocol: "-1"
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80 
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 5432
+        CidrIp: 0.0.0.0/0
+
+  # Elastic Beanstalk Environment
+  EBEnvironment:
+    Type: "AWS::ElasticBeanstalk::Environment"
+    Properties:
+      ApplicationName: !Ref EBApplication
+      EnvironmentName: "NaturalLanguageToSQLAppEnvironment"
+      SolutionStackName: "64bit Amazon Linux 2023 v4.1.0 running Docker"
+      VersionLabel: !Ref EBAppVersion 
+      OptionSettings:
+        - Namespace: "aws:elasticbeanstalk:environment"
+          OptionName: "EnvironmentType"
+          Value: "SingleInstance" 
+        - Namespace: "aws:autoscaling:launchconfiguration"
+          OptionName: "IamInstanceProfile"
+          Value: "aws-elasticbeanstalk-ec2-role"
+        - Namespace: "aws:ec2:vpc"
+          OptionName: "VPCId"
+          Value: !Ref DefaultVPC
+        - Namespace: aws:ec2:vpc
+          OptionName: ELBSubnets
+          Value: !Ref Subnet1
+        - Namespace: aws:ec2:vpc
+          OptionName: Subnets
+          Value: !Ref Subnet1
+        - Namespace: "aws:autoscaling:launchconfiguration"
+          OptionName: "SecurityGroups"
+          Value: !Ref EBSecurityGroup 
+
+
+  # Default VPC
+  DefaultVPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+
+  # Internet Gateway
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+      Tags:
+        - Key: Name
+          Value: "InternetGateway for Elastic Beanstalk" 
+  GatewayToInternet:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      VpcId: !Ref DefaultVPC
+      InternetGatewayId: !Ref InternetGateway
+  PublicRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref DefaultVPC
+  PublicRoute:
+    Type: "AWS::EC2::Route"
+    DependsOn: GatewayToInternet
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref InternetGateway
+  Subnet1RouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref Subnet1
+      RouteTableId: !Ref PublicRouteTable 
+  Subnet2RouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref Subnet2
+      RouteTableId: !Ref PublicRouteTable
+    
+
+  # Default Subnets (Assuming 2 public subnets in different availability zones)
+  Subnet1:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: "us-east-1a" 
+      VpcId: !Ref DefaultVPC
+      CidrBlock: "10.0.0.0/24"
+      MapPublicIpOnLaunch: true
+
+  Subnet2:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: "us-east-1b" 
+      VpcId: !Ref DefaultVPC
+      CidrBlock: "10.0.1.0/24"
+      MapPublicIpOnLaunch: true
+
+  # RDS Aurora PostgreSQL Cluster
+  DBSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties:
+      DBSubnetGroupDescription: "Subnet group for Aurora DB"
+      SubnetIds:
+        - !Ref Subnet1
+        - !Ref Subnet2
+
+  # Database Security Group
+  DBSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Aurora PostgreSQL Database Security Group"
+      GroupName: "DBSecurityGroup"
+      VpcId: !Ref DefaultVPC
+
+  DBCluster:
+    Type: "AWS::RDS::DBCluster"
+    Properties:
+      Engine: "aurora-postgresql"
+      EngineMode: "serverless"
+      MasterUsername: "dbadmin"
+      MasterUserPassword: "12345678"
+      DatabaseName: "CompanyDatabase"
+      Port: 5432
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      BackupRetentionPeriod: 7
+      ScalingConfiguration:
+        MinCapacity: 2
+        MaxCapacity: 16
+        AutoPause: true
+        SecondsUntilAutoPause: 300
+      VpcSecurityGroupIds:
+        - !GetAtt DBSecurityGroup.GroupId
+
+
+  InboundRule:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    Properties:
+      IpProtocol: "tcp"
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !GetAtt EBSecurityGroup.GroupId
+      GroupId: !GetAtt DBSecurityGroup.GroupId
+
+Outputs:
+  StreamlitURL:
+    Description: "URL for the Natural Language To SQL Application"
+    Value: !GetAtt EBEnvironment.EndpointURL
+    
