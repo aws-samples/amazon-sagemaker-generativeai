@@ -1,0 +1,10 @@
+streamlit
+streamlit-extras
+requests
+boto3
+s3fs
+ai21[AWS]
+pandas
+psycopg2-binary
+langchain
+sagemaker
