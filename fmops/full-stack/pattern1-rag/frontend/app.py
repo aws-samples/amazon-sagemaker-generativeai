@@ -13,6 +13,7 @@ from langchain.llms.sagemaker_endpoint import LLMContentHandler
 from langchain.embeddings import SagemakerEndpointEmbeddings
 from langchain.embeddings.sagemaker_endpoint import EmbeddingsContentHandler
 from langchain.chains.question_answering import load_qa_chain
+from opensearchpy import RequestsHttpConnection, AWSV4SignerAuth
 
 logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger()
@@ -115,11 +116,18 @@ def create_sagemaker_embeddings(endpoint_name):
 # Functiion to do vector search and get context from opensearch. Returns list of documents
 def get_context_from_opensearch(query, endpoint_name, opensearch_domain_endpoint, opensearch_index):
 
+    credentials = boto3.Session().get_credentials()
+    region = boto3.Session().region_name
+    auth = AWSV4SignerAuth(credentials, region, "es")
     opensearch_endpoint = f"https://{opensearch_domain_endpoint}"
     docsearch = OpenSearchVectorSearch(
         index_name=opensearch_index,
         embedding_function=create_sagemaker_embeddings(endpoint_name),
         opensearch_url=opensearch_endpoint,
+        http_auth = auth,
+        use_ssl = True,
+        verify_certs = True,
+        connection_class = RequestsHttpConnection,
         is_aoss=False
     )
     docs_with_scores = docsearch.similarity_search_with_score(query, k=3, vector_field="embedding", text_field="passage")
