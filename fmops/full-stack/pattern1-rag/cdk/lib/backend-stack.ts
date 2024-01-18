@@ -229,20 +229,25 @@ export class BackendStack extends cdk.Stack {
       },
       accessPolicies: [
         new cdk.aws_iam.PolicyStatement({
-          actions: ['es:*',],
+          actions: ['es:ESHttp*',],
           resources: ['*'],
           effect: cdk.aws_iam.Effect.ALLOW,
-          principals: [new cdk.aws_iam.AnyPrincipal()]
+          principals: [new cdk.aws_iam.AccountRootPrincipal]
         })],
+        enforceHttps: true,
+        nodeToNodeEncryption: true,
+        encryptionAtRest: {
+          enabled: true
+        },
         removalPolicy: cdk.RemovalPolicy.DESTROY
     })
     openSearchDomain.connections.allowFrom(ec2.Peer.ipv4(vpc.vpcCidrBlock), ec2.Port.allTraffic(), 'All traffic from VPC to OpenSearch')
     const createOsIndexLambda = new lambda.Function( this, `osIndexCustomResourceLambda`, {
-        runtime: lambda.Runtime.PYTHON_3_9,
+        runtime: lambda.Runtime.PYTHON_3_11,
         vpc: vpc,
         code: lambda.Code.fromAsset( "lambda/ossetup", {
           bundling: {
-            image: lambda.Runtime.PYTHON_3_9.bundlingImage,
+            image: lambda.Runtime.PYTHON_3_11.bundlingImage,
             command: [
               'bash', '-c',
               'pip install -r requirements.txt -t /asset-output && cp -au . /asset-output'
@@ -254,11 +259,20 @@ export class BackendStack extends cdk.Stack {
         timeout: cdk.Duration.minutes(1),
         memorySize: 1024,
         environment: {
-          DOMAINURL: "https://" + openSearchDomain.domainEndpoint,
+          DOMAINURL: openSearchDomain.domainEndpoint,
           INDEX: 'embeddings'
         }
       }
     );
+    createOsIndexLambda.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          'es:ESHttp*'
+          ],
+        resources: [openSearchDomain.domainArn + "/*"]
+      })
+    )
     const customResourceProvider = new customResources.Provider( this, `osIndexCustomResourceProvider`, {
         onEventHandler: createOsIndexLambda,
       }
@@ -365,11 +379,11 @@ export class BackendStack extends cdk.Stack {
     });
     
     const csvToEmbeddingFn = new lambda.Function(this, 'csvToEmbeddingFn', {
-      runtime: lambda.Runtime.PYTHON_3_9,
+      runtime: lambda.Runtime.PYTHON_3_11,
       vpc: vpc,
       code: lambda.Code.fromAsset('lambda/embeddingprocessor', {
           bundling: {
-            image: lambda.Runtime.PYTHON_3_9.bundlingImage,
+            image: lambda.Runtime.PYTHON_3_11.bundlingImage,
             command: [
               'bash', '-c',
               'pip install -r requirements.txt -t /asset-output && cp -au . /asset-output'
@@ -381,7 +395,7 @@ export class BackendStack extends cdk.Stack {
       timeout: cdk.Duration.minutes(1),
       memorySize: 1024,
       environment: {
-        DOMAINURL: "https://" + openSearchDomain.domainEndpoint,
+        DOMAINURL: openSearchDomain.domainEndpoint,
         INDEX: 'embeddings',
         FIREHOSE: fh_embed.ref,
         EMBEDDINGS_MODEL_ENDPOINT: endpointEmbed
@@ -403,6 +417,17 @@ export class BackendStack extends cdk.Stack {
         resources: [fh_embed.attrArn]
       })
     );
+// Add policy to allow access to OpenSearch
+    csvToEmbeddingFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          'es:ESHttp*'
+          ],
+        resources: [openSearchDomain.domainArn + "/*"]
+      })
+    );
+
     const csvToEmbedding = new sfn.CustomState(this, "CsvToEmbeddingMap", {
       stateJson: {
         Type: "Map",
@@ -469,7 +494,9 @@ export class BackendStack extends cdk.Stack {
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
-          'states:*',
+          'states:StartExecution',
+          'states:DescribeExecution',
+          'states:StopExecution'
         ],
         resources: ['arn:aws:states:' + this.region + ':' + this.account + ':stateMachine:StateMachinePdfToText*']
       })
@@ -514,7 +541,8 @@ export class BackendStack extends cdk.Stack {
       partitionKey: { name: 'jobtype', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'jobdate', type: dynamodb.AttributeType.NUMBER },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      pointInTimeRecovery: true
+      pointInTimeRecovery: true,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED
     });
     // Fields:
     // jobtypedate (jobtype-jobdate) (PK)
@@ -524,19 +552,22 @@ export class BackendStack extends cdk.Stack {
       partitionKey: { name: 'jobtypedate', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'centroid', type: dynamodb.AttributeType.NUMBER },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      pointInTimeRecovery: true
+      pointInTimeRecovery: true,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED
     });
     const driftTablePrompts = new dynamodb.Table(this, 'DriftTablePrompts', {
       partitionKey: { name: 'jobtype', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'jobdate', type: dynamodb.AttributeType.NUMBER },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      pointInTimeRecovery: true
+      pointInTimeRecovery: true,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED
     });
     const driftTableCentroidsPrompts = new dynamodb.Table(this, 'DriftTableCentroidsPrompts', {
       partitionKey: { name: 'jobtypedate', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'centroid', type: dynamodb.AttributeType.NUMBER },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      pointInTimeRecovery: true
+      pointInTimeRecovery: true,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED
     });
     // Fields:
     // jobtype (PK) [DISTANCE]
@@ -548,7 +579,8 @@ export class BackendStack extends cdk.Stack {
       partitionKey: { name: 'jobtype', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'jobdate', type: dynamodb.AttributeType.NUMBER },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      pointInTimeRecovery: true
+      pointInTimeRecovery: true,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED
     });
 
     // Glue job for embedding drift and prompt distance
@@ -570,10 +602,10 @@ export class BackendStack extends cdk.Stack {
       }
     });
     contentBucket.grantRead(driftJob);
-    driftTable.grantFullAccess(driftJob);
-    driftTableCentroids.grantFullAccess(driftJob);
-    driftTablePrompts.grantFullAccess(driftJob);
-    driftTableCentroidsPrompts.grantFullAccess(driftJob);
+    driftTable.grantReadWriteData(driftJob);
+    driftTableCentroids.grantReadWriteData(driftJob);
+    driftTablePrompts.grantReadWriteData(driftJob);
+    driftTableCentroidsPrompts.grantReadWriteData(driftJob);
     const distanceJob = new glue.Job(this, 'EmbeddingDistanceJob', {
       jobName: 'embedding-distance-analysis',
       executable: glue.JobExecutable.pythonEtl({
@@ -625,8 +657,17 @@ export class BackendStack extends cdk.Stack {
         ],
         resources: ['*']
       })
-    );  
-
+    );
+    nb_role.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          'es:ESHttp*'
+          ],
+        resources: [openSearchDomain.domainArn + "/*"]
+      })
+    );
+    
     const notebook = new sagemaker.CfnNotebookInstance(this, 'NotebookInstance', {
       instanceType: 'ml.t3.medium',
       roleArn: nb_role.roleArn,

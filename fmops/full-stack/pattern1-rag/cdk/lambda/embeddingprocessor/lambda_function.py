@@ -2,7 +2,7 @@ import traceback
 import json
 import boto3
 from opensearchpy.helpers import bulk
-from opensearchpy import OpenSearch
+from opensearchpy import OpenSearch, AWSV4SignerAuth, RequestsHttpConnection
 import os
 import uuid
 
@@ -53,9 +53,18 @@ def lambda_handler(event, context):
     embedding_model = os.environ['EMBEDDINGS_MODEL_ENDPOINT']
 
     fhclient = boto3.client('firehose')
-
+  
     try:
-        opensearch = OpenSearch(os_url)
+        credentials = boto3.Session().get_credentials()
+        region = boto3.Session().region_name
+        auth = AWSV4SignerAuth(credentials, region, "es")
+        opensearch = OpenSearch( 
+          hosts = [{'host': os_url, 'port': 443}],
+          http_auth = auth,
+          use_ssl = True,
+          verify_certs = True,
+          connection_class = RequestsHttpConnection
+        )
         requests = []
         fh_stream_records = []
         for item in event['Items']:
