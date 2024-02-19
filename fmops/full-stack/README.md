@@ -2,6 +2,9 @@
 
 This repository contains examples of deployment patterns for a full-stack LLM solution.
 
+## Disclaimer
+Sample code, software libraries, command line tools, proofs of concept, templates, or other related technology are provided as AWS Content or Third-Party Content under the AWS Customer Agreement, or the relevant written agreement between you and AWS (whichever applies). You should not use this AWS Content or Third-Party Content in your production accounts, or on production or other critical data. You are responsible for testing, securing, and optimizing the AWS Content or Third-Party Content, such as sample code, as appropriate for production grade use based on your specific quality control practices and standards. Deploying AWS Content or Third-Party Content may incur AWS charges for creating or using AWS chargeable resources, such as running Amazon EC2 instances or using Amazon S3 storage.
+
 ## Pattern 1: Retrieval Augmented Generation (RAG) based on PDF documents
 
 This pattern shows how to build a RAG system based on a library of PDF documents.
@@ -34,11 +37,11 @@ Using the deployment parameters noted above, deploy the CDK stack. See [here](ht
 > **NOTE:** Ensure Docker is installed and running on the workstation that will be used for CDK deployment
 
     $ cd pattern1-rag/cdk
-    $ cdk deploy BackendStack
+    $ cdk deploy BackendStack --exclusively 
         -c textModelEndpointName=<Enter the SageMaker Endpoint Name for the Text generation model> \
         -c embeddingsModelEndpointName=<Enter the SageMaker Endpoint Name for the Text embeddings model>
 
-Alternatively, you can enter the seven context values in a file called `cdk.context.json` in the `pattern1-rag/cdk` directory and run `cdk deploy BackendStack`.
+Alternatively, you can enter the seven context values in a file called `cdk.context.json` in the `pattern1-rag/cdk` directory and run `cdk deploy BackendStack --exclusively`.
 
 The deployment will print out outputs, some of which will be needed to run the notebook.
 
