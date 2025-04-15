@@ -20,9 +20,9 @@
     "typescript": "~5.0.4"
   },
   "dependencies": {
-    "@aws-cdk/aws-glue-alpha": "^2.83.0-alpha.0",
+    "@aws-cdk/aws-glue-alpha": "^2.189.0-alpha.0",
     "amazon-textract-idp-cdk-constructs": "^0.0.37",
-    "aws-cdk-lib": "^2.115.0",
+    "aws-cdk-lib": "^2.189.0",
     "cdk-nag": "^2.27.104",
     "cognito-at-edge": "^1.5.0",
     "constructs": "^10.0.0",
