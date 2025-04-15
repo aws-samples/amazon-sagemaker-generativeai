@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "aws-cdk-lib": "^2.189.0",
+    "aws-cdk-lib": "^2.189.1",
     "path": "^0.12.7"
   }
 }
