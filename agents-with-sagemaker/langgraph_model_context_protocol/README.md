@@ -59,18 +59,28 @@ Agents-FSI-MCP/
 ### 1. Install dependencies
 ```bash
 pip install -r requirements.txt
+pip install -U langchain-aws
 ```
+Note: In case you get module not found error with Langchain
+Run pip install -U langchain-aws
 
-### 2. Set up `.env`
+### 2. Deploy LLM Endpoint
+python3 deploy_sm_endpoint.py
+
+Copy the output of the endpoint name craeted after this job is successful for the next step to paste it in your.env file.
+
+### 3. Set up `.env`file in the same root folder. Copy the code below.
+Note: Langchain API key to access LangSmith is optional.
+
 ```env
 AWS_REGION=YOUR REGION
-SAGEMAKER_ENDPOINT=your-endpoint-name
+SAGEMAKER_ENDPOINT=your-endpoint-name (created in Step2)
 AWS_ACCESS_KEY_ID=your-key
 AWS_SECRET_ACCESS_KEY=your-secret
-LANGCHAIN_API_KEY=your-langsmith-key
-LANGCHAIN_PROJECT=LoanUnderwriterFlow
-LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
-LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=your-langsmith-key(optional)
+LANGCHAIN_PROJECT=LoanUnderwriterFlow(optional)
+LANGCHAIN_ENDPOINT=https://api.smith.langchain.com(optional)
+LANGCHAIN_TRACING_V2=true(optional)
 
 LOAN_PARSER_URL=http://127.0.0.1:8002/process
 CREDIT_ANALYZER_URL=http://127.0.0.1:8003/process
@@ -78,6 +88,12 @@ RISK_ASSESSOR_URL=http://127.0.0.1:8004/process
 ```
 
 ### 3. Start MCP servers
+In case you are running this code in Amazon SageMaker JupyterLab. You would need to run the commands individually in three different terminals to start the servers.
+Go to JupyterLab -> Click New Terminal -> Copy and paste uvicorn servers.loan_parser.main:app --port 8002
+Go to JupyterLab -> Click New Terminal -> Copy and paste uvicorn servers.credit_analyzer.main:app --port 8003
+Go to JupyterLab -> Click New Terminal -> Copy and paste uvicorn servers.risk_assessor.main:app --port 8004
+
+Or you can use tmux( terminal multiplexer) to run all three servers if you have tmux installed
 ```bash
 uvicorn servers.loan_parser.main:app --port 8002
 uvicorn servers.credit_analyzer.main:app --port 8003
@@ -85,13 +101,15 @@ uvicorn servers.risk_assessor.main:app --port 8004
 ```
 
 ### 4. Run the pipeline
+From JupyterLab-> Click new terminal-> copy and paste python scripts/run_pipeline.py
+Note: make sure all the terminals are running.
 ```bash
 python scripts/run_pipeline.py
 ```
 
 Check results in:
 - 🧠 Terminal (final output)
-- 🔍 [LangSmith](https://smith.langchain.com) for full trace
+- 🔍 [LangSmith](https://smith.langchain.com) for full trace (Optional)
 
 ---
 
