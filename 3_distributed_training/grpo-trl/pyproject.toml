@@ -1,0 +1,21 @@
+[project]
+name = "rl-on-sagemaker"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "accelerate>=1.6.0",
+    "boto3>=1.37.37",
+    "datasets>=3.5.0",
+    "gpustat>=1.1.1",
+    "graphene>=3.4.3",
+    "huggingface>=0.0.1",
+    "ipykernel>=6.29.5",
+    "ipywidgets>=8.1.6",
+    "python-dotenv>=1.1.0",
+    "sagemaker>=2.243.2",
+    "torch>=2.6.0",
+    "trl>=0.16.1",
+    "verl>=0.3.0.post1",
+]
