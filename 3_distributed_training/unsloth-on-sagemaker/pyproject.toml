@@ -6,12 +6,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "boto3>=1.38.17",
-    "gpustat>=1.1.1",
     "graphene>=3.4.3",
     "ipykernel>=6.29.5",
     "ipywidgets>=8.1.7",
-    "python-dotenv>=1.1.0",
     "sagemaker>=2.244.1",
-    "unsloth>=2025.5.4",
-    "wandb>=0.19.11",
 ]
