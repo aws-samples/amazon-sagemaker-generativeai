@@ -6,7 +6,7 @@ This directory contains examples of distributed training implementations for Lar
 
 ### 1. Distributed Training in SageMaker Studio
 
-- [Distributed Training in SageMaker Studio](distributed_training_sm_unified_studio/README.md) - Example showing how to use SageMaker's distributed training capabilities directly from Studio.
+- [Distributed Training in SageMaker Studio](distributed_training_sm_unified_studio/README.md) - Example showing how to use SageMaker's distributed training capabilities directly from SageMaker Unified Studio.
 
 ### 2. Reinforcement Learning
 
