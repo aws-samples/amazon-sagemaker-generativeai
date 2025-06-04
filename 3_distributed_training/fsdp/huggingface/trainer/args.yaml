@@ -1,0 +1,29 @@
+model_id: "Qwen/Qwen3-0.6B"       # Hugging Face model id
+mlflow_uri: ""
+mlflow_experiment_name: "qwen3-06b-sft"
+# sagemaker specific parameters
+output_dir: "/opt/ml/model"                       # path to where SageMaker will upload the model 
+checkpoint_dir: "/opt/ml/checkpoints/"
+train_dataset_path: "/opt/ml/input/data/train/"   # path to where FSx saves train dataset
+test_dataset_path: "/opt/ml/input/data/test/"     # path to where FSx saves test dataset
+save_steps: 100                                   # Save checkpoint every this many steps
+# training parameters
+lora_r: 8
+lora_alpha: 16
+lora_dropout: 0.1                 
+learning_rate: 2e-4                    # learning rate scheduler
+num_train_epochs: 2                    # number of training epochs
+per_device_train_batch_size: 2         # batch size per device during training
+per_device_eval_batch_size: 1          # batch size for evaluation
+gradient_accumulation_steps: 2         # number of steps before performing a backward/update pass
+gradient_checkpointing: true           # use gradient checkpointing
+bf16: true                             # use bfloat16 precision
+tf32: false                            # use tf32 precision
+fsdp: "full_shard auto_wrap offload"
+fsdp_config: 
+    backward_prefetch: "backward_pre"
+    cpu_ram_efficient_loading: true
+    offload_params: true
+    forward_prefetch: false
+    use_orig_params: true
+merge_weights: true                    # merge weights in the base model
