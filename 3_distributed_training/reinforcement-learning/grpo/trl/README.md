@@ -13,9 +13,11 @@ The repository offers two distinct implementations for GRPO training:
    - Simplified configuration using YAML files
 
 2. **Torchrun-based Implementation** ([torchrun/](torchrun/)): Uses PyTorch's distributed training with:
-   - FSDP (Fully Sharded Data Parallel) support
-   - Comprehensive monitoring and experiment tracking
-   - Multiple reward function implementations
+
+   1. [FSDP](torchrun/fsdp/)
+      - FSDP (Fully Sharded Data Parallel) support
+      - Comprehensive monitoring and experiment tracking
+      - Multiple reward function implementations
 
 ## Features
 
@@ -57,12 +59,13 @@ The repository offers two distinct implementations for GRPO training:
 │   │   └── requirements.txt      # Dependencies
 │   └── launch-training-job.ipynb  # SageMaker launcher
 └── torchrun/                      # Torchrun-based implementation
-    ├── scripts/
-    │   ├── utils/
-    │   │   └── reward_functions.py # Reward implementations
-    │   ├── train.py              # Training script
-    │   └── requirements.txt      # Dependencies
-    └── model-trainer-notebook.ipynb # Example notebook
+│   ├── fsdp/
+|   |   ├── scripts/
+|   |   │   ├── utils/
+|   |   │   │   └── reward_functions.py # Reward implementations
+|   |   │   ├── train.py              # Training script
+|   |   │   └── requirements.txt      # Dependencies
+|   |   └── model-trainer-notebook.ipynb # Example notebook
 ```
 
 ## Getting Started

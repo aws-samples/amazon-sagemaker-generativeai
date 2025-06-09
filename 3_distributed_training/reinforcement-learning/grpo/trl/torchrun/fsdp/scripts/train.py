@@ -1,6 +1,6 @@
 from accelerate import Accelerator
 from dataclasses import dataclass, field
-from datasets import Dataset, DatasetDict, load_dataset
+from datasets import Dataset, load_dataset
 import datetime
 from huggingface_hub import snapshot_download
 import logging
