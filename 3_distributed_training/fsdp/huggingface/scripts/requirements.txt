@@ -12,7 +12,7 @@ sagemaker-mlflow==0.1.0
 sentencepiece==0.2.0
 scikit-learn==1.6.1
 tokenizers>=0.21.0
-trl==0.9.6
+trl==0.17.0
 psutil
 py7zr
 wandb
