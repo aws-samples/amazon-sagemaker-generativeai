@@ -6,6 +6,6 @@ html2text
 jinja2
 faiss-cpu==1.7.4
 pypdf==3.8.1
-transformers==4.50.0
+transformers==4.51.0
 anthropic
 sentence_transformers==2.2.2
