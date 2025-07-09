@@ -1,0 +1,6 @@
+transformers==4.51.3
+llmcompressor==0.6.0
+qwen-vl-utils[decord]==0.0.11
+accelerate==1.8.1
+torch==2.7.1
+torchvision==0.22.1
