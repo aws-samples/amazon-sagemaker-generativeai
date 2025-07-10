@@ -78,6 +78,10 @@ class ScriptArguments:
         metadata={"help": "Path to the test dataset"}
     )
 
+    hf_token: str = field(
+        default="",
+        metadata={"help": "Hugging Face API token"}
+    )
 
 def init_distributed():
     # Initialize the process group
@@ -170,7 +174,7 @@ def train(script_args, training_args, train_ds, test_ds):
     accelerator = Accelerator()
 
     if script_args.token is not None:
-        os.environ.update({"HF_TOKEN": script_args.token})
+        os.environ.update({"HF_TOKEN": script_args.hf_token})
         accelerator.wait_for_everyone()
 
     # Download model based on training setup (single or multi-node)
@@ -381,7 +385,16 @@ if __name__ == "__main__":
     parser = TrlParser((ScriptArguments, TrainingArguments))
     script_args, training_args = parser.parse_args_and_config()
 
-    set_custom_env({"HF_HUB_ENABLE_HF_TRANSFER": "1"})
+    #set_custom_env({"HF_HUB_ENABLE_HF_TRANSFER": "1"})
+    custom_env: Dict[str, str] = {"HF_DATASETS_TRUST_REMOTE_CODE": "TRUE",
+                                  "HF_HUB_ENABLE_HF_TRANSFER": "1",
+                                  "HF_TOKEN": script_args.hf_token,
+                                 # "FSDP_CPU_RAM_EFFICIENT_LOADING": "1",
+                                 #  "ACCELERATE_USE_FSDP": "1",
+                                 #  "WANDB_API_KEY": script_args.wandb_token,
+                                 #  "WANDB_DIR" : "/opt/ml/output",
+                                 #  "CUDA_VISIBLE_DEVICES": str(torch.cuda.device_count())
+                                  }
 
     if script_args.mlflow_uri is not None and script_args.mlflow_experiment_name is not None and \
         script_args.mlflow_uri != "" and script_args.mlflow_experiment_name != "":
