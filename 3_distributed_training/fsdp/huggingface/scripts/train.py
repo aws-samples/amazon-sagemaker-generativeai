@@ -3,9 +3,7 @@ import bitsandbytes as bnb
 from dataclasses import dataclass, field
 from datasets import Dataset, load_dataset
 import datetime
-from functools import partial
 from huggingface_hub import snapshot_download
-from itertools import chain
 import logging
 import mlflow
 from mlflow.models import infer_signature
@@ -21,15 +19,15 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
+    Trainer,
     TrainingArguments,
     set_seed,
 )
 from trl import TrlParser
 import transformers
-from transformers import Trainer
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.integrations import WandbCallback
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import wandb
 
 # Configure logging
@@ -684,9 +682,6 @@ def main() -> None:
 
     # Set up MLflow if enabled
     setup_mlflow(script_args)
-
-    # Set up Weights & Biases
-    setup_wandb(script_args)
 
     # Load datasets
     train_ds, test_ds = load_datasets(script_args)
