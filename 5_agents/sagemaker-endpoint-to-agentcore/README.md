@@ -1,4 +1,4 @@
-# Using SageMaker AI Endpoints with Amazon Bedrock AgentCore
+# ML models as LLM Tools with Amazon SageMaker AI Endpoints and Amazon Bedrock AgentCore
 
 In this example, you will learn how to leverage a ML model for demand forecasting with your AI Agent. We will use:
 
