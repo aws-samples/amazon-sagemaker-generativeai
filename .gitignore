@@ -160,3 +160,4 @@ dmypy.json
 */**/data/
 */**/cdk.*/
 */**/configs_*
+*/**/args.yaml
