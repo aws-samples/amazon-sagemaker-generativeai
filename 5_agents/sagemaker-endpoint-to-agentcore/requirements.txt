@@ -1,0 +1,5 @@
+mcp[cli]
+bedrock-agentcore-starter-toolkit
+numpy
+strands-agents
+boto3
