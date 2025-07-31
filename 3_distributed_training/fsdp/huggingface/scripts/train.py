@@ -1,11 +1,8 @@
 from accelerate import Accelerator
-import bitsandbytes as bnb
 from dataclasses import dataclass, field
 from datasets import Dataset, load_dataset
 import datetime
-from functools import partial
 from huggingface_hub import snapshot_download
-from itertools import chain
 import logging
 import mlflow
 from mlflow.models import infer_signature
@@ -21,15 +18,15 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
+    Trainer,
     TrainingArguments,
     set_seed,
 )
 from trl import TrlParser
 import transformers
-from transformers import Trainer
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.integrations import WandbCallback
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import wandb
 
 # Configure logging
@@ -78,8 +75,8 @@ class ScriptArguments:
         default=None, metadata={"help": "Path to the training dataset"}
     )
 
-    test_dataset_path: Optional[str] = field(
-        default=None, metadata={"help": "Path to the test dataset"}
+    val_dataset_path: Optional[str] = field(
+        default=None, metadata={"help": "Path to the vaò dataset"}
     )
 
     wandb_token: str = field(default="", metadata={"help": "Wandb API token"})
@@ -97,17 +94,6 @@ class CustomWandbCallback(WandbCallback):
             # Format logs to include GPU index
             logs = {f"gpu_{i}_{k}": v for i in range(8) for k, v in logs.items()}
             super().on_log(args, state, control, model, logs, **kwargs)
-
-
-def init_distributed():
-    # Initialize the process group
-    torch.distributed.init_process_group(
-        backend="nccl", timeout=datetime.timedelta(seconds=5400)
-    )  # Use "gloo" backend for CPU
-    local_rank = int(os.environ["LOCAL_RANK"])
-    torch.cuda.set_device(local_rank)
-
-    return local_rank
 
 
 def download_model(model_name):
@@ -394,6 +380,8 @@ def setup_trainer(
             save_total_limit=1,
             output_dir=script_args.checkpoint_dir,
             ignore_data_skip=True,
+            weight_decay=training_args.weight_decay,
+            warmup_steps=training_args.warmup_steps,
             **trainer_configs,
         ),
         callbacks=callbacks,
@@ -502,6 +490,19 @@ def register_model_in_mlflow(
         raise
 
 
+def calculate_string_lengths(dataset):
+    """Calculate average string length"""
+    lengths = [len(sample["text"]) for sample in dataset]
+
+    avg_length = sum(lengths) / len(lengths)
+    percentile_95 = sorted(lengths)[int(0.95 * len(lengths))]
+
+    print(f"Average string length: {avg_length:.0f} characters")
+    print(f"95th percentile: {percentile_95} characters")
+
+    return avg_length, percentile_95
+
+
 def prepare_dataset(
     tokenizer: AutoTokenizer, train_ds: Dataset, test_ds: Optional[Dataset] = None
 ):
@@ -515,15 +516,34 @@ def prepare_dataset(
     Returns:
         Prepared dataset
     """
+
+    avg_str_len, p95_str_len = calculate_string_lengths(train_ds)
+    estimated_token_length = avg_str_len / 4
+    estimated_max_length = int(p95_str_len / 3.5)
+
+    logger.info(f"Estimated average tokens for train_ds: {estimated_token_length:.0f}")
+    logger.info(f"Estimated max_length for train_ds: {estimated_max_length}")
+
     # # tokenize and chunk dataset
     lm_train_dataset = train_ds.map(
-        lambda sample: tokenizer(sample["text"]), remove_columns=list(train_ds.features)
+        lambda sample: tokenizer(
+            sample["text"],
+            padding=False,
+            truncation=True,
+            max_length=estimated_max_length,
+        ),
+        remove_columns=list(train_ds.features),
     )
 
     if test_ds is not None:
         lm_test_dataset = test_ds.map(
-            lambda sample: tokenizer(sample["text"]),
-            remove_columns=list(train_ds.features),
+            lambda sample: tokenizer(
+                sample["text"],
+                padding=False,
+                truncation=True,
+                max_length=estimated_max_length,
+            ),
+            remove_columns=list(test_ds.features),
         )
 
         print(f"Total number of test samples: {len(lm_test_dataset)}")
@@ -653,11 +673,11 @@ def load_datasets(script_args: ScriptArguments) -> Tuple[Dataset, Optional[Datas
         )
 
         test_ds = None
-        if script_args.test_dataset_path:
-            logger.info(f"Loading test dataset from {script_args.test_dataset_path}")
+        if script_args.val_dataset_path:
+            logger.info(f"Loading test dataset from {script_args.val_dataset_path}")
             test_ds = load_dataset(
                 "json",
-                data_files=os.path.join(script_args.test_dataset_path, "dataset.json"),
+                data_files=os.path.join(script_args.val_dataset_path, "dataset.json"),
                 split="train",
             )
 
@@ -669,12 +689,6 @@ def load_datasets(script_args: ScriptArguments) -> Tuple[Dataset, Optional[Datas
 
 def main() -> None:
     """Main function to parse arguments and start training."""
-    # Call this function at the beginning of your script
-    local_rank = init_distributed()
-
-    # Now you can use distributed functionalities
-    torch.distributed.barrier(device_ids=[local_rank])
-
     # Parse arguments
     parser = TrlParser((ScriptArguments, TrainingArguments))
     script_args, training_args = parser.parse_args_and_config()
@@ -684,9 +698,6 @@ def main() -> None:
 
     # Set up MLflow if enabled
     setup_mlflow(script_args)
-
-    # Set up Weights & Biases
-    setup_wandb(script_args)
 
     # Load datasets
     train_ds, test_ds = load_datasets(script_args)

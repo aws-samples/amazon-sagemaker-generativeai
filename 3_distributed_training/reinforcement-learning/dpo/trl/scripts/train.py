@@ -74,7 +74,7 @@ class ScriptArguments:
         default=None, metadata={"help": "Path to the training dataset"}
     )
 
-    test_dataset_path: Optional[str] = field(
+    val_dataset_path: Optional[str] = field(
         default=None, metadata={"help": "Path to the test dataset"}
     )
 
@@ -390,6 +390,8 @@ def setup_trainer(
             save_total_limit=1,
             output_dir=script_args.checkpoint_dir,
             ignore_data_skip=True,
+            warmup_steps=training_args.warmup_steps,
+            weight_decay=training_args.weight_decay,
             **trainer_configs,
         ),
         callbacks=callbacks,
@@ -614,11 +616,11 @@ def load_datasets(script_args: ScriptArguments) -> Tuple[Dataset, Optional[Datas
         )
 
         test_ds = None
-        if script_args.test_dataset_path:
-            logger.info(f"Loading test dataset from {script_args.test_dataset_path}")
+        if script_args.val_dataset_path:
+            logger.info(f"Loading test dataset from {script_args.val_dataset_path}")
             test_ds = load_dataset(
                 "json",
-                data_files=os.path.join(script_args.test_dataset_path, "dataset.json"),
+                data_files=os.path.join(script_args.val_dataset_path, "dataset.json"),
                 split="train",
             )
 
