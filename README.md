@@ -7,6 +7,49 @@ A comprehensive repository showcasing production-ready Generative AI workflows o
 New to Generative AI on SageMaker? Start here:
 - **[Getting Started Guide](1._getting_started/)** - Essential setup, foundational concepts, and first steps
 
+## 🤖 Models
+
+This repository supports a comprehensive range of foundation models with various training methodologies. The table below shows model compatibility with different fine-tuning techniques, training frameworks, and deployment options.
+
+### Model Support Matrix
+| Model Family | Models - Size | FSDP | SFT | LoRA | QLoRA | Spectrum | Knowledge Distillation | PPO | DPO | GRPO | Additional Libraries | Datasets | Use Case | Service | Link |
+|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|
+| **Qwen Models** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| Qwen | Qwen 2.5 72B  GRPO with HF TRL |  |  |  |  |  |  |  |  | ✅ | torch, trl, HF TRL, PyTorch, HF | [AI-MO/NuminaMath-TIR](https://huggingface.co/AI-MO/NuminaMath-TIR) | reasoning | SageMaker Hyperpod Slurm/EKS | [notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/pytorch/trl/grpo) |
+| Qwen | Qwen 2.5 VL Multi Modal Fine-tuning |  | ✅ | ✅ |  |  |  |  |  |  | SWIFT | [malterei/LLaVA-Video-small-swift](https://huggingface.co/malterei/LLaVA-Video-small-swift) | multimodal fine-tuning | SageMaker Training Jobs | [notebook](http://malterei/LLaVA-Video-small-swift) |
+| Qwen | Qwen2-0.5B-Instruct |  |  |  |  |  |  |  |  | ✅ | transformers, accelerate, wandb, datasets, sagemaker, trl | [trl-lib/tldr](https://huggingface.co/trl-lib/tldr) | summarization | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/reinforcement-learning/grpo/trl/accelerate/launch-training-job.ipynb) |
+| Qwen | Qwen2.5-0.5B-Instruct |  |  |  |  |  |  |  |  | ✅ | transformers, accelerate, datasets, sagemaker, trl | [Jiayi-Pan/Countdown-Tasks-3to4](https://huggingface.co/Jiayi-Pan/Countdown-Tasks-3to4) | reasoning | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/sagemaker-distributed-training-workshop/blob/main/20_grpo_trl_sagemaker/grpo-test.ipynb) |
+| Qwen | Qwen3-0.6B | ✅ | ✅ |  | ✅ |  |  |  |  |  | SageMaker ModelTrainer, transformers, accelerate, mlflow, wandb, sagemaker | [glaiveai/glaive-function-calling-v2](https://huggingface.co/glaiveai/glaive-function-calling-v2) | function-calling  agentic AI | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/fsdp/huggingface/model-trainer-notebook.ipynb) |
+| Qwen | Qwen3-0.6B |  |  | ✅ |  |  |  |  | ✅ |  | SageMaker ModelTrainer, transformers, accelerate, mlflow, wandb, sagemaker | [nvidia/When2Call](https://huggingface.co/nvidia/When2Call) | function-calling  agentic AI | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/reinforcement-learning/dpo/trl/model-trainer-notebook.ipynb) |
+| Qwen | Qwen3-0.6B | ✅ | ✅ | ✅ |  |  |  |  |  |  | Ray, Ray Dashboard, Grafana, Prometheus, SageMaker ModelTrainer, transformers, accelerate, sagemaker | [FreedomIntelligence/medical-o1-reasoning-SFT](https://huggingface.co/FreedomIntelligence/medical-o1-reasoning-SFT) | reasoning | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/sample-ray-on-amazon-sagemaker-training-jobs/tree/main/examples/ray-torchtrainer/huggingface-grafana) |
+| Qwen | Qwen3-0.6B | ✅ | ✅ | ✅ |  |  |  |  |  |  | Heterogeneous cluster, Ray, Ray Dashboard, Grafana, Prometheus, SageMaker Estimator, transformers, accelerate, sagemaker | [FreedomIntelligence/medical-o1-reasoning-SFT](https://huggingface.co/FreedomIntelligence/medical-o1-reasoning-SFT) | reasoning | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/sample-ray-on-amazon-sagemaker-training-jobs/tree/main/examples/ray-torchtrainer/huggingface-heterogeneous-grafana) |
+| Qwen | Qwen3-8b |  |  |  |  | ✅ |  |  |  |  | SageMaker ModelTrainer, transformers, accelerate, mlflow, wandb, sagemaker | [rajpurkar/squad](https://huggingface.co/rajpurkar/squad) | conversations | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/sagemaker-distributed-training-workshop/blob/main/21_spectrum_finetuning/spectrum_training.ipynb) |
+| Qwen | qwen2-7b |  |  |  |  |  |  |  |  | ✅ | verl, torch, vllm, flash_attn | gsm8k | reasoning | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/reinforcement-learning/grpo/veRL/verl-on-sagemaker.ipynb) |
+| **LLaMA Models** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| LLaMA | DeepSeek-R1-Distill-Llama-8B |  | ✅ |  | ✅ |  |  |  |  |  | SageMaker ModelTrainer, transformers, accelerate, mlflow, sagemaker | [FreedomIntelligence/medical-o1-reasoning-SFT](https://huggingface.co/FreedomIntelligence/medical-o1-reasoning-SFT) | reasoning | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/generative-ai-on-amazon-sagemaker/blob/main/workshops/fine-tuning-with-sagemakerai-and-bedrock/task_02_customize_foundation_model/02.01_finetune_deepseekr1.ipynb) |
+| LLaMA | LLama 3 8b Instruct |  | ✅ | ✅ | ✅ |  | ✅ |  |  |  | transformers, accelerate, wandb, torch, datasets, sagemaker, trl, torchrun | [mlabonne/FineTome-100k](https://huggingface.co/mlabonne/FineTome-100k) | reasoning, Conversation | SageMaker AI training jobs | [Will add another notebook for TRL soon](https://github.com/aws-samples/sagemaker-distributed-training-workshop/blob/main/19_knowledge_distillation/test_gkd_deepseek.ipynb) |
+| LLaMA | Llama 3.1 on Torchtitan | ✅ |  |  |  | ✅ |  |  |  |  | torch, PyTorch, torchtitan |  | Text generation | SageMaker Hyperpod Slurm/EKS | [notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/pytorch/torchtitan) |
+| LLaMA | Llama3,Llama2, Mistral) with FSDP | ✅ |  |  |  |  |  |  |  |  | torch, PyTorch |  | Text generation | SageMaker Hyperpod Slurm/EKS | [notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/pytorch/FSDP) |
+| LLaMA | Meta LLama 3.2 3b |  | ✅ | ✅ |  |  |  |  | ✅ |  | transformers, accelerate, wandb, datasets, sagemaker, trl | [nvidia/When2Call](https://huggingface.co/nvidia/When2Call) | function-calling  agentic AI | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/sagemaker-distributed-training-workshop/blob/main/22_dpo_alignment_trl_sagemaker/run_training_job.ipynb) |
+| LLaMA | Meta Llama 3 8B RLHF |  |  |  | ✅ |  |  |  | ✅ |  | trl, HF TRL, HF | Amazon Documents | rlhf, dpo | SageMaker Training Jobs | [notebook](https://github.com/aws-samples/sagemaker-studio-foundation-models/blob/main/use-cases/dpo/RLHF-with-Llama3-on-Studio-DPO.ipynb) |
+| **Arcee Models** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| Arcee | arcee-lite | ✅ |  |  | ✅ |  |  |  |  | ✅ | SageMaker ModelTrainer, transformers, accelerate, mlflow, wandb, sagemaker | [w601sxs/processed_simpleCoT_b1ade](https://huggingface.co/w601sxs/processed_simpleCoT_b1ade) | reasoning | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/tree/main/3_distributed_training/reinforcement-learning/grpo/trl/torchrun/fsdp) |
+| **Thenlper Models** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| Thenlper | gte-base-en-v1.5 |  |  |  |  |  |  |  |  |  | SageMaker Estimator, transformers, accelerate, sagemaker | [qiaojin/PubMedQA](https://huggingface.co/qiaojin/PubMedQA) | embeddings | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/generative-ai-on-amazon-sagemaker/blob/main/workshops/building-rag-workflows-with-sagemaker-and-bedrock/03-02_fine-tuning-embedding/01-ft_embedding_with_sagemaker_eval.ipynb) |
+| **Gemma Models** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| Gemma | gemma3-4b-it |  |  | ✅ |  |  |  |  |  |  | torch | [mlabonne/FineTome-100k](https://huggingface.co/mlabonne/FineTome-100k) | conversations, reasoning problems, function calling | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/unsloth/instruct-fine-tuning-example-2/gemma3-4b-it.ipynb) |
+| **NVIDIA Nemo Models** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| NVIDIA Nemo | GPT on Nemo |  |  |  |  | ✅ |  |  |  |  | Nvidia Nemo | wikitext-103-v1 | Text generation | SageMaker Hyperpod Slurm/EKS | [notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/megatron/nemo) |
+| **SMoLM Models** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| SMoLM | SMoLM 1.7B on Picotron | ✅ |  |  |  |  |  |  |  |  | HF Picotron, HF | synthetic | Text generation | SageMaker Hyperpod Slurm/EKS | [notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/pytorch/picotron) |
+| **EleutherAI Models** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| EleutherAI | GPT-OSS 20b Supervised Fine-Tunin |  | ✅ |  |  |  |  |  |  |  | trl, HF, MXFP4 |  |  |  |  |
+
+
+### Training Infrastructure
+- **SageMaker Hyperpod** - High-performance computing clusters for large-scale training
+- **SageMaker Training Jobs** - Standard managed training infrastructure
+
 ## 📚 Repository Structure
 
 ### 🎯 [End-to-End GenAI Lifecycle](2_end_to_end_genai_on_sagemaker/)
