@@ -16,7 +16,7 @@ This repository supports a comprehensive range of foundation models with various
 |:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|
 | **Qwen Models** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | Qwen | Qwen 2.5 72B  GRPO with HF TRL |  |  |  |  |  |  |  |  | ✅ | torch, trl, HF TRL, PyTorch, HF | [AI-MO/NuminaMath-TIR](https://huggingface.co/AI-MO/NuminaMath-TIR) | reasoning | SageMaker Hyperpod Slurm/EKS | [notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/pytorch/trl/grpo) |
-| Qwen | Qwen 2.5 VL Multi Modal Fine-tuning |  | ✅ | ✅ |  |  |  |  |  |  | SWIFT | [malterei/LLaVA-Video-small-swift](https://huggingface.co/malterei/LLaVA-Video-small-swift) | multimodal fine-tuning | SageMaker Training Jobs | [notebook](http://malterei/LLaVA-Video-small-swift) |
+| Qwen | Qwen 2.5 VL Multi Modal Fine-tuning |  | ✅ | ✅ |  |  |  |  |  |  | SWIFT | [malterei/LLaVA-Video-small-swift](https://huggingface.co/malterei/LLaVA-Video-small-swift) | multimodal fine-tuning | SageMaker Training Jobs | [notebook](https://github.com/aws-samples/multi-modal-examples-for-amazon-sagemaker/blob/main/01-video_content_reel_generator-qwen2_vl/04-02_optional_fine_tune_video_inference.ipynb) |
 | Qwen | Qwen2-0.5B-Instruct |  |  |  |  |  |  |  |  | ✅ | transformers, accelerate, wandb, datasets, sagemaker, trl | [trl-lib/tldr](https://huggingface.co/trl-lib/tldr) | summarization | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/reinforcement-learning/grpo/trl/accelerate/launch-training-job.ipynb) |
 | Qwen | Qwen2.5-0.5B-Instruct |  |  |  |  |  |  |  |  | ✅ | transformers, accelerate, datasets, sagemaker, trl | [Jiayi-Pan/Countdown-Tasks-3to4](https://huggingface.co/Jiayi-Pan/Countdown-Tasks-3to4) | reasoning | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/sagemaker-distributed-training-workshop/blob/main/20_grpo_trl_sagemaker/grpo-test.ipynb) |
 | Qwen | Qwen3-0.6B | ✅ | ✅ |  | ✅ |  |  |  |  |  | SageMaker ModelTrainer, transformers, accelerate, mlflow, wandb, sagemaker | [glaiveai/glaive-function-calling-v2](https://huggingface.co/glaiveai/glaive-function-calling-v2) | function-calling  agentic AI | SageMaker AI training jobs | [notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/fsdp/huggingface/model-trainer-notebook.ipynb) |
@@ -42,8 +42,8 @@ This repository supports a comprehensive range of foundation models with various
 | NVIDIA Nemo | GPT on Nemo |  |  |  |  | ✅ |  |  |  |  | Nvidia Nemo | wikitext-103-v1 | Text generation | SageMaker Hyperpod Slurm/EKS | [notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/megatron/nemo) |
 | **SMoLM Models** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
 | SMoLM | SMoLM 1.7B on Picotron | ✅ |  |  |  |  |  |  |  |  | HF Picotron, HF | synthetic | Text generation | SageMaker Hyperpod Slurm/EKS | [notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/pytorch/picotron) |
-| **EleutherAI Models** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
-| EleutherAI | GPT-OSS 20b Supervised Fine-Tunin |  | ✅ |  |  |  |  |  |  |  | trl, HF, MXFP4 |  |  |  |  |
+| **OpenAI GPT-OSS Models** |  |  |  |  |  |  |  |  |  |  |  |  |  |  |  |
+| OpenAI GPT OSS | openai/gpt-oss-20b |  | ✅ |  |  |  |  |  |  |  | trl, mxfp4 | [HuggingFaceH4/Multilingual-Thinking](https://huggingface.co/datasets/HuggingFaceH4/Multilingual-Thinking) | Text Generation | SageMaker Training Jobs | [notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/tree/main/3_distributed_training/models/openai--gpt-oss) |
 
 
 ### Training Infrastructure
