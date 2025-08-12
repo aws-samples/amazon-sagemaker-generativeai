@@ -1,6 +1,3 @@
-**/.DS_Store
-**/*.ipynb_checkpoints
-
 # Python-generated files
 __pycache__/
 *.py[oc]
@@ -12,3 +9,4 @@ wheels/
 # Virtual environments
 .venv
 .env
+wandb/
