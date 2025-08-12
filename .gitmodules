@@ -1,0 +1,3 @@
+[submodule "7_inference/sagemaker-genai-hosting-examples"]
+	path = 7_inference/sagemaker-genai-hosting-examples
+	url = https://github.com/aws-samples/sagemaker-genai-hosting-examples.git
