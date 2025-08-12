@@ -156,8 +156,3 @@ dmypy.json
 */**/.terraform*
 
 # Base data exclude
-
-*/**/data/
-*/**/cdk.*/
-*/**/configs_*
-*/**/args.yaml
