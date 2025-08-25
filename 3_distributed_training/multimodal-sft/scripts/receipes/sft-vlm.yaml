@@ -13,7 +13,7 @@ dataset_name: /opt/ml/input/data/dataset.hf/
 # LoRA arguments
 use_peft: true
 load_in_4bit: true
-lora_target_modules:  ["down_proj", "o_proj", "k_proj", "q_proj", "gate_proj", "up_proj, v_proj"] # "all_linear" #["q_proj", "v_proj"]
+lora_target_modules:  ["down_proj", "o_proj", "k_proj", "q_proj", "gate_proj", "up_proj, v_proj"] #["q_proj", "v_proj"]
 # important as we need to train the special tokens for the chat template of llama 
 #lora_modules_to_save: ["lm_head", "embed_tokens"] # you might need to change this for qwen or other models
 lora_r: 16
