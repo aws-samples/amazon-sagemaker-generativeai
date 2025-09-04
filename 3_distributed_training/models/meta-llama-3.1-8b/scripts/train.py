@@ -271,9 +271,12 @@ def load_model_and_tokenizer(
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(script_args.model_id)
 
-    if tokenizer.pad_token is None:
-        # Define PAD token
-        tokenizer.pad_token = tokenizer.eos_token
+    # Define EOS token
+    tokenizer.eos_token = "<|eot_id|>"
+    tokenizer.eos_token_id = 128009
+
+    # Define PAD token
+    tokenizer.pad_token = tokenizer.eos_token
 
     # Configure quantization
     bnb_config = BitsAndBytesConfig(
@@ -521,7 +524,7 @@ def prepare_dataset(
 
     avg_str_len, p95_str_len = calculate_string_lengths(train_ds)
     estimated_token_length = avg_str_len / 4
-    estimated_max_length = int(p95_str_len / 3.5)
+    estimated_max_length = int(p95_str_len / 4)
 
     logger.info(f"Estimated average tokens for train_ds: {estimated_token_length:.0f}")
     logger.info(f"Estimated max_length for train_ds: {estimated_max_length}")
