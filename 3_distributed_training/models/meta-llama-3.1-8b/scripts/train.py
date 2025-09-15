@@ -13,10 +13,12 @@ from peft import (
     get_peft_model,
 )
 import torch
+import torch.distributed as dist
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
+    Mxfp4Config,
     Trainer,
     TrainingArguments,
     set_seed,
@@ -27,6 +29,7 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.integrations import WandbCallback
 from typing import Any, Dict, List, Optional, Tuple
 import wandb
+from distutils.util import strtobool
 
 # Configure logging
 logging.basicConfig(
@@ -42,10 +45,19 @@ class ScriptArguments:
     Arguments for the script execution.
     """
 
+    attn_implementation: Optional[str] = field(
+        default="flash_attention_2",
+        metadata={"help": "Attention implementation (flash_attention_2, sdpa, eager)"},
+    )
+
     checkpoint_dir: str = field(default=None, metadata={"help": "Checkpoint directory"})
 
     use_checkpoints: bool = field(
         default=False, metadata={"help": "Whether to use checkpointing"}
+    )
+
+    load_in_4bit: bool = field(
+        default=True, metadata={"help": "Load model in 4-bit quantization"}
     )
 
     lora_r: Optional[int] = field(default=8, metadata={"help": "lora_r"})
@@ -78,6 +90,16 @@ class ScriptArguments:
         default=None, metadata={"help": "Path to the training dataset"}
     )
 
+    use_mxfp4: bool = field(
+        default=False,
+        metadata={"help": "Use MXFP4 quantization instead of BitsAndBytes"},
+    )
+
+    use_snapshot_download: bool = field(
+        default=True,
+        metadata={"help": "Use snapshot download instead of Hugging Face Hub"},
+    )
+
     val_dataset_path: Optional[str] = field(
         default=None, metadata={"help": "Path to the vaò dataset"}
     )
@@ -86,6 +108,11 @@ class ScriptArguments:
 
     wandb_project: str = field(
         default="project", metadata={"help": "Wandb project name"}
+    )
+
+    torch_dtype: Optional[str] = field(
+        default="auto",
+        metadata={"help": "Torch dtype (auto, bfloat16, float16, float32)"},
     )
 
 
@@ -205,6 +232,7 @@ def setup_wandb(script_args: ScriptArguments) -> None:
 
 def get_model_config(
     training_args: TrainingArguments,
+    script_args: ScriptArguments,
 ) -> Tuple[torch.dtype, Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
     """
     Get model configuration based on training arguments.
@@ -215,41 +243,45 @@ def get_model_config(
     Returns:
         Tuple containing torch dtype, model configs, BnB config params, and trainer configs
     """
-    # Set up model configuration based on training arguments
-    if training_args.bf16:
-        logger.info("Using flash_attention_2")
-        torch_dtype = torch.bfloat16
-        model_configs = {
-            "attn_implementation": "flash_attention_2",
-            "torch_dtype": torch_dtype,
-        }
+    # Determine torch dtype from script args
+    if script_args.torch_dtype in ["auto", None]:
+        torch_dtype = torch.bfloat16 if training_args.bf16 else torch.float32
     else:
-        logger.info("Using torch.float32")
-        torch_dtype = torch.float32
-        model_configs = {}
+        torch_dtype = getattr(torch, script_args.torch_dtype)
 
-    # Set up FSDP configuration if enabled
-    if (
-        training_args.fsdp is not None
-        and training_args.fsdp != ""
-        and training_args.fsdp_config is not None
-        and len(training_args.fsdp_config) > 0
-    ):
+    # Set up model configuration
+    model_configs = {
+        "attn_implementation": script_args.attn_implementation,
+        "torch_dtype": torch_dtype,
+        "use_cache": not training_args.gradient_checkpointing,
+    }
+
+    # Set low_cpu_mem_usage based on DeepSpeed usage
+    use_deepspeed = strtobool(os.environ.get("ACCELERATE_USE_DEEPSPEED", "false"))
+    use_fsdp = strtobool(os.environ.get("ACCELERATE_USE_FSDP", "false"))
+
+    logger.info(f"DeepSpeed enabled: {use_deepspeed}")
+    logger.info(f"FSDP enabled: {use_fsdp}")
+
+    if not use_deepspeed:
+        model_configs["low_cpu_mem_usage"] = True
+
+    if use_fsdp or (training_args.fsdp and training_args.fsdp != ""):
         logger.info("Using FSDP configuration")
-        bnb_config_params = {"bnb_4bit_quant_storage": torch_dtype}
         trainer_configs = {
-            "fsdp": training_args.fsdp,
-            "fsdp_config": training_args.fsdp_config,
             "gradient_checkpointing_kwargs": {"use_reentrant": False},
         }
+    elif use_deepspeed:
+        logger.info("Using DeepSpeed configuration")
+        trainer_configs = {}
     else:
-        logger.info("Using DDP in case of distribution")
-        bnb_config_params = {}
+        logger.info("Using DDP configuration")
         trainer_configs = {
             "gradient_checkpointing": training_args.gradient_checkpointing,
+            "gradient_checkpointing_kwargs": {"use_reentrant": False},
         }
 
-    return torch_dtype, model_configs, bnb_config_params, trainer_configs
+    return torch_dtype, model_configs, trainer_configs
 
 
 def load_model_and_tokenizer(
@@ -266,7 +298,7 @@ def load_model_and_tokenizer(
         Tuple containing model and tokenizer
     """
     # Get model configuration
-    torch_dtype, model_configs, bnb_config_params, _ = get_model_config(training_args)
+    torch_dtype, model_configs, _ = get_model_config(training_args, script_args)
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(script_args.model_id)
@@ -275,37 +307,47 @@ def load_model_and_tokenizer(
     tokenizer.eos_token = "<|eot_id|>"
     tokenizer.eos_token_id = 128009
 
-    # Define PAD token
-    tokenizer.pad_token = tokenizer.eos_token
+    if tokenizer.pad_token is None:
+        # Define PAD token
+        tokenizer.pad_token = tokenizer.eos_token
 
     # Configure quantization
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch_dtype,
-        **bnb_config_params,
-    )
+    if script_args.load_in_4bit:
+        if script_args.use_mxfp4:
+            quantization_config = Mxfp4Config(dequantize=True)
+            logger.info("Using MXFP4 quantization")
+        else:
+            # Only add bnb_4bit_quant_storage for FSDP
+            bnb_params = {
+                "load_in_4bit": True,
+                "bnb_4bit_use_double_quant": True,
+                "bnb_4bit_quant_type": "nf4",
+                "bnb_4bit_compute_dtype": torch_dtype,
+                "bnb_4bit_quant_storage": torch_dtype,
+            }
+
+            quantization_config = BitsAndBytesConfig(**bnb_params)
+            logger.info("Using BitsAndBytes quantization")
+    else:
+        quantization_config = None
+        logger.info("No quantization")
 
     # Load model with quantization
     try:
         model = AutoModelForCausalLM.from_pretrained(
             script_args.model_id,
             trust_remote_code=True,
-            quantization_config=bnb_config,
-            use_cache=not training_args.gradient_checkpointing,
+            quantization_config=quantization_config,
             cache_dir="/tmp/.cache",
             **model_configs,
         )
 
         # Apply gradient checkpointing configuration
         if training_args.gradient_checkpointing:
-            if training_args.fsdp is None and training_args.fsdp_config is None:
-                model.gradient_checkpointing_enable()
-            else:
-                model.gradient_checkpointing_enable(
-                    gradient_checkpointing_kwargs={"use_reentrant": False}
-                )
+            # Use reentrant=False for better compatibility with DeepSpeed and FSDP
+            model.gradient_checkpointing_enable(
+                gradient_checkpointing_kwargs={"use_reentrant": False}
+            )
 
         return model, tokenizer
 
@@ -363,32 +405,25 @@ def setup_trainer(
     Returns:
         Configured Trainer
     """
-    _, _, _, trainer_configs = get_model_config(training_args)
+    _, _, trainer_configs = get_model_config(training_args, script_args)
+
+    # Update training_args with trainer configs
+    for key, value in trainer_configs.items():
+        setattr(training_args, key, value)
+
+    # Set report_to based on enabled tracking services
+    report_to = []
+    if os.environ.get("WANDB_DISABLED", "false").lower() != "true":
+        report_to.append("wandb")
+    if is_mlflow_enabled(script_args):
+        report_to.append("mlflow")
+    training_args.report_to = report_to
 
     return Trainer(
         model=model,
         train_dataset=train_ds,
         eval_dataset=test_ds if test_ds is not None else None,
-        args=transformers.TrainingArguments(
-            per_device_train_batch_size=training_args.per_device_train_batch_size,
-            per_device_eval_batch_size=training_args.per_device_eval_batch_size,
-            gradient_accumulation_steps=training_args.gradient_accumulation_steps,
-            logging_strategy="steps",
-            logging_steps=1,
-            log_on_each_node=False,
-            num_train_epochs=training_args.num_train_epochs,
-            learning_rate=training_args.learning_rate,
-            bf16=training_args.bf16,
-            ddp_find_unused_parameters=False,
-            save_strategy="steps",
-            save_steps=training_args.save_steps,
-            save_total_limit=1,
-            output_dir=script_args.checkpoint_dir,
-            ignore_data_skip=True,
-            weight_decay=training_args.weight_decay,
-            warmup_steps=training_args.warmup_steps,
-            **trainer_configs,
-        ),
+        args=training_args,
         callbacks=callbacks,
         data_collator=transformers.DataCollatorForLanguageModeling(
             tokenizer, mlm=False
@@ -405,58 +440,34 @@ def save_model(
     accelerator: Accelerator,
     mlflow_enabled: bool,
 ) -> None:
-    """
-    Save the trained model.
-
-    Args:
-        trainer: The trainer instance
-        model: The model to save
-        tokenizer: The tokenizer to save
-        script_args: Script arguments
-        training_args: Training arguments
-        accelerator: Accelerator instance
-        mlflow_enabled: Whether MLflow is enabled
-    """
+    """Save the trained model."""
     if trainer.is_fsdp_enabled:
         trainer.accelerator.state.fsdp_plugin.set_state_dict_type("FULL_STATE_DICT")
 
     if script_args.merge_weights:
-        output_dir = "/tmp/model"
-
-        # Save adapter weights with base model
-        trainer.model.save_pretrained(output_dir, safe_serialization=False)
+        # Save and merge PEFT model
+        temp_dir = "/tmp/model"
+        trainer.model.save_pretrained(temp_dir, safe_serialization=False)
 
         if accelerator.is_main_process:
-            # Clear memory
-            del model
-            del trainer
+            del model, trainer
             torch.cuda.empty_cache()
 
-            try:
-                # Load PEFT model
-                model = AutoPeftModelForCausalLM.from_pretrained(
-                    output_dir,
-                    torch_dtype=torch.float16,
-                    low_cpu_mem_usage=True,
-                    trust_remote_code=True,
-                )
-
-                # Merge LoRA and base model and save
-                model = model.merge_and_unload()
-                model.save_pretrained(
-                    training_args.output_dir,
-                    safe_serialization=True,
-                    max_shard_size="2GB",
-                )
-            except Exception as e:
-                logger.error(f"Error merging model weights: {e}")
-                raise
+            model = AutoPeftModelForCausalLM.from_pretrained(
+                temp_dir,
+                torch_dtype=torch.float16,
+                low_cpu_mem_usage=True,
+                trust_remote_code=True,
+            )
+            model = model.merge_and_unload()
+            model.save_pretrained(
+                training_args.output_dir, safe_serialization=True, max_shard_size="2GB"
+            )
     else:
         trainer.model.save_pretrained(training_args.output_dir, safe_serialization=True)
 
     if accelerator.is_main_process:
         tokenizer.save_pretrained(training_args.output_dir)
-
         if mlflow_enabled:
             register_model_in_mlflow(model, tokenizer, script_args)
 
@@ -574,20 +585,22 @@ def train(script_args, training_args, train_ds, test_ds):
     # Check if MLflow is enabled
     mlflow_enabled = is_mlflow_enabled(script_args)
 
-    # Initialize accelerator
-    accelerator = Accelerator()
-
     # Set up Hugging Face token if provided
     if script_args.token is not None:
         os.environ.update({"HF_TOKEN": script_args.token})
-        accelerator.wait_for_everyone()
+        if dist.is_initialized():
+            logger.info("Waiting for all processes after setting HF token")
+            dist.barrier()
 
-    # Download model
-    download_model(script_args.model_id)
-    accelerator.wait_for_everyone()
+    if script_args.use_snapshot_download:
+        # Download model
+        download_model(script_args.model_id)
+        if dist.is_initialized():
+            logger.info("Waiting for all processes after model download")
+            dist.barrier()
 
-    # Update model path to local directory
-    script_args.model_id = "/tmp/tmp_folder"
+        # Update model path to local directory
+        script_args.model_id = "/tmp/tmp_folder"
 
     # Load model and tokenizer
     model, tokenizer = load_model_and_tokenizer(script_args, training_args)
@@ -637,18 +650,25 @@ def train(script_args, training_args, train_ds, test_ds):
                 get_last_checkpoint(script_args.checkpoint_dir) is not None
                 and script_args.use_checkpoints
             ):
-                trainer.train(resume_from_checkpoint=True)
+                train_result = trainer.train(resume_from_checkpoint=True)
             else:
-                trainer.train()
+                train_result = trainer.train()
     else:
         # Resume training from checkpoint if available
         if (
             get_last_checkpoint(script_args.checkpoint_dir) is not None
             and script_args.use_checkpoints
         ):
-            trainer.train(resume_from_checkpoint=True)
+            train_result = trainer.train(resume_from_checkpoint=True)
         else:
-            trainer.train()
+            train_result = trainer.train()
+
+    # Log training metrics
+    metrics = train_result.metrics
+    metrics["train_samples"] = len(train_ds)
+    trainer.log_metrics("train", metrics)
+    trainer.save_metrics("train", metrics)
+    trainer.save_state()
 
     # Save and register model
     save_model(
@@ -657,12 +677,12 @@ def train(script_args, training_args, train_ds, test_ds):
         tokenizer,
         script_args,
         training_args,
-        accelerator,
+        trainer.accelerator,
         mlflow_enabled,
     )
 
     # Wait for all processes to finish
-    accelerator.wait_for_everyone()
+    trainer.accelerator.wait_for_everyone()
 
 
 def load_datasets(script_args: ScriptArguments) -> Tuple[Dataset, Optional[Dataset]]:
@@ -677,20 +697,34 @@ def load_datasets(script_args: ScriptArguments) -> Tuple[Dataset, Optional[Datas
     """
     try:
         logger.info(f"Loading training dataset from {script_args.train_dataset_path}")
-        train_ds = load_dataset(
-            "json",
-            data_files=os.path.join(script_args.train_dataset_path, "dataset.json"),
-            split="train",
-        )
+
+        # Support both JSON and JSONL files
+        if script_args.train_dataset_path.endswith(".jsonl"):
+            train_ds = load_dataset(
+                "json", data_files=script_args.train_dataset_path, split="train"
+            )
+        else:
+            train_ds = load_dataset(
+                "json",
+                data_files=os.path.join(script_args.train_dataset_path, "dataset.json"),
+                split="train",
+            )
 
         test_ds = None
         if script_args.val_dataset_path:
             logger.info(f"Loading test dataset from {script_args.val_dataset_path}")
-            test_ds = load_dataset(
-                "json",
-                data_files=os.path.join(script_args.val_dataset_path, "dataset.json"),
-                split="train",
-            )
+            if script_args.val_dataset_path.endswith(".jsonl"):
+                test_ds = load_dataset(
+                    "json", data_files=script_args.val_dataset_path, split="train"
+                )
+            else:
+                test_ds = load_dataset(
+                    "json",
+                    data_files=os.path.join(
+                        script_args.val_dataset_path, "dataset.json"
+                    ),
+                    split="train",
+                )
 
         return train_ds, test_ds
     except Exception as e:
