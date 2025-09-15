@@ -268,18 +268,23 @@ def get_model_config(
 
     if use_fsdp or (training_args.fsdp and training_args.fsdp != ""):
         logger.info("Using FSDP configuration")
-        trainer_configs = {
-            "gradient_checkpointing_kwargs": {"use_reentrant": False},
-        }
+        if training_args.gradient_checkpointing_kwargs is not None:
+            trainer_configs = {}
+        else:
+            trainer_configs = {
+                "gradient_checkpointing_kwargs": {"use_reentrant": False},
+            }
     elif use_deepspeed:
         logger.info("Using DeepSpeed configuration")
         trainer_configs = {}
     else:
         logger.info("Using DDP configuration")
-        trainer_configs = {
-            "gradient_checkpointing": training_args.gradient_checkpointing,
-            "gradient_checkpointing_kwargs": {"use_reentrant": False},
-        }
+        if training_args.gradient_checkpointing_kwargs is not None:
+            trainer_configs = {}
+        else:
+            trainer_configs = {
+                "gradient_checkpointing_kwargs": {"use_reentrant": False},
+            }
 
     return torch_dtype, model_configs, trainer_configs
 
