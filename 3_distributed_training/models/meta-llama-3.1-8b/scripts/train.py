@@ -45,6 +45,10 @@ class ScriptArguments:
     Arguments for the script execution.
     """
 
+    apply_truncation: Optional[bool] = field(
+        default=False, metadata={"help": "Whether to apply truncation"}
+    )
+
     attn_implementation: Optional[str] = field(
         default="flash_attention_2",
         metadata={"help": "Attention implementation (flash_attention_2, sdpa, eager)"},
@@ -66,6 +70,10 @@ class ScriptArguments:
 
     lora_dropout: Optional[float] = field(
         default=0.1, metadata={"help": "lora_dropout"}
+    )
+
+    max_length: Optional[int] = field(
+        default=None, metadata={"help": "max_length used for truncation"}
     )
 
     merge_weights: Optional[bool] = field(
@@ -289,7 +297,7 @@ def get_model_config(
     return torch_dtype, model_configs, trainer_configs
 
 
-def load_model_and_tokenizer(
+def load_model(
     script_args: ScriptArguments, training_args: TrainingArguments
 ) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
     """
@@ -304,17 +312,6 @@ def load_model_and_tokenizer(
     """
     # Get model configuration
     torch_dtype, model_configs, _ = get_model_config(training_args, script_args)
-
-    # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(script_args.model_id)
-
-    # Define EOS token
-    tokenizer.eos_token = "<|eot_id|>"
-    tokenizer.eos_token_id = 128009
-
-    if tokenizer.pad_token is None:
-        # Define PAD token
-        tokenizer.pad_token = tokenizer.eos_token
 
     # Configure quantization
     if script_args.load_in_4bit:
@@ -354,7 +351,39 @@ def load_model_and_tokenizer(
                 gradient_checkpointing_kwargs={"use_reentrant": False}
             )
 
-        return model, tokenizer
+        return model
+
+    except Exception as e:
+        logger.error(f"Error loading model: {e}")
+        raise
+
+
+def load_tokenizer(
+    script_args: ScriptArguments, training_args: TrainingArguments
+) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
+    """
+    Load model and tokenizer.
+
+    Args:
+        script_args: Script arguments
+        training_args: Training arguments
+
+    Returns:
+        Tuple containing model and tokenizer
+    """
+    try:
+        # Load tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(script_args.model_id)
+
+        # Define EOS token
+        tokenizer.eos_token = "<|eot_id|>"
+        tokenizer.eos_token_id = 128009
+
+        if tokenizer.pad_token is None:
+            # Define PAD token
+            tokenizer.pad_token = tokenizer.eos_token
+
+        return tokenizer
 
     except Exception as e:
         logger.error(f"Error loading model: {e}")
@@ -511,66 +540,106 @@ def register_model_in_mlflow(
         raise
 
 
-def calculate_string_lengths(dataset):
-    """Calculate average string length"""
-    lengths = [len(sample["text"]) for sample in dataset]
+def calculate_optimal_max_length(
+    tokenizer: AutoTokenizer,
+    dataset: Dataset,
+    sample_size: int = 1000,
+    percentile: float = 0.95,
+) -> int:
+    """
+    Calculate optimal max_length by actually tokenizing a sample of the dataset.
 
-    avg_length = sum(lengths) / len(lengths)
-    percentile_95 = sorted(lengths)[int(0.95 * len(lengths))]
+    Args:
+        tokenizer: The tokenizer to use
+        dataset: Dataset to analyze
+        sample_size: Number of samples to tokenize for analysis
+        percentile: Percentile to use for max_length (0.95 = 95th percentile)
 
-    print(f"Average string length: {avg_length:.0f} characters")
-    print(f"95th percentile: {percentile_95} characters")
+    Returns:
+        Optimal max_length based on actual token counts
+    """
+    # Sample dataset for analysis
+    sample_indices = torch.randperm(len(dataset))[: min(sample_size, len(dataset))]
+    sample_data = dataset.select(sample_indices)
 
-    return avg_length, percentile_95
+    # Tokenize samples to get actual token lengths
+    token_lengths = []
+    for sample in sample_data:
+        tokens = tokenizer(sample["text"], add_special_tokens=True)["input_ids"]
+        token_lengths.append(len(tokens))
+
+    # Calculate statistics
+    avg_length = sum(token_lengths) / len(token_lengths)
+    max_length = int(sorted(token_lengths)[int(percentile * len(token_lengths))])
+
+    logger.info(f"Analyzed {len(token_lengths)} samples")
+    logger.info(f"Average token length: {avg_length:.1f}")
+    logger.info(f"{percentile*100}th percentile token length: {max_length}")
+
+    return max_length
 
 
 def prepare_dataset(
-    tokenizer: AutoTokenizer, train_ds: Dataset, test_ds: Optional[Dataset] = None
+    tokenizer: AutoTokenizer,
+    script_args: ScriptArguments,
+    train_ds: Dataset,
+    test_ds: Optional[Dataset] = None,
 ):
     """
-    Prepare the dataset for training.
+    Prepare the dataset for training with optimal tokenization.
 
     Args:
+        tokenizer: Tokenizer to use
         train_ds: Training dataset
         test_ds: Test dataset
+        max_length: Optional fixed max_length, if None will be calculated
 
     Returns:
-        Prepared dataset
+        Prepared tokenized datasets
     """
+    # Calculate optimal max_length if not provided and truncation is enabled
+    if script_args.apply_truncation:
+        if script_args.max_length is None:
+            max_length = calculate_optimal_max_length(tokenizer, train_ds)
+        else:
+            max_length = script_args.max_length
+    else:
+        max_length = None
 
-    avg_str_len, p95_str_len = calculate_string_lengths(train_ds)
-    estimated_token_length = avg_str_len / 4
-    estimated_max_length = int(p95_str_len / 4)
+    logger.info(f"Using max_length: {max_length}")
+    logger.info(f"Truncation enabled: {script_args.apply_truncation}")
 
-    logger.info(f"Estimated average tokens for train_ds: {estimated_token_length:.0f}")
-    logger.info(f"Estimated max_length for train_ds: {estimated_max_length}")
-
-    # # tokenize and chunk dataset
+    # Tokenize training dataset
     lm_train_dataset = train_ds.map(
         lambda sample: tokenizer(
             sample["text"],
             padding=False,
-            truncation=True,
-            max_length=estimated_max_length,
+            truncation=script_args.apply_truncation,
+            max_length=max_length if script_args.apply_truncation else None,
         ),
         remove_columns=list(train_ds.features),
+        batched=True,
+        batch_size=1000,
     )
 
+    # Tokenize test dataset if provided
     if test_ds is not None:
         lm_test_dataset = test_ds.map(
             lambda sample: tokenizer(
                 sample["text"],
                 padding=False,
-                truncation=True,
-                max_length=estimated_max_length,
+                truncation=script_args.apply_truncation,
+                max_length=max_length if script_args.apply_truncation else None,
             ),
             remove_columns=list(test_ds.features),
+            batched=True,
+            batch_size=1000,
         )
-
-        print(f"Total number of test samples: {len(lm_test_dataset)}")
+        logger.info(f"Total number of test samples: {len(lm_test_dataset)}")
     else:
         lm_test_dataset = None
 
+    logger.info(f"Total number of train samples: {len(lm_train_dataset)}")
     return lm_train_dataset, lm_test_dataset
 
 
@@ -608,9 +677,10 @@ def train(script_args, training_args, train_ds, test_ds):
         script_args.model_id = "/tmp/tmp_folder"
 
     # Load model and tokenizer
-    model, tokenizer = load_model_and_tokenizer(script_args, training_args)
+    model = load_model(script_args, training_args)
+    tokenizer = load_tokenizer(script_args, training_args)
 
-    train_ds, test_ds = prepare_dataset(tokenizer, train_ds, test_ds)
+    train_ds, test_ds = prepare_dataset(tokenizer, script_args, train_ds, test_ds)
 
     # Apply LoRA configuration
     model = apply_lora_config(model, script_args)
