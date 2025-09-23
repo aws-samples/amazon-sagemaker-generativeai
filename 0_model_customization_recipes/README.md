@@ -44,7 +44,7 @@ This repository provides a comprehensive framework for model customization on Am
 
 ## Model Customization on Amazon SageMaker AI
 
-![SageMaker Recipe Flow](./media/recipe_flow.jpg)
+![SageMaker Recipe Flow](supervised_finetuning/media/recipe_flow.png)
 
 ### Supervised Fine-Tuning
 
@@ -60,42 +60,35 @@ The choice between these methods depends on your specific constraints: use LoRA 
 
 ## Available Models and Recipes
 
-| Model | QLoRA | Spectrum | Full | Notebook | Notes |
-|-------|-------|----------|------|----------|-------|
-| | | | | | |
-| **🦙 Meta (Llama) - Text Generation** | | | | | |
-| meta-llama/Llama-3.2-3B-Instruct | ✅ [QLoRA](sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-peft-qlora.yaml) | ✅ [Spectrum](sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-spectrum.yaml) | ✅ [Full](sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-full.yaml) | 📓 [Notebook](finetune--meta-llama--Llama-3.2-3B-Instruct.ipynb) | Flash Attention 2, compact model |
-| meta-llama/Llama-3.3-70B-Instruct | ✅ [QLoRA](sagemaker_code/hf_recipes/meta-llama/Llama-3.3-70B-Instruct--vanilla-peft-qlora.yaml) | ✅ [Spectrum](sagemaker_code/hf_recipes/meta-llama/Llama-3.3-70B-Instruct--vanilla-spectrum.yaml) | ✅ [Full](sagemaker_code/hf_recipes/meta-llama/Llama-3.3-70B-Instruct--vanilla-full.yaml) | 📓 [Notebook](finetune--meta-llama--Llama-3.3-70B-Instruct.ipynb) | Large scale model, enhanced capabilities |
-| | | | | | |
-| **🦙 Meta (Llama) - Multi-Modal** | | | | | |
-| meta-llama/Llama-3.2-11B-Vision-Instruct | ✅ [QLoRA](sagemaker_code/hf_recipes/meta-llama/Llama-3.2-11B-Vision-Instruct--vanilla-peft-qlora.yaml) | ✅ [Spectrum](sagemaker_code/hf_recipes/meta-llama/Llama-3.2-11B-Vision-Instruct--vanilla-spectrum.yaml) | ✅ [Full](sagemaker_code/hf_recipes/meta-llama/Llama-3.2-11B-Vision-Instruct--vanilla-full.yaml) | 📓 [Notebook](finetune--meta-llama--Llama-3.2-11B-Vision-Instruct.ipynb) | Vision-language model |
-| meta-llama/Llama-4-Maverick-17B-128E-Instruct | ✅ [QLoRA](sagemaker_code/hf_recipes/meta-llama/Llama-4-Maverick-17B-128E-Instruct--vanilla-peft-qlora.yaml) | ✅ [Spectrum](sagemaker_code/hf_recipes/meta-llama/Llama-4-Maverick-17B-128E-Instruct--vanilla-spectrum.yaml) | ✅ [Full](sagemaker_code/hf_recipes/meta-llama/Llama-4-Maverick-17B-128E-Instruct--vanilla-full.yaml) | 📓 [Notebook](finetune--meta-llama--Llama-4-Maverick-17B-128E-Instruct.ipynb) | MoE vision-language model, 128 experts |
-| | | | | | |
-| **🤖 OpenAI - Text Generation** | | | | | |
-| openai/gpt-oss-20b | ✅ [QLoRA](sagemaker_code/hf_recipes/openai/gpt-oss-20b--vanilla-peft-qlora.yaml) | ✅ [Spectrum](sagemaker_code/hf_recipes/openai/gpt-oss-20b--vanilla-spectrum.yaml) | ✅ [Full](sagemaker_code/hf_recipes/openai/gpt-oss-20b--vanilla-full.yaml) | 📓 [Notebook](finetune--openai--gpt-oss-20b.ipynb) | 4-bit quantization, optimized for efficiency |
-| openai/gpt-oss-120b | ✅ [QLoRA](sagemaker_code/hf_recipes/openai/gpt-oss-120b--vanilla-peft-qlora.yaml) | ✅ [Spectrum](sagemaker_code/hf_recipes/openai/gpt-oss-120b--vanilla-spectrum.yaml) | ✅ [Full](sagemaker_code/hf_recipes/openai/gpt-oss-120b--vanilla-full.yaml) | 📓 [Notebook](finetune--openai--gpt-oss-120b.ipynb) | Large scale model, 4-bit quantization |
-| | | | | | |
-| **🔮 Qwen (Alibaba) - Text Generation** | | | | | |
-| Qwen/Qwen2.5-3B-Instruct | ✅ [QLoRA](sagemaker_code/hf_recipes/Qwen/Qwen2.5-3B-Instruct--vanilla-peft-qlora.yaml) | ✅ [Spectrum](sagemaker_code/hf_recipes/Qwen/Qwen2.5-3B-Instruct--vanilla-spectrum.yaml) | ✅ [Full](sagemaker_code/hf_recipes/Qwen/Qwen2.5-3B-Instruct--vanilla-full.yaml) | - | Compact, efficient model |
-| Qwen/QwQ-32B | ✅ [QLoRA](sagemaker_code/hf_recipes/Qwen/QwQ-32B--vanilla-peft-qlora.yaml) | ✅ [Spectrum](sagemaker_code/hf_recipes/Qwen/QwQ-32B--vanilla-spectrum.yaml) | ✅ [Full](sagemaker_code/hf_recipes/Qwen/QwQ-32B--vanilla-full.yaml) | 📓 [Notebook](finetune--Qwen--QwQ-32B.ipynb) | Reasoning-focused model |
-| | | | | | |
-| **🔮 Qwen (Alibaba) - Multi-Modal** | | | | | |
-| Qwen/Qwen2-Audio-7B-Instruct | ✅ [QLoRA](sagemaker_code/hf_recipes/Qwen/Qwen2-Audio-7B-Instruct-vanilla-peft-qlora.yaml) | ⏳ Coming Soon | ✅ [Full](sagemaker_code/hf_recipes/Qwen/Qwen2-Audio-7B-Instruct-vanilla-full.yaml) | 📓 [Notebook](finetune--Qwen--Qwen2-Audio-7B-Instruct.ipynb) | Audio-language model |
-| | | | | | |
-| **🧠 DeepSeek - Text Generation** | | | | | |
-| deepseek-ai/DeepSeek-R1-0528 | ✅ [QLoRA](sagemaker_code/hf_recipes/deepseek-ai/DeepSeek-R1-0528--vanilla-peft-qlora.yaml) | ✅ [Spectrum](sagemaker_code/hf_recipes/deepseek-ai/DeepSeek-R1-0528--vanilla-spectrum.yaml) | ✅ [Full](sagemaker_code/hf_recipes/deepseek-ai/DeepSeek-R1-0528--vanilla-full.yaml) | 📓 [Notebook](finetune--deepseek-ai--DeepSeek-R1-0528.ipynb) | Advanced reasoning model |
-| deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B | ✅ [QLoRA](sagemaker_code/hf_recipes/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B--vanilla-peft-qlora.yaml) | ✅ [Spectrum](sagemaker_code/hf_recipes/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B--vanilla-spectrum.yaml) | ✅ [Full](sagemaker_code/hf_recipes/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B--vanilla-full.yaml) | 📓 [Notebook](finetune--deepseek-ai--DeepSeek-R1-Distill-Qwen-1.5B.ipynb) | Compact reasoning model, distilled from R1 |
-| | | | | | |
-| **🔬 Microsoft - Text Generation** | | | | | |
-| microsoft/Phi-3-mini-128k-instruct | ✅ [QLoRA](sagemaker_code/hf_recipes/microsoft/Phi-3-mini-128k-instruct--vanilla-peft-qlora.yaml) | ✅ [Spectrum](sagemaker_code/hf_recipes/microsoft/Phi-3-mini-128k-instruct--vanilla-spectrum.yaml) | ✅ [Full](sagemaker_code/hf_recipes/microsoft/Phi-3-mini-128k-instruct--vanilla-full.yaml) | 📓 [Notebook](finetune--microsoft--Phi-3-mini-128k-instruct.ipynb) | Compact model, 128K context window |
-| microsoft/phi-4 | ✅ [QLoRA](sagemaker_code/hf_recipes/microsoft/phi-4--vanilla-peft-qlora.yaml) | ✅ [Spectrum](sagemaker_code/hf_recipes/microsoft/phi-4--vanilla-spectrum.yaml) | ✅ [Full](sagemaker_code/hf_recipes/microsoft/phi-4--vanilla-full.yaml) | 📓 [Notebook](finetune--microsoft--phi-4.ipynb) | Advanced reasoning and coding capabilities |
-| | | | | | |
-| **🔬 Microsoft - Multi-Modal** | | | | | |
-| microsoft/Florence-2-large | ✅ [QLoRA](sagemaker_code/hf_recipes/microsoft/Florence-2-large--vanilla-peft-qlora.yaml) | ✅ [Spectrum](sagemaker_code/hf_recipes/microsoft/Florence-2-large--vanilla-spectrum.yaml) | ✅ [Full](sagemaker_code/hf_recipes/microsoft/Florence-2-large--vanilla-full.yaml) | 📓 [Notebook](finetune--microsoft--Florence-2-large.ipynb) | Vision-language model, OCR and analysis |
-| | | | | | |
-| **🌟 Google - Text Generation** | | | | | |
-| google/gemma-2b | ✅ [QLoRA](sagemaker_code/hf_recipes/google/gemma-2b--vanilla-peft-qlora.yaml) | ✅ [Spectrum](sagemaker_code/hf_recipes/google/gemma-2b--vanilla-spectrum.yaml) | ✅ [Full](sagemaker_code/hf_recipes/google/gemma-2b--vanilla-full.yaml) | 📓 [Notebook](finetune--google--gemma-2b.ipynb) | Efficient small model |
-| google/gemma-3-27b-it | ✅ [QLoRA](sagemaker_code/hf_recipes/google/gemma-3-27b-it--vanilla-peft-qlora.yaml) | ✅ [Spectrum](sagemaker_code/hf_recipes/google/gemma-3-27b-it--vanilla-spectrum.yaml) | ✅ [Full](sagemaker_code/hf_recipes/google/gemma-3-27b-it--vanilla-full.yaml) | 📓 [Notebook](finetune--google--gemma-3-27b-it.ipynb) | Latest Gemma model, instruction-tuned |
+| Model | Modality | QLoRA | Spectrum | Full | Notebook | Notes |
+|-------|----------|-------|----------|------|----------|-------|
+| | | | | | | |
+| **🦙 Meta (Llama)** | | | | | | |
+| meta-llama/Llama-3.2-3B-Instruct | Text to Text | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-peft-qlora.yaml) | ✅ [Spectrum](supervised_finetuning/sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-spectrum.yaml) | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--meta-llama--Llama-3.2-3B-Instruct.ipynb) | Flash Attention 2, compact model |
+| meta-llama/Llama-3.3-70B-Instruct | Text to Text | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/meta-llama/Llama-3.3-70B-Instruct--vanilla-peft-qlora.yaml) | ✅ [Spectrum](supervised_finetuning/sagemaker_code/hf_recipes/meta-llama/Llama-3.3-70B-Instruct--vanilla-spectrum.yaml) | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/meta-llama/Llama-3.3-70B-Instruct--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--meta-llama--Llama-3.3-70B-Instruct.ipynb) | Large scale model, enhanced capabilities |
+| meta-llama/Llama-3.2-11B-Vision-Instruct | Image, Text to Text | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/meta-llama/Llama-3.2-11B-Vision-Instruct--vanilla-peft-qlora.yaml) | ✅ [Spectrum](supervised_finetuning/sagemaker_code/hf_recipes/meta-llama/Llama-3.2-11B-Vision-Instruct--vanilla-spectrum.yaml) | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/meta-llama/Llama-3.2-11B-Vision-Instruct--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--meta-llama--Llama-3.2-11B-Vision-Instruct.ipynb) | Vision-language model |
+| meta-llama/Llama-4-Maverick-17B-128E-Instruct | Video, Image, Text to Text | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/meta-llama/Llama-4-Maverick-17B-128E-Instruct--vanilla-peft-qlora.yaml) | ✅ [Spectrum](supervised_finetuning/sagemaker_code/hf_recipes/meta-llama/Llama-4-Maverick-17B-128E-Instruct--vanilla-spectrum.yaml) | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/meta-llama/Llama-4-Maverick-17B-128E-Instruct--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--meta-llama--Llama-4-Maverick-17B-128E-Instruct.ipynb) | MoE vision-language model, 128 experts |
+| | | | | | | |
+| **🤖 OpenAI** | | | | | | |
+| openai/gpt-oss-20b | Text to Text | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/openai/gpt-oss-20b--vanilla-peft-qlora.yaml) | ✅ [Spectrum](supervised_finetuning/sagemaker_code/hf_recipes/openai/gpt-oss-20b--vanilla-spectrum.yaml) | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/openai/gpt-oss-20b--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--openai--gpt-oss-20b.ipynb) | 4-bit quantization, optimized for efficiency |
+| openai/gpt-oss-120b | Text to Text | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/openai/gpt-oss-120b--vanilla-peft-qlora.yaml) | ✅ [Spectrum](supervised_finetuning/sagemaker_code/hf_recipes/openai/gpt-oss-120b--vanilla-spectrum.yaml) | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/openai/gpt-oss-120b--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--openai--gpt-oss-120b.ipynb) | Large scale model, 4-bit quantization |
+| | | | | | | |
+| **🔮 Qwen (Alibaba)** | | | | | | |
+| Qwen/Qwen2.5-3B-Instruct | Text to Text | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/Qwen/Qwen2.5-3B-Instruct--vanilla-peft-qlora.yaml) | ✅ [Spectrum](supervised_finetuning/sagemaker_code/hf_recipes/Qwen/Qwen2.5-3B-Instruct--vanilla-spectrum.yaml) | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/Qwen/Qwen2.5-3B-Instruct--vanilla-full.yaml) | ❌ Unsupported | Compact, efficient model |
+| Qwen/QwQ-32B | Text to Text | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/Qwen/QwQ-32B--vanilla-peft-qlora.yaml) | ✅ [Spectrum](supervised_finetuning/sagemaker_code/hf_recipes/Qwen/QwQ-32B--vanilla-spectrum.yaml) | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/Qwen/QwQ-32B--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--Qwen--QwQ-32B.ipynb) | Reasoning-focused model |
+| Qwen/Qwen2-Audio-7B-Instruct | Audio, Text to Text | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/Qwen/Qwen2-Audio-7B-Instruct-vanilla-peft-qlora.yaml) | ❌ Unsupported | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/Qwen/Qwen2-Audio-7B-Instruct-vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--Qwen--Qwen2-Audio-7B-Instruct.ipynb) | Audio-language model |
+| | | | | | | |
+| **🧠 DeepSeek** | | | | | | |
+| deepseek-ai/DeepSeek-R1-0528 | Text to Text | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/deepseek-ai/DeepSeek-R1-0528--vanilla-peft-qlora.yaml) | ✅ [Spectrum](supervised_finetuning/sagemaker_code/hf_recipes/deepseek-ai/DeepSeek-R1-0528--vanilla-spectrum.yaml) | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/deepseek-ai/DeepSeek-R1-0528--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--deepseek-ai--DeepSeek-R1-0528.ipynb) | Advanced reasoning model |
+| deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B | Text to Text | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B--vanilla-peft-qlora.yaml) | ✅ [Spectrum](supervised_finetuning/sagemaker_code/hf_recipes/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B--vanilla-spectrum.yaml) | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--deepseek-ai--DeepSeek-R1-Distill-Qwen-1.5B.ipynb) | Compact reasoning model, distilled from R1 |
+| | | | | | | |
+| **🔬 Microsoft** | | | | | | |
+| microsoft/Phi-3-mini-128k-instruct | Text to Text | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/microsoft/Phi-3-mini-128k-instruct--vanilla-peft-qlora.yaml) | ✅ [Spectrum](supervised_finetuning/sagemaker_code/hf_recipes/microsoft/Phi-3-mini-128k-instruct--vanilla-spectrum.yaml) | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/microsoft/Phi-3-mini-128k-instruct--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--microsoft--Phi-3-mini-128k-instruct.ipynb) | Compact model, 128K context window |
+| microsoft/phi-4 | Text to Text | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/microsoft/phi-4--vanilla-peft-qlora.yaml) | ✅ [Spectrum](supervised_finetuning/sagemaker_code/hf_recipes/microsoft/phi-4--vanilla-spectrum.yaml) | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/microsoft/phi-4--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--microsoft--phi-4.ipynb) | Advanced reasoning and coding capabilities |
+| | | | | | | |
+| **🌟 Google** | | | | | | |
+| google/gemma-3-4b-it | Text to Text | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/google/gemma-3-4b-it--vanilla-peft-qlora.yaml) | ❌ Unsupported | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/google/gemma-3-4b-it--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--google--gemma-3-4b-it.ipynb) | Efficient 4B model |
+| google/gemma-3-27b-it | Text to Text | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/google/gemma-3-27b-it--vanilla-peft-qlora.yaml) | ❌ Unsupported | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/google/gemma-3-27b-it--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--google--gemma-3-27b-it.ipynb) | Latest Gemma model, instruction-tuned |
 
 ### Preference Optimization
 
@@ -103,16 +96,14 @@ Preference Optimization represents the next frontier in model alignment, focusin
 
 **Direct Preference Optimization (DPO)** revolutionizes the traditional RLHF pipeline by directly optimizing the model on preference data without requiring a separate reward model. This approach simplifies the training process while maintaining effectiveness, making it more stable and computationally efficient. DPO works by directly optimizing the policy to increase the likelihood of preferred responses while decreasing the likelihood of rejected ones, using a reference model to prevent over-optimization.
 
-**Proximal Policy Optimization (PPO)** represents the traditional reinforcement learning approach to preference optimization, using a reward model trained on human preferences to guide policy updates. PPO maintains a balance between exploration and exploitation while ensuring stable training through clipped policy updates. This method excels in scenarios requiring fine-grained control over the optimization process and complex reward structures.
-
 **Group Relative Policy Optimization (GRPO)** extends preference optimization to handle group-based preferences and multi-objective alignment. This approach is particularly valuable when dealing with diverse user groups or when optimizing for multiple, potentially conflicting objectives simultaneously. GRPO enables more nuanced preference learning that can adapt to different contexts and user populations.
 
 These preference optimization techniques are essential for creating models that not only perform well on benchmarks but also generate outputs that users find genuinely helpful and aligned with their values and expectations.
 
-| Model | DPO | PPO | GRPO | Notes |
-|-------|-----|-----|------|-------|
-| | | | | |
-| **🚧 Coming Soon** | ⏳ | ⏳ | ⏳ | Preference optimization recipes in development |
+| Model | DPO | GRPO | Notes |
+|-------|-----|------|-------|
+| | | | |
+| **🚧 Coming Soon** | ⏳ | ⏳ | Preference optimization recipes in development |
 
 ### Pre-Training
 
@@ -137,11 +128,11 @@ Pre-training on Amazon SageMaker AI enables practitioners to create custom found
 
 ```bash
 # Run with a recipe configuration
-python sagemaker_code/sft.py --config sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-peft-qlora.yaml
+python supervised_finetuning/sagemaker_code/sft.py --config supervised_finetuning/sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-peft-qlora.yaml
 
 # Override specific parameters
-python sagemaker_code/sft.py \
-    --config sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-peft-qlora.yaml \
+python supervised_finetuning/sagemaker_code/sft.py \
+    --config supervised_finetuning/sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-peft-qlora.yaml \
     --num_train_epochs 3 \
     --learning_rate 1e-4
 ```
@@ -154,7 +145,7 @@ from sagemaker.pytorch import PyTorch
 # Configure SageMaker estimator
 estimator = PyTorch(
     entry_point='sft.py',
-    source_dir='sagemaker_code',
+    source_dir='supervised_finetuning/sagemaker_code',
     role=role,
     instance_type='ml.g5.2xlarge',
     instance_count=1,
@@ -199,14 +190,14 @@ Selective parameter unfreezing based on configurable patterns for targeted fine-
 
 **Configuration:**
 ```yaml
-spectrum_config_path: sagemaker_code/configs/spectrum/meta-llama/snr_results_meta-llama-Llama-3.2-3B-Instruct_unfrozenparameters_30percent.yaml
+spectrum_config_path: supervised_finetuning/sagemaker_code/configs/spectrum/meta-llama/snr_results_meta-llama-Llama-3.2-3B-Instruct_unfrozenparameters_30percent.yaml
 ```
 
 **Available Spectrum Configurations:**
-- Meta-Llama models: `sagemaker_code/configs/spectrum/meta-llama/`
-- OpenAI models: `sagemaker_code/configs/spectrum/openai/`
-- Qwen models: `sagemaker_code/configs/spectrum/Qwen/`
-- DeepSeek models: `sagemaker_code/configs/spectrum/deepseek-ai/`
+- Meta-Llama models: `supervised_finetuning/sagemaker_code/configs/spectrum/meta-llama/`
+- OpenAI models: `supervised_finetuning/sagemaker_code/configs/spectrum/openai/`
+- Qwen models: `supervised_finetuning/sagemaker_code/configs/spectrum/Qwen/`
+- DeepSeek models: `supervised_finetuning/sagemaker_code/configs/spectrum/deepseek-ai/`
 
 ### Full Fine-tuning
 Traditional approach that updates all model parameters.
@@ -403,9 +394,9 @@ logging_steps: 5
 - For multimodal models, verify processor configuration matches model
 
 **Configuration Issues**
-- Ensure recipe paths are correct: `sagemaker_code/hf_recipes/{org}/{model}--vanilla-{method}.yaml`
-- Check accelerate config paths: `sagemaker_code/configs/accelerate/{config}.yaml`
-- Verify spectrum config paths: `sagemaker_code/configs/spectrum/{org}/{config}.yaml`
+- Ensure recipe paths are correct: `supervised_finetuning/sagemaker_code/hf_recipes/{org}/{model}--vanilla-{method}.yaml`
+- Check accelerate config paths: `supervised_finetuning/sagemaker_code/configs/accelerate/{config}.yaml`
+- Verify spectrum config paths: `supervised_finetuning/sagemaker_code/configs/spectrum/{org}/{config}.yaml`
 - Validate output directory permissions and paths
 
 ## Example Notebooks
@@ -413,31 +404,30 @@ logging_steps: 5
 The repository includes comprehensive Jupyter notebooks demonstrating end-to-end fine-tuning workflows:
 
 ### Meta (Llama) Models
-- **[Meta Llama 3.2 3B Instruct](finetune--meta-llama--Llama-3.2-3B-Instruct.ipynb)**: Compact text generation model
-- **[Meta Llama 3.2 11B Vision Instruct](finetune--meta-llama--Llama-3.2-11B-Vision-Instruct.ipynb)**: Vision-language model
-- **[Meta Llama 3.3 70B Instruct](finetune--meta-llama--Llama-3.3-70B-Instruct.ipynb)**: Large-scale text generation
-- **[Meta Llama 4 Maverick 17B 128E Instruct](finetune--meta-llama--Llama-4-Maverick-17B-128E-Instruct.ipynb)**: MoE vision-language model
+- **[Meta Llama 3.2 3B Instruct](supervised_finetuning/finetune--meta-llama--Llama-3.2-3B-Instruct.ipynb)**: Compact text generation model
+- **[Meta Llama 3.2 11B Vision Instruct](supervised_finetuning/finetune--meta-llama--Llama-3.2-11B-Vision-Instruct.ipynb)**: Vision-language model
+- **[Meta Llama 3.3 70B Instruct](supervised_finetuning/finetune--meta-llama--Llama-3.3-70B-Instruct.ipynb)**: Large-scale text generation
+- **[Meta Llama 4 Maverick 17B 128E Instruct](supervised_finetuning/finetune--meta-llama--Llama-4-Maverick-17B-128E-Instruct.ipynb)**: MoE vision-language model
 
 ### OpenAI Models
-- **[OpenAI GPT-OSS 20B](finetune--openai--gpt-oss-20b.ipynb)**: Mid-scale efficient model
-- **[OpenAI GPT-OSS 120B](finetune--openai--gpt-oss-120b.ipynb)**: Large-scale model
+- **[OpenAI GPT-OSS 20B](supervised_finetuning/finetune--openai--gpt-oss-20b.ipynb)**: Mid-scale efficient model
+- **[OpenAI GPT-OSS 120B](supervised_finetuning/finetune--openai--gpt-oss-120b.ipynb)**: Large-scale model
 
 ### Qwen (Alibaba) Models
-- **[Qwen QwQ 32B](finetune--Qwen--QwQ-32B.ipynb)**: Reasoning-focused model
-- **[Qwen2 Audio 7B Instruct](finetune--Qwen--Qwen2-Audio-7B-Instruct.ipynb)**: Audio-language model
+- **[Qwen QwQ 32B](supervised_finetuning/finetune--Qwen--QwQ-32B.ipynb)**: Reasoning-focused model
+- **[Qwen2 Audio 7B Instruct](supervised_finetuning/finetune--Qwen--Qwen2-Audio-7B-Instruct.ipynb)**: Audio-language model
 
 ### DeepSeek Models
-- **[DeepSeek R1 0528](finetune--deepseek-ai--DeepSeek-R1-0528.ipynb)**: Advanced reasoning model
-- **[DeepSeek R1 Distill 1.5B](finetune--deepseek-ai--DeepSeek-R1-Distill-Qwen-1.5B.ipynb)**: Compact reasoning model
+- **[DeepSeek R1 0528](supervised_finetuning/finetune--deepseek-ai--DeepSeek-R1-0528.ipynb)**: Advanced reasoning model
+- **[DeepSeek R1 Distill 1.5B](supervised_finetuning/finetune--deepseek-ai--DeepSeek-R1-Distill-Qwen-1.5B.ipynb)**: Compact reasoning model
 
 ### Microsoft Models
-- **[Microsoft Phi-3 Mini 128K Instruct](finetune--microsoft--Phi-3-mini-128k-instruct.ipynb)**: Compact model with extended context
-- **[Microsoft Phi-4](finetune--microsoft--phi-4.ipynb)**: Advanced reasoning and coding model
-- **[Microsoft Florence-2 Large](finetune--microsoft--Florence-2-large.ipynb)**: Vision-language model for OCR and analysis
+- **[Microsoft Phi-3 Mini 128K Instruct](supervised_finetuning/finetune--microsoft--Phi-3-mini-128k-instruct.ipynb)**: Compact model with extended context
+- **[Microsoft Phi-4](supervised_finetuning/finetune--microsoft--phi-4.ipynb)**: Advanced reasoning and coding model
 
 ### Google Models
-- **[Google Gemma 2B](finetune--google--gemma-2b.ipynb)**: Efficient small model
-- **[Google Gemma 3 27B IT](finetune--google--gemma-3-27b-it.ipynb)**: Latest instruction-tuned Gemma model
+- **[Google Gemma 3 4B IT](supervised_finetuning/finetune--google--gemma-3-4b-it.ipynb)**: Efficient 4B model
+- **[Google Gemma 3 27B IT](supervised_finetuning/finetune--google--gemma-3-27b-it.ipynb)**: Latest instruction-tuned Gemma model
 
 Each notebook provides:
 - SageMaker setup and configuration
@@ -487,14 +477,14 @@ Clone git repo and navigate to the supervised fine-tuning repository
 git clone https://github.com/aws-samples/amazon-sagemaker-generativeai.git
 
 # navigate supervised fine-tuning repository
-cd amazon-sagemaker-generativeai/3_distributed_training/sm_huggingface_oss_recipes/supervised_finetuning/
+cd amazon-sagemaker-generativeai/0_model_customization_recipes/supervised_finetuning/
 ```
 
 Run distributed training using Accelerate orchestrator
 
 ```bash
 # Set model output directory
-SM_MODEL_DIR="/home/ubuntu/amazon-sagemaker-generativeai/3_distributed_training/sm_huggingface_oss_recipes/supervised_finetuning/models"
+SM_MODEL_DIR="/home/ubuntu/amazon-sagemaker-generativeai/0_model_customization_recipes/supervised_finetuning/models"
 
 # Run training with accelerate
 accelerate launch \
@@ -506,10 +496,10 @@ accelerate launch \
 
 ### Available Accelerate Configurations
 
-- **DeepSpeed ZeRO Stage 1**: `sagemaker_code/configs/accelerate/ds_zero1.yaml`
-- **DeepSpeed ZeRO Stage 3**: `sagemaker_code/configs/accelerate/ds_zero3.yaml`
-- **FSDP**: `sagemaker_code/configs/accelerate/fsdp.yaml`
-- **FSDP with QLoRA**: `sagemaker_code/configs/accelerate/fsdp_qlora.yaml`
+- **DeepSpeed ZeRO Stage 1**: `supervised_finetuning/sagemaker_code/configs/accelerate/ds_zero1.yaml`
+- **DeepSpeed ZeRO Stage 3**: `supervised_finetuning/sagemaker_code/configs/accelerate/ds_zero3.yaml`
+- **FSDP**: `supervised_finetuning/sagemaker_code/configs/accelerate/fsdp.yaml`
+- **FSDP with QLoRA**: `supervised_finetuning/sagemaker_code/configs/accelerate/fsdp_qlora.yaml`
 
 ## License
 
