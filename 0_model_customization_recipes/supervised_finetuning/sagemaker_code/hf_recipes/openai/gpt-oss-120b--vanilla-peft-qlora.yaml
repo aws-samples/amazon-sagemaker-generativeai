@@ -1,0 +1,43 @@
+# Model arguments
+model_name_or_path: openai/gpt-oss-120b
+tokenizer_name_or_path: openai/gpt-oss-120b
+model_revision: main
+torch_dtype: bfloat16
+attn_implementation: eager
+use_liger: false
+bf16: true
+tf32: true
+output_dir: /opt/ml/output/openai/gpt-oss-120b/peft-qlora/
+
+# Dataset arguments
+dataset_id_or_path: /opt/ml/input/data/training/open-r1--OpenR1-Math-220k-withthinking.jsonl
+max_seq_length: 4096
+packing: false
+
+# LoRA arguments
+use_peft: true
+mxfp4: true
+load_in_4bit: false
+lora_target_modules: "all-linear"
+lora_modules_to_save: ["7.mlp.experts.gate_up_proj", "7.mlp.experts.down_proj", "15.mlp.experts.gate_up_proj", "15.mlp.experts.down_proj", "23.mlp.experts.gate_up_proj", "23.mlp.experts.down_proj"]
+lora_r: 16
+lora_alpha: 16
+
+# Training arguments
+num_train_epochs: 1
+per_device_train_batch_size: 8
+gradient_accumulation_steps: 2
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: true
+learning_rate: 1.0e-4 
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+
+# Logging arguments
+logging_strategy: steps
+logging_steps: 5
+report_to:
+- tensorboard
+save_strategy: "epoch"
+seed: 42

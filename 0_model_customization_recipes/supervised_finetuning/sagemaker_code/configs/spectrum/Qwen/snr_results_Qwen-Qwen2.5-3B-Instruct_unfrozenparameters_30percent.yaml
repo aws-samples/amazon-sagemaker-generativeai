@@ -1,0 +1,105 @@
+unfrozen_parameters:
+- ^lm_head.weight$
+- ^model.embed_tokens.weight$
+# input_layernorm layers
+- model.layers.0.input_layernorm
+- model.layers.1.input_layernorm
+- model.layers.2.input_layernorm
+- model.layers.3.input_layernorm
+- model.layers.4.input_layernorm
+- model.layers.5.input_layernorm
+- model.layers.6.input_layernorm
+- model.layers.7.input_layernorm
+- model.layers.8.input_layernorm
+- model.layers.9.input_layernorm
+# lm_head layers
+# mlp.down_proj layers
+- model.layers.35.mlp.down_proj
+- model.layers.6.mlp.down_proj
+- model.layers.26.mlp.down_proj
+- model.layers.5.mlp.down_proj
+- model.layers.7.mlp.down_proj
+- model.layers.34.mlp.down_proj
+- model.layers.8.mlp.down_proj
+- model.layers.15.mlp.down_proj
+- model.layers.14.mlp.down_proj
+- model.layers.9.mlp.down_proj
+# mlp.gate_proj layers
+- model.layers.35.mlp.gate_proj
+- model.layers.34.mlp.gate_proj
+- model.layers.15.mlp.gate_proj
+- model.layers.10.mlp.gate_proj
+- model.layers.17.mlp.gate_proj
+- model.layers.13.mlp.gate_proj
+- model.layers.14.mlp.gate_proj
+- model.layers.16.mlp.gate_proj
+- model.layers.19.mlp.gate_proj
+- model.layers.11.mlp.gate_proj
+# mlp.up_proj layers
+- model.layers.10.mlp.up_proj
+- model.layers.14.mlp.up_proj
+- model.layers.13.mlp.up_proj
+- model.layers.15.mlp.up_proj
+- model.layers.11.mlp.up_proj
+- model.layers.17.mlp.up_proj
+- model.layers.12.mlp.up_proj
+- model.layers.16.mlp.up_proj
+- model.layers.9.mlp.up_proj
+- model.layers.8.mlp.up_proj
+# model.embed_tokens layers
+# model.norm layers
+# post_attention_layernorm layers
+- model.layers.0.post_attention_layernorm
+- model.layers.1.post_attention_layernorm
+- model.layers.2.post_attention_layernorm
+- model.layers.3.post_attention_layernorm
+- model.layers.4.post_attention_layernorm
+- model.layers.5.post_attention_layernorm
+- model.layers.6.post_attention_layernorm
+- model.layers.7.post_attention_layernorm
+- model.layers.8.post_attention_layernorm
+- model.layers.9.post_attention_layernorm
+# self_attn.k_proj layers
+- model.layers.0.self_attn.k_proj
+- model.layers.35.self_attn.k_proj
+- model.layers.34.self_attn.k_proj
+- model.layers.9.self_attn.k_proj
+- model.layers.3.self_attn.k_proj
+- model.layers.23.self_attn.k_proj
+- model.layers.6.self_attn.k_proj
+- model.layers.7.self_attn.k_proj
+- model.layers.4.self_attn.k_proj
+- model.layers.8.self_attn.k_proj
+# self_attn.o_proj layers
+- model.layers.0.self_attn.o_proj
+- model.layers.20.self_attn.o_proj
+- model.layers.3.self_attn.o_proj
+- model.layers.4.self_attn.o_proj
+- model.layers.5.self_attn.o_proj
+- model.layers.11.self_attn.o_proj
+- model.layers.15.self_attn.o_proj
+- model.layers.7.self_attn.o_proj
+- model.layers.30.self_attn.o_proj
+- model.layers.10.self_attn.o_proj
+# self_attn.q_proj layers
+- model.layers.13.self_attn.q_proj
+- model.layers.15.self_attn.q_proj
+- model.layers.25.self_attn.q_proj
+- model.layers.20.self_attn.q_proj
+- model.layers.19.self_attn.q_proj
+- model.layers.23.self_attn.q_proj
+- model.layers.32.self_attn.q_proj
+- model.layers.28.self_attn.q_proj
+- model.layers.33.self_attn.q_proj
+- model.layers.17.self_attn.q_proj
+# self_attn.v_proj layers
+- model.layers.1.self_attn.v_proj
+- model.layers.35.self_attn.v_proj
+- model.layers.34.self_attn.v_proj
+- model.layers.20.self_attn.v_proj
+- model.layers.13.self_attn.v_proj
+- model.layers.12.self_attn.v_proj
+- model.layers.8.self_attn.v_proj
+- model.layers.28.self_attn.v_proj
+- model.layers.16.self_attn.v_proj
+- model.layers.24.self_attn.v_proj
