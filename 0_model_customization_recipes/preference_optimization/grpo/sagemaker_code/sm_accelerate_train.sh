@@ -17,7 +17,7 @@ NUM_GPUS=""
 CONFIG_PATH=""
 REQUIREMENTS_FILE="./requirements.txt"
 ACCELERATE_CONFIG="configs/accelerate/ds_zero3.yaml"
-TRAINING_SCRIPT="grpo.py"
+TRAINING_SCRIPT="hf_recipes/grpo.py"
 
 # Color codes for output
 readonly RED='\033[0;31m'
