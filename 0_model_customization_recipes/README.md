@@ -103,7 +103,10 @@ These preference optimization techniques are essential for creating models that 
 | Model | DPO | GRPO | Notes |
 |-------|-----|------|-------|
 | | | | |
-| **🚧 Coming Soon** | ⏳ | ⏳ | Preference optimization recipes in development |
+| **🔮 Qwen (Alibaba)** | | | |
+| Qwen/Qwen2.5-3B-Instruct| | ✅ [GRPO](preference_optimization/grpo/grpo-recipe/sagemaker_code/hf_recipes/qwen/Qwen-2.5-3B-Instruct--oreo-grpo.yaml)| Countdown game reward function |
+| | | | |
+| **🚧 More Models Coming Soon** | ⏳ | ⏳ | Preference optimization recipes in development |
 
 ### Pre-Training
 
