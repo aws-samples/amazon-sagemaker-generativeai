@@ -168,6 +168,10 @@ def grpo_function(
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    if model_args.model_name_or_path.startswith("meta-llama"):
+        tokenizer.pad_token = tokenizer.eos_token
+        # tokenizer.add_special_tokens({"additional_special_tokens": ["<think>", "</think>", "<answer>", "</answer>"]})
+
     ###############
     # Load datasets
     ###############
@@ -222,6 +226,9 @@ def grpo_function(
       train_dataset=train_dataset,
       eval_dataset=test_dataset,
       peft_config=get_peft_config(model_args),
+      # specific for llama
+      processing_class=tokenizer,
+      reward_processing_classes=tokenizer
     )
 
 
