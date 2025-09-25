@@ -38,6 +38,6 @@ logging_strategy: steps
 logging_steps: 5
 report_to:
 - mlflow
-run_name: Llama-3.2-3B-Instruct-Josephgflowers--Finance-Instruct-500k
+run_name: Llama-3.2-3B-Instruct-peft-qlora-Josephgflowers--Finance-Instruct-500k
 save_strategy: "epoch"
 seed: 42

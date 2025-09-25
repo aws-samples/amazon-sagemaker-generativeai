@@ -36,6 +36,7 @@ warmup_ratio: 0.1
 logging_strategy: steps
 logging_steps: 5
 report_to:
-- tensorboard
+- mlflow
+run_name: gpt-oss-120b-spectrum-open-r1--OpenR1-Math-220k-withthinking
 save_strategy: "epoch"
 seed: 42
