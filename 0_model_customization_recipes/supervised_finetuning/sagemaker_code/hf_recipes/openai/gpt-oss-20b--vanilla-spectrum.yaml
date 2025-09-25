@@ -22,7 +22,7 @@ spectrum_config_path: configs/spectrum/openai/snr_results_openai-gpt-oss-20b_unf
 modality_type: "text"
 
 # Training arguments
-num_train_epochs: 1
+num_train_epochs: 5
 per_device_train_batch_size: 8
 gradient_accumulation_steps: 2
 gradient_checkpointing: true
@@ -36,6 +36,7 @@ warmup_ratio: 0.1
 logging_strategy: steps
 logging_steps: 5
 report_to:
-- tensorboard
+- mlflow
+run_name: gpt-oss-20b-spectrum-open-r1--OpenR1-Math-220k-withthinking
 save_strategy: "epoch"
 seed: 42

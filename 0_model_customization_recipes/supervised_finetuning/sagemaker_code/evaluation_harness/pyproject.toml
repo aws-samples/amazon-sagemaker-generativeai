@@ -1,0 +1,83 @@
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "evaluation-harness"
+version = "0.1.1"
+description = "An evaluation harness for LLMs"
+authors = ["Amazon Web Services <wwso-specialists@amazon.com>"]
+license = "Apache-2.0"
+readme = "README.md"
+homepage = "https://aws-samples.github.io/evaluation-harness/"
+repository = "https://aws-samples.github.io/evaluation-harness/"
+packages = [
+    { include = "evalharness", from = "src" }
+]
+keywords = ["llm", "evaluation", "harness", "aws"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Utilities",
+    "Topic :: Software Development :: Testing",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.14"
+pyyaml = "~6.0"
+click = "~8.0"
+pydantic = ">=2.1.0,<3.0"
+jsonpath-ng = ">=1.6.1,<2.0"
+mlflow = ">=3.3.2"
+sagemaker-mlflow = ">=0.1.1"
+bert-score = ">=0.3.13"
+evaluate = ">=0.4.5"
+torch = ">=2.8.0"
+transformers = ">=4.56.1"
+textstat = ">=0.7.10"
+nltk = ">=3.9.1"
+rouge-score = ">=0.1.2"
+pandas = ">=2.3.2"
+tiktoken = ">=0.11.0"
+openai = ">=1.108.0"
+
+[tool.poetry.group.dev.dependencies]
+flake8 = "*"
+black = "*"
+isort = "*"
+pytest = "*"
+pytest-cov = "*"
+pytest-mock = "*"
+bandit = "*"
+pip-audit = "*"
+
+[tool.poetry.scripts]
+evalharness = "evalharness.cli:cli"
+
+[tool.coverage.run]
+omit = [
+    "tests/*",
+]
+
+[tool.isort]
+profile = "black"
+skip = [
+    "tests",
+    "__init__.py"
+]
+
+[tool.black]
+exclude = '''
+/(
+    tests
+)/
+'''
+
+[tool.flake8]
+extend-ignore = ["E501"]
