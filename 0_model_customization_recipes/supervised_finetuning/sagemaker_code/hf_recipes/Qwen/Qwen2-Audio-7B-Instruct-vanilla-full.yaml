@@ -32,6 +32,7 @@ warmup_ratio: 0.1
 logging_strategy: steps
 logging_steps: 5
 report_to:
-- tensorboard
+- mlflow
+run_name: Qwen2-Audio-7B-Instruct-full-mesolitica--AudioSet-Audio-Instructions
 save_strategy: "epoch"
 seed: 42

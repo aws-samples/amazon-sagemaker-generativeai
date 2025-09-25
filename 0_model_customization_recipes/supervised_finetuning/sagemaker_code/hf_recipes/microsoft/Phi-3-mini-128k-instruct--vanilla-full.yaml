@@ -29,6 +29,7 @@ warmup_ratio: 0.1
 logging_strategy: steps
 logging_steps: 5
 report_to:
-- tensorboard
+- mlflow
+run_name: Phi-3-mini-128k-instruct-full-Josephgflowers--Finance-Instruct-500k
 save_strategy: "epoch"
 seed: 42
