@@ -494,6 +494,8 @@ def save_model(
                 trust_remote_code=True,
             )
             model = model.merge_and_unload()
+            model = model.to(torch.float16)
+
             model.save_pretrained(
                 "/opt/ml/model", safe_serialization=True, max_shard_size="2GB"
             )
