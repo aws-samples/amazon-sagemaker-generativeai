@@ -448,6 +448,7 @@ def save_model(
 
                 # Merge LoRA and base model and save
                 model = model.merge_and_unload()
+
                 model.save_pretrained(
                     training_args.output_dir,
                     safe_serialization=True,

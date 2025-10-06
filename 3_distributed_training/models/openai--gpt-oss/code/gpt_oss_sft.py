@@ -490,11 +490,12 @@ def save_model(
                 trust_remote_code=True,
             )
             model = model.merge_and_unload()
+
             model.save_pretrained(
-                training_args.output_dir, safe_serialization=True, max_shard_size="2GB"
+                "/opt/ml/model", safe_serialization=True, max_shard_size="2GB"
             )
     else:
-        trainer.model.save_pretrained(training_args.output_dir, safe_serialization=True)
+        trainer.model.save_pretrained("/opt/ml/model", safe_serialization=True)
 
     if accelerator.is_main_process:
         tokenizer.save_pretrained(training_args.output_dir)
@@ -702,6 +703,7 @@ def train(script_args, training_args, train_ds, test_ds):
     # Create checkpoint directory if needed
     if script_args.checkpoint_dir is not None:
         os.makedirs(script_args.checkpoint_dir, exist_ok=True)
+        training_args.output_dir = script_args.checkpoint_dir
 
     # Start training
     if mlflow_enabled:
