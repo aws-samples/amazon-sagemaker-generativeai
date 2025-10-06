@@ -448,7 +448,6 @@ def save_model(
 
                 # Merge LoRA and base model and save
                 model = model.merge_and_unload()
-                model = model.to(torch.float16)
 
                 model.save_pretrained(
                     training_args.output_dir,
