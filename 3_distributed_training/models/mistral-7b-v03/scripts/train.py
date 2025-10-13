@@ -415,6 +415,7 @@ def save_model(
     training_args: TrainingArguments,
     accelerator: Accelerator,
     mlflow_enabled: bool,
+    final_output_dir: str,
 ) -> None:
     """Save the trained model."""
     if trainer.is_fsdp_enabled:
@@ -439,15 +440,16 @@ def save_model(
                 )
                 model = model.merge_and_unload()
 
-                # Save merged model
+                # Save merged model to final output directory
                 model.save_pretrained(
-                    "/opt/ml/model", safe_serialization=True, max_shard_size="2GB"
+                    final_output_dir, safe_serialization=True, max_shard_size="2GB"
                 )
     else:
-        trainer.model.save_pretrained("/opt/ml/model", safe_serialization=True)
+        # Save final model to final output directory
+        trainer.model.save_pretrained(final_output_dir, safe_serialization=True)
 
     if accelerator.is_main_process:
-        tokenizer.save_pretrained("/opt/ml/model")
+        tokenizer.save_pretrained(final_output_dir)
         if mlflow_enabled:
             register_model_in_mlflow(model, tokenizer, script_args)
 
@@ -593,7 +595,11 @@ def train(script_args, training_args, train_ds, test_ds):
 
     if script_args.checkpoint_dir is not None:
         os.makedirs(script_args.checkpoint_dir, exist_ok=True)
+
+        original_output_dir = training_args.output_dir
         training_args.output_dir = script_args.checkpoint_dir
+    else:
+        original_output_dir = training_args.output_dir
 
     # Start training
     if mlflow_enabled:
@@ -637,6 +643,7 @@ def train(script_args, training_args, train_ds, test_ds):
         training_args,
         trainer.accelerator,
         mlflow_enabled,
+        original_output_dir,
     )
     trainer.accelerator.wait_for_everyone()
 
