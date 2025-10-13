@@ -431,21 +431,18 @@ def save_model(
                 del model, trainer
 
                 # Load and merge model
-                merged_model = AutoPeftModelForCausalLM.from_pretrained(
+                model = AutoPeftModelForCausalLM.from_pretrained(
                     temp_dir,
                     torch_dtype=torch.float16,
                     low_cpu_mem_usage=True,
                     trust_remote_code=True,
                 )
-                merged_model = merged_model.merge_and_unload()
+                model = model.merge_and_unload()
 
                 # Save merged model
-                merged_model.save_pretrained(
+                model.save_pretrained(
                     "/opt/ml/model", safe_serialization=True, max_shard_size="2GB"
                 )
-
-                # Clean up merged model
-                del merged_model
     else:
         trainer.model.save_pretrained("/opt/ml/model", safe_serialization=True)
 
