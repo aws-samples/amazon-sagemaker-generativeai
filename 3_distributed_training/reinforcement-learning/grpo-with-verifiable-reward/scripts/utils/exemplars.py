@@ -1,42 +1,42 @@
 EXAMPLARS = [
     {
-        "question": "There are 15 trees in the grove. Grove workers will plant trees in the grove today. After they are done, there will be 21 trees. How many trees did the grove workers plant today?",
-        "cot_answer": "There are 15 trees originally. Then there were 21 trees after some more were planted. So there must have been 21 - 15 = 6. So the answer is 6.",
-        "short_answer": "6"
+        "question": "Emily has 3 times as many pencils as Alice. If Alice has 15 pencils, how many pencils does Emily have?",
+        "cot": "To find out how many pencils Emily has, we multiply the number of pencils Alice has by 3. Alice has 15 pencils, so Emily has 15 * 3 = 45 pencils.",
+        "short_answer": "45"
     },
     {
-        "question": "If there are 3 cars in the parking lot and 2 more cars arrive, how many cars are in the parking lot?",
-        "cot_answer": "There are originally 3 cars. 2 more cars arrive. 3 + 2 = 5.",
-        "short_answer": "5"
+        "question": "A farmer has a total of 80 apples and oranges. If he has 30 apples, how many oranges does he have?",
+        "cot": "To determine the number of oranges, we subtract the number of apples from the total number of fruits. So, the number of oranges is 80 - 30 = 50.",
+        "short_answer": "50"
     },
     {
-        "question": "Leah had 32 chocolates and her sister had 42. If they ate 35, how many pieces do they have left in total?",
-        "cot_answer": "Originally, Leah had 32 chocolates. Her sister had 42. So in total they had 32 + 42 = 74. After eating 35, they had 74 - 35 = 39.",
+        "question": "Jack has collected 12 more marbles than Kevin. If Kevin has 27 marbles, how many marbles does Jack have?",
+        "cot": "To find how many marbles Jack has, we add 12 to the number of marbles Kevin has. So, Jack has 27 + 12 = 39 marbles.",
         "short_answer": "39"
     },
     {
-        "question": "Jason had 20 lollipops. He gave Denny some lollipops. Now Jason has 12 lollipops. How many lollipops did Jason give to Denny?",
-        "cot_answer": "Jason started with 20 lollipops. Then he had 12 after giving some to Denny. So he gave Denny 20 - 12 = 8.",
+        "question": "A book has 240 pages, and Sarah reads 20 pages each day. How many days will it take her to finish the book?",
+        "cot": "Sarah reads 20 pages per day, so we divide the total pages by the number of pages she reads per day. Therefore, it takes her 240 / 20 = 12 days to finish the book.",
+        "short_answer": "12"
+    },
+    {
+        "question": "A pack of pencils costs $4. If you buy 7 packs, how much will you spend in total?",
+        "cot": "The total cost is found by multiplying the cost per pack by the number of packs. Hence, you spend 7 * $4 = $28.",
+        "short_answer": "28"
+    },
+    {
+        "question": "Samantha baked 40 cookies and wants to divide them equally into bags, with each bag containing 5 cookies. How many bags will Samantha need?",
+        "cot": "To find the number of bags needed, divide the total number of cookies by the number of cookies per bag. Thus, 40 divided by 5 equals 8.",
         "short_answer": "8"
     },
     {
-        "question": "Shawn has five toys. For Christmas, he got two toys each from his mom and dad. How many toys does he have now?",
-        "cot_answer": "Shawn started with 5 toys. If he got 2 toys each from his mom and dad, then that is 4 more toys. 5 + 4 = 9.",
-        "short_answer": "9"
+        "question": "There are 24 students in a classroom. If each group must have 4 students, how many groups can be formed?",
+        "cot": "To find how many groups can be formed, we divide the number of students by the number of students per group. So, 24 / 4 = 6 groups can be formed.",
+        "short_answer": "6"
     },
     {
-        "question": "There were nine computers in the server room. Five more computers were installed each day, from monday to thursday. How many computers are now in the server room?",
-        "cot_answer": "There were originally 9 computers. For each of 4 days, 5 more computers were added. So 5 * 4 = 20 computers were added. 9 + 20 is 29.",
-        "short_answer": "29"
-    },
-    {
-        "question": "Michael had 58 golf balls. On tuesday, he lost 23 golf balls. On wednesday, he lost 2 more. How many golf balls did he have at the end of wednesday?",
-        "cot_answer": "Michael started with 58 golf balls. After losing 23 on tuesday, he had 58 - 23 = 35. After losing 2 more, he had 35 - 2 = 33 golf balls.",
-        "short_answer": "33"
-    },
-    {
-        "question": "Olivia has $23. She bought five bagels for $3 each. How much money does she have left?",
-        "cot_answer": "Olivia had 23 dollars. 5 bagels for 3 dollars each will be 5 x 3 = 15 dollars. So she has 23 - 15 dollars left. 23 - 15 is 8.",
-        "short_answer": "8"
+        "question": "Mark has $50 and buys a toy that costs $35. How much money does he have left?",
+        "cot": "To find out how much money Mark has left, subtract the cost of the toy from the total amount of money Mark has. So, $50 - $35 = $15.",
+        "short_answer": "15"
     }
 ]

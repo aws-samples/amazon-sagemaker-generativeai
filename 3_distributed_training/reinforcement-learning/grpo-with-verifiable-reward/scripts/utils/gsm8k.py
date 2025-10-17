@@ -108,6 +108,6 @@ class GSM8K:
                 
         prompt = ""
         for qna in random.sample(self.examples, self.num_shots):
-            prompt += self.format_example(qna['question'], qna['cot_answer'], qna['short_answer'])
+            prompt += self.format_example(qna['question'], qna['cot'], qna['short_answer'])
             
         return prompt
