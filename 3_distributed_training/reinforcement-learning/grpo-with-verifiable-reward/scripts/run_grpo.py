@@ -7,6 +7,7 @@ import json
 import re
 from typing import Optional
 
+
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 import torch
 from transformers import (
@@ -21,7 +22,7 @@ from peft import PeftConfig, PeftModel, AutoPeftModelForCausalLM
 from trl import setup_chat_format
 from datasets import load_dataset
 
-
+from utils.reward_functions import format_reward_func_qa, correctness_reward_func_qa
 
 
 ########################
@@ -87,38 +88,38 @@ def setup_model_for_spectrum(model, spectrum_config_path):
 
     return model
 
-###### QA Format Utils ######
+###### Reward Models ######
 
 
-def format_reward_func_qa(completions, **kwargs):
-    pattern = r"\n#### The final answer is \d+"    
-    completion_contents = [completion for completion in completions]    
-    matches = [re.search(pattern, content) for content in completion_contents]
-    return [0.5 if match else 0.0 for match in matches]
+# def format_reward_func_qa(completions, **kwargs):
+#     pattern = r"\n#### The final answer is \d+"    
+#     completion_contents = [completion for completion in completions]    
+#     matches = [re.search(pattern, content) for content in completion_contents]
+#     return [0.5 if match else 0.0 for match in matches]
 
-def correctness_reward_func_qa(completions, final_answer, **kwargs):
-    rewards = []
+# def correctness_reward_func_qa(completions, final_answer, **kwargs):
+#     rewards = []
     
-    for completion, ground_truth in zip(completions, final_answer) :
-        try:
-            match = re.search(r'####.*?([\d,]+(?:\.\d+)?)', completion)
-            if match:
-                answer = match.group(1)
+#     for completion, ground_truth in zip(completions, final_answer) :
+#         try:
+#             match = re.search(r'####.*?([\d,]+(?:\.\d+)?)', completion)
+#             if match:
+#                 answer = match.group(1)
                 
-                for remove_char in [',', '$', '%', 'g']:
-                    answer = answer.replace(remove_char, '')
+#                 for remove_char in [',', '$', '%', 'g']:
+#                     answer = answer.replace(remove_char, '')
                     
-                if abs(float(answer)-float(ground_truth)) < 1e-3:
-                    rewards.append(1.0)
-                else:
-                    rewards.append(0.0)
+#                 if abs(float(answer)-float(ground_truth)) < 1e-3:
+#                     rewards.append(1.0)
+#                 else:
+#                     rewards.append(0.0)
                 
-            else:
-                rewards.append(0.0)
-        except ValueError:
-            rewards.append(0.0)
+#             else:
+#                 rewards.append(0.0)
+#         except ValueError:
+#             rewards.append(0.0)
             
-    return rewards
+#     return rewards
 ###########################################################################################################
 
 

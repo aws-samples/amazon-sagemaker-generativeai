@@ -19,21 +19,22 @@ packing: true
 use_peft: true
 load_in_4bit: false
 lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj", "gate_proj"]
-# important as we need to train the special tokens for the chat template of llama 
-lora_modules_to_save: ["lm_head", "embed_tokens"] # you might need to change this for qwen or other models
+# important as we need to train the special tokens for the chat template 
+lora_modules_to_save: ["lm_head", "embed_tokens"] # you might need to change this for other models
 lora_r: 16
 lora_alpha: 16
 
 # Training arguments
 num_train_epochs: 2
-per_device_train_batch_size: 16
+per_device_train_batch_size: 64
 gradient_accumulation_steps: 2
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
   use_reentrant: True
-learning_rate: 1.84e-4
+learning_rate: 5e-5
 lr_scheduler_type: cosine
 warmup_ratio: 0.1
+max_grad_norm: 0.1
 
 # Logging arguments
 logging_strategy: steps
@@ -45,5 +46,5 @@ seed: 42
 
 # Hugging Face Hub 
 push_to_hub: false
-# hub_model_id: llama-3-1-8b-math-orca-qlora-10k-ep1 # if not defined same as output_dir
+# hub_model_id: # if not defined same as output_dir
 hub_strategy: every_save
