@@ -18,5 +18,6 @@ triton
 trl==0.21.0
 psutil
 py7zr
+nvidia-ml-py
 wandb
 git+https://github.com/triton-lang/triton.git@main#subdirectory=python/triton_kernels
