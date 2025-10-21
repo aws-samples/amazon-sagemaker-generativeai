@@ -444,14 +444,21 @@ def save_model(
                 model.save_pretrained(
                     final_output_dir, safe_serialization=True, max_shard_size="2GB"
                 )
+
+                # Save tokenizer and register merged model
+                tokenizer.save_pretrained(final_output_dir)
+
+                if mlflow_enabled:
+                    register_model_in_mlflow(model, tokenizer, script_args)
     else:
         # Save final model to final output directory
         trainer.model.save_pretrained(final_output_dir, safe_serialization=True)
 
-    if accelerator.is_main_process:
-        tokenizer.save_pretrained(final_output_dir)
-        if mlflow_enabled:
-            register_model_in_mlflow(model, tokenizer, script_args)
+        if accelerator.is_main_process:
+            tokenizer.save_pretrained(final_output_dir)
+
+            if mlflow_enabled:
+                register_model_in_mlflow(trainer.model, tokenizer, script_args)
 
 
 def register_model_in_mlflow(
@@ -461,14 +468,13 @@ def register_model_in_mlflow(
     logger.info(f"MLflow model registration under {script_args.mlflow_experiment_name}")
 
     try:
-        params = {"top_p": 0.9, "temperature": 0.2, "max_new_tokens": 2048}
+        params = {"top_p": 0.9, "temperature": 0.2, "max_new_tokens": 1024 * 4}
         signature = infer_signature("inputs", "generated_text", params=params)
 
         mlflow.transformers.log_model(
             transformers_model={"model": model, "tokenizer": tokenizer},
             signature=signature,
-            artifact_path="model",
-            model_config=params,
+            name="model",
             task="text-generation",
             registered_model_name=f"model-{os.environ.get('MLFLOW_RUN_NAME', '').split('Fine-tuning-')[-1]}",
         )
@@ -604,7 +610,19 @@ def train(script_args, training_args, train_ds, test_ds):
     # Start training
     if mlflow_enabled:
         logger.info(f"MLflow tracking under {script_args.mlflow_experiment_name}")
-        with mlflow.start_run(run_name=os.environ.get("MLFLOW_RUN_NAME", None)) as run:
+        mlflow.set_system_metrics_node_id(
+            f"node_{trainer.accelerator.process_index // torch.cuda.device_count()}"
+        )
+        if trainer.accelerator.is_main_process:
+            mlflow.start_run(run_name=os.environ.get("MLFLOW_RUN_NAME", None))
+            mlflow.log_params(
+                {
+                    "total_gpus": trainer.accelerator.num_processes,
+                    "nodes": trainer.accelerator.num_processes
+                    // torch.cuda.device_count(),
+                    "gpus_per_node": torch.cuda.device_count(),
+                }
+            )
             try:
                 train_dataset_mlflow = mlflow.data.from_pandas(
                     train_ds.to_pandas(), name="train_dataset"
@@ -613,21 +631,13 @@ def train(script_args, training_args, train_ds, test_ds):
             except Exception as e:
                 logger.warning(f"Failed to log dataset to MLflow: {e}")
 
-            if (
-                get_last_checkpoint(script_args.checkpoint_dir) is not None
-                and script_args.use_checkpoints
-            ):
-                train_result = trainer.train(resume_from_checkpoint=True)
-            else:
-                train_result = trainer.train()
+    if (
+        get_last_checkpoint(script_args.checkpoint_dir) is not None
+        and script_args.use_checkpoints
+    ):
+        train_result = trainer.train(resume_from_checkpoint=True)
     else:
-        if (
-            get_last_checkpoint(script_args.checkpoint_dir) is not None
-            and script_args.use_checkpoints
-        ):
-            train_result = trainer.train(resume_from_checkpoint=True)
-        else:
-            train_result = trainer.train()
+        train_result = trainer.train()
 
     metrics = train_result.metrics
     metrics["train_samples"] = len(train_ds)
