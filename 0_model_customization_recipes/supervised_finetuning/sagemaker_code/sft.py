@@ -32,6 +32,7 @@ from transformers import (
     PreTrainedTokenizer,
     set_seed,
     Qwen2AudioForConditionalGeneration,
+    Qwen3VLForConditionalGeneration,
     GenerationConfig
 )
 from transformers.trainer_utils import get_last_checkpoint
@@ -52,7 +53,7 @@ from PIL import Image
 
 
 # here's a list of models that needs its own import from transformers
-EXCEPTION_MODEL_LIST = ["Qwen/Qwen2-Audio-7B-Instruct"]
+EXCEPTION_MODEL_LIST = ["Qwen/Qwen2-Audio-7B-Instruct", "Qwen/Qwen3-VL-4B-Instruct"]
 
 
 def process_vision_info(messages: list[dict]) -> list[Image.Image]:
@@ -92,6 +93,103 @@ def process_audio_info(messages):
                     array, sr = sf.read(path)
                     audio_inputs.append({"array": array, "sampling_rate": sr})
     return audio_inputs
+
+
+def sanitize_and_bind_images(
+    messages: List[Dict[str, Any]],
+    pil_images: List[Image.Image],
+    *,
+    drop_empty_turns: bool = True,
+    replicate_single_image: bool = True,
+) -> Tuple[List[Dict[str, Any]], List[Image.Image]]:
+    """
+    Replace TRL-style image_url blocks with {"type":"image","image": PIL},
+    drop empty/null items, and return (clean_messages, bound_images).
+
+    Rules:
+      - text=None  -> drop that content item
+      - type=image_url with image_url None/missing/empty -> drop that content item
+      - type=image_url with a URL -> replace with {"type":"image","image": <next PIL>}
+      - If placeholders > len(pil_images):
+          - replicate_single_image=True and len(pil_images)==1 -> replicate it
+          - else: raise ValueError
+      - If placeholders < len(pil_images): raise ValueError (unused images)
+    """
+    # First pass: count how many image blocks we *will* keep (non-empty)
+    keep_image_blocks = 0
+    for m in messages:
+        content = m.get("content") or []
+        if not isinstance(content, list): content = [content]
+        for e in content:
+            if isinstance(e, dict) and e.get("type") == "image_url":
+                url = (e.get("image_url") or {}).get("url")
+                if url:  # only count non-empty image blocks
+                    keep_image_blocks += 1
+
+    # Align pil_images to the number of placeholders we plan to keep
+    imgs_in = pil_images or []
+    if keep_image_blocks == len(imgs_in):
+        bound_images = list(imgs_in)
+    elif keep_image_blocks > len(imgs_in):
+        if replicate_single_image and len(imgs_in) == 1:
+            bound_images = [imgs_in[0]] * keep_image_blocks
+        else:
+            raise ValueError(
+                f"Need {keep_image_blocks} images but only {len(imgs_in)} provided."
+            )
+    else:  # keep_image_blocks < len(imgs_in)
+        raise ValueError(
+            f"Provided {len(imgs_in)} images but only {keep_image_blocks} placeholders found."
+        )
+
+    # Second pass: rebuild messages replacing image_url -> image(PIL) and dropping empties
+    clean_messages: List[Dict[str, Any]] = []
+    img_idx = 0
+    for m in messages:
+        content = m.get("content") or []
+        if not isinstance(content, list): content = [content]
+        newc = []
+        for e in content:
+            if not isinstance(e, dict):
+                continue
+            etype = e.get("type")
+
+            if etype == "text":
+                txt = e.get("text")
+                if txt is None:
+                    continue  # drop null text
+                newc.append({"type": "text", "text": txt})
+
+            elif etype == "image_url":
+                url = (e.get("image_url") or {}).get("url")
+                if not url:
+                    continue  # drop empty image block
+                # Replace with bound PIL
+                if img_idx >= len(bound_images):
+                    # Shouldn't happen if we validated above
+                    raise ValueError("Internal: ran out of images while binding.")
+                newc.append({"type": "image", "image": bound_images[img_idx]})
+                img_idx += 1
+
+            else:
+                # keep other types intact if any (e.g., video/audio if you add later)
+                # but drop fields that are None
+                e2 = {k: v for k, v in e.items() if v is not None}
+                newc.append(e2)
+
+        if drop_empty_turns and not newc:
+            # skip turns that became empty after cleanup
+            continue
+        clean_messages.append({"role": m.get("role"), "content": newc})
+
+    # Sanity check: we should have consumed all images
+    if img_idx != len(bound_images):
+        raise ValueError(
+            f"Bound {img_idx} images but prepared {len(bound_images)}. "
+            "Check message/image alignment."
+        )
+
+    return clean_messages, bound_images
 
 
 # Configure logging
@@ -414,10 +512,11 @@ def load_model(model_args: ModelConfig, training_args: SFTConfig, script_args: S
             if model_name in EXCEPTION_MODEL_LIST:
                 if model_name == "Qwen/Qwen2-Audio-7B-Instruct":
                     model = Qwen2AudioForConditionalGeneration.from_pretrained(model_name, **model_kwargs)
+                elif model_name == "Qwen/Qwen3-VL-4B-Instruct":
+                    model = Qwen3VLForConditionalGeneration.from_pretrained(model_name, **model_kwargs)
                 else:
                     raise AssertionError(f"model {model_name} not supported")
             else:
-                print(model_name, model_kwargs)
                 model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
     
     # Wait for all processes in distributed training
@@ -494,7 +593,7 @@ def save_peft_model(trainer: SFTTrainer, training_args: SFTConfig, model_args: M
         training_args.distributed_state.wait_for_everyone()
     
     # Save tokenizer
-    trainer.tokenizer.save_pretrained(final_model_dir)
+    trainer.processing_class.save_pretrained(final_model_dir)
     logger.info(f"Tokenizer saved to {final_model_dir}")
 
 
@@ -586,38 +685,75 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
     model = configure_model_for_training(model, script_args)
 
     def collate_fn_images(examples):
-        # Convert chat messages to text template
+        proc = tokenizer_or_processor
+        cleaned_msgs_per_sample = []
+        images_per_sample = []
+    
+        # 1) Bind PILs to messages (replace image_url->image, drop nulls)
+        for ex in examples:
+            pil_images = process_vision_info(ex["messages"])
+            clean_msgs, bound_imgs = sanitize_and_bind_images(ex["messages"], pil_images)
+            cleaned_msgs_per_sample.append(clean_msgs)
+            images_per_sample.append(bound_imgs)
+        
+        # Render template strings
         texts = [
-            tokenizer_or_processor.apply_chat_template(
-                example["messages"], tokenize=False, add_generation_prompt=False
-            ).strip()
-            for example in examples
+            proc.apply_chat_template(m, tokenize=False, add_generation_prompt=False)
+            for m in cleaned_msgs_per_sample
         ]
-    
-        # Extract images from messages (always multimodal-safe)
-        images = [process_vision_info(example["messages"]) for example in examples]
-    
-        # Tokenize texts and images
-        batch = tokenizer_or_processor(
-            images=images, 
-            text=texts, 
-            return_tensors="pt", 
-            padding=True
+        
+        # Pack
+        batch = proc(
+            images=images_per_sample,
+            text=texts,
+            return_tensors="pt",
+            padding=True,
         )
     
-        # Prepare labels (mask padding + special image tokens)
+        # Build labels from input_ids and mask unwanted tokens
         labels = batch["input_ids"].clone()
-        labels[labels == tokenizer_or_processor.tokenizer.pad_token_id] = -100
     
-        # Mask image tokens (boi/eoi etc.)
-        image_token_ids = [
-            tokenizer_or_processor.tokenizer.convert_tokens_to_ids(tok)
-            for tok in tokenizer_or_processor.tokenizer.special_tokens_map.values()
-            if "image" in tok.lower() or "boi" in tok.lower() or "eoi" in tok.lower()
-        ]
-        for tok_id in image_token_ids:
-            labels[labels == tok_id] = -100
+        # Mask padding (fallback to EOS if no PAD)
+        pad_id = proc.tokenizer.pad_token_id
+        if pad_id is None:
+            pad_id = proc.tokenizer.eos_token_id
+        if pad_id is not None:
+            labels[labels == pad_id] = -100
     
+        # Collect candidate special tokens to mask (vision/audio markers)
+        #     - Flatten special_tokens_map values (they can be str or list[str])
+        #     - Add additional_special_tokens
+        #     - Heuristically keep only tokens containing these substrings (case-insensitive)
+        substrings = ("image", "vision", "video", "audio", "boi", "eoi", "<image>", "<video>")
+        special_vals = []
+        for v in (proc.tokenizer.special_tokens_map or {}).values():
+            if isinstance(v, str):
+                special_vals.append(v)
+            elif isinstance(v, (list, tuple)):
+                special_vals.extend([x for x in v if isinstance(x, str)])
+    
+        addl = getattr(proc.tokenizer, "additional_special_tokens", None)
+        if isinstance(addl, (list, tuple)):
+            special_vals.extend([x for x in addl if isinstance(x, str)])
+    
+        # Filter by heuristic substrings
+        marker_tokens = []
+        for tok in special_vals:
+            tl = tok.lower()
+            if any(s in tl for s in substrings):
+                marker_tokens.append(tok)
+    
+        # Convert to IDs, drop invalids
+        marker_ids = []
+        for tok in marker_tokens:
+            tid = proc.tokenizer.convert_tokens_to_ids(tok)
+            if tid is not None and isinstance(tid, int) and tid >= 0:
+                marker_ids.append(tid)
+    
+        # Mask those IDs
+        for tid in set(marker_ids):
+            labels[labels == tid] = -100
+
         batch["labels"] = labels
         return batch
     
@@ -681,7 +817,7 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
         collator_fn = collate_fn_audio
     else:
         raise AssertionError(f"current modality {script_args.modality_type} is unsupported - choose `image`, `video`, `audio` or `text`!")
-    
+
     # Initialize trainer
     trainer = SFTTrainer(
         model=model,
