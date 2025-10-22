@@ -1,0 +1,50 @@
+# Model arguments
+model_name_or_path: Qwen/Qwen2.5-0.5B
+tokenizer_name_or_path: Qwen/Qwen2.5-0.5B
+model_revision: main
+torch_dtype: bfloat16
+attn_implementation: flash_attention_2
+bf16: true
+tf32: true
+output_dir: /opt/ml/model/Qwen2.5-0.5B-RL-VR-GRPO
+
+# Dataset arguments
+train_dataset_id_or_path: /opt/ml/input/data/train/dataset.json
+test_dataset_id_or_path: /opt/ml/input/data/val/dataset.json
+dataset_splits: 'train'
+max_seq_length: 2048
+packing: true
+
+# LoRA arguments
+use_peft: true
+load_in_4bit: false
+lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj", "gate_proj"]
+# important as we need to train the special tokens for the chat template 
+lora_modules_to_save: ["lm_head", "embed_tokens"] # you might need to change this for other models
+lora_r: 16
+lora_alpha: 16
+
+# Training arguments
+num_train_epochs: 2
+per_device_train_batch_size: 64
+gradient_accumulation_steps: 2
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: True
+learning_rate: 5e-5
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+max_grad_norm: 0.1
+
+# Logging arguments
+logging_strategy: steps
+logging_steps: 5
+report_to:
+- mlflow
+save_strategy: "no"
+seed: 42
+
+# Hugging Face Hub 
+push_to_hub: false
+# hub_model_id: # if not defined same as output_dir
+hub_strategy: every_save
