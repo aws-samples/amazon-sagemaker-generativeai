@@ -8,11 +8,11 @@ deepspeed_config:
   zero3_save_16bit_model: false
   zero_stage: 2
 distributed_type: DEEPSPEED
-downcast_bf16: 'yes'
+downcast_bf16: "yes"
 enable_cpu_affinity: false
 machine_rank: 0
 main_training_function: main
-mixed_precision: 'bf16'
+mixed_precision: "bf16"
 num_machines: 1
 num_processes: 8
 rdzv_backend: static
