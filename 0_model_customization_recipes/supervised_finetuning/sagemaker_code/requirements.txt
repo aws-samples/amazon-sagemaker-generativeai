@@ -25,6 +25,6 @@ tensorboard
 psutil
 py7zr
 git+https://github.com/triton-lang/triton.git@main#subdirectory=python/triton_kernels
-vllm==0.10.1
+vllm==0.11.0
 poetry
 yq

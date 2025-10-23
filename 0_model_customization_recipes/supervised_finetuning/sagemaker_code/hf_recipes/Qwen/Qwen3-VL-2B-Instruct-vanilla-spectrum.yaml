@@ -1,33 +1,27 @@
 # Model arguments
-model_name_or_path: Qwen/Qwen3-VL-4B-Instruct
-processor_name_or_path: Qwen/Qwen3-VL-4B-Instruct
+model_name_or_path: Qwen/Qwen3-VL-2B-Instruct
+processor_name_or_path: Qwen/Qwen3-VL-2B-Instruct
 model_revision: main
 torch_dtype: bfloat16
-attn_implementation: kernels-community/vllm-flash-attn3
+attn_implementation: flash_attention_2
 use_liger: false
 bf16: true
 tf32: false
-output_dir: /opt/ml/output/Qwen/Qwen3-VL-4B-Instruct/peft-qlora/
+output_dir: /opt/ml/output/Qwen/Qwen3-VL-2B-Instruct/spectrum/
 
 # Dataset arguments
 dataset_id_or_path: /opt/ml/input/data/training/HuggingFaceM4--DoclingMatix.jsonl
-max_seq_length: 4096
+max_seq_length: 8192
 packing: false
 
-# LoRA arguments
-use_peft: true
-load_in_4bit: true
-lora_target_modules: ["embed_tokens", "q_proj", "k_proj", "v_proj", "o_proj", "up_proj", "down_proj", "gate_proj"]
-# lora_modules_to_save: ["lm_head", "embed_tokens"]
-lora_r: 256
-lora_alpha: 512
-lora_dropout: 0.05
+# Spectrum Config
+spectrum_config_path: configs/spectrum/Qwen/snr_results_Qwen-Qwen3-VL-2B-Instruct_unfrozenparameters_15percent.yaml
 
 # Modality type
 modality_type: "image"
 
 # Training arguments
-num_train_epochs: 1
+num_train_epochs: 25
 per_device_train_batch_size: 1
 gradient_accumulation_steps: 1
 gradient_checkpointing: true
@@ -43,6 +37,6 @@ logging_strategy: steps
 logging_steps: 1
 report_to:
 - mlflow
-run_name: Qwen3-VL-4B-Instruct-peft-qlora-HuggingFaceM4--DoclingMatix
+run_name: Qwen3-VL-2B-Instruct-peft-qlora-HuggingFaceM4--DoclingMatix
 save_strategy: "epoch"
 seed: 42
