@@ -1,0 +1,90 @@
+unfrozen_parameters:
+- ^lm_head.weight$
+- ^model.embed_tokens.weight$
+# attn.proj layers
+- model.visual.blocks.9.attn.proj
+- model.visual.blocks.6.attn.proj
+- model.visual.blocks.7.attn.proj
+# attn.qkv layers
+- model.visual.blocks.18.attn.qkv
+- model.visual.blocks.19.attn.qkv
+- model.visual.blocks.16.attn.qkv
+# norm layers
+- model.language_model.layers.0.input_layernorm
+- model.language_model.layers.1.input_layernorm
+- model.language_model.layers.2.input_layernorm
+- model.language_model.layers.3.input_layernorm
+# mlp.linear_fc1 layers
+- model.visual.blocks.23.mlp.linear_fc1
+- model.visual.blocks.22.mlp.linear_fc1
+- model.visual.blocks.12.mlp.linear_fc1
+# model.visual.merger.linear_fc1 layers
+# linear_fc1 layers
+# mlp.linear_fc2 layers
+- model.visual.blocks.13.mlp.linear_fc2
+- model.visual.blocks.14.mlp.linear_fc2
+- model.visual.blocks.12.mlp.linear_fc2
+# model.visual.merger.linear_fc2 layers
+# linear_fc2 layers
+# lm_head layers
+# mlp.down_proj layers
+- model.language_model.layers.0.mlp.down_proj
+- model.language_model.layers.2.mlp.down_proj
+- model.language_model.layers.4.mlp.down_proj
+- model.language_model.layers.3.mlp.down_proj
+# mlp.gate_proj layers
+- model.language_model.layers.27.mlp.gate_proj
+- model.language_model.layers.26.mlp.gate_proj
+- model.language_model.layers.5.mlp.gate_proj
+- model.language_model.layers.25.mlp.gate_proj
+# mlp.up_proj layers
+- model.language_model.layers.3.mlp.up_proj
+- model.language_model.layers.6.mlp.up_proj
+- model.language_model.layers.5.mlp.up_proj
+- model.language_model.layers.7.mlp.up_proj
+# model.language_model.embed_tokens layers
+# model.visual.patch_embed.proj layers
+# model.visual.pos_embed layers
+# norm1 layers
+- model.visual.blocks.0.norm1
+- model.visual.blocks.1.norm1
+- model.visual.blocks.2.norm1
+# norm2 layers
+- model.visual.blocks.0.norm2
+- model.visual.blocks.1.norm2
+- model.visual.blocks.2.norm2
+# self_attn.q_norm layers
+- model.language_model.layers.0.self_attn.q_norm
+- model.language_model.layers.1.self_attn.q_norm
+- model.language_model.layers.2.self_attn.q_norm
+- model.language_model.layers.3.self_attn.q_norm
+# self_attn.k_norm layers
+- model.language_model.layers.0.self_attn.k_norm
+- model.language_model.layers.1.self_attn.k_norm
+- model.language_model.layers.2.self_attn.k_norm
+- model.language_model.layers.3.self_attn.k_norm
+# post_attention_layernorm layers
+- model.language_model.layers.0.post_attention_layernorm
+- model.language_model.layers.1.post_attention_layernorm
+- model.language_model.layers.2.post_attention_layernorm
+- model.language_model.layers.3.post_attention_layernorm
+# self_attn.k_proj layers
+- model.language_model.layers.23.self_attn.k_proj
+- model.language_model.layers.3.self_attn.k_proj
+- model.language_model.layers.18.self_attn.k_proj
+- model.language_model.layers.9.self_attn.k_proj
+# self_attn.o_proj layers
+- model.language_model.layers.0.self_attn.o_proj
+- model.language_model.layers.19.self_attn.o_proj
+- model.language_model.layers.15.self_attn.o_proj
+- model.language_model.layers.17.self_attn.o_proj
+# self_attn.q_proj layers
+- model.language_model.layers.15.self_attn.q_proj
+- model.language_model.layers.14.self_attn.q_proj
+- model.language_model.layers.22.self_attn.q_proj
+- model.language_model.layers.18.self_attn.q_proj
+# self_attn.v_proj layers
+- model.language_model.layers.0.self_attn.v_proj
+- model.language_model.layers.27.self_attn.v_proj
+- model.language_model.layers.4.self_attn.v_proj
+- model.language_model.layers.18.self_attn.v_proj

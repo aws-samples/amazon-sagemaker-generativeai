@@ -53,7 +53,11 @@ from PIL import Image
 
 
 # here's a list of models that needs its own import from transformers
-EXCEPTION_MODEL_LIST = ["Qwen/Qwen2-Audio-7B-Instruct", "Qwen/Qwen3-VL-4B-Instruct"]
+EXCEPTION_MODEL_LIST = [
+    "Qwen/Qwen2-Audio-7B-Instruct", 
+    "Qwen/Qwen3-VL-4B-Instruct",
+    "Qwen/Qwen3-VL-2B-Instruct"
+]
 
 
 def process_vision_info(messages: list[dict]) -> list[Image.Image]:
@@ -512,7 +516,10 @@ def load_model(model_args: ModelConfig, training_args: SFTConfig, script_args: S
             if model_name in EXCEPTION_MODEL_LIST:
                 if model_name == "Qwen/Qwen2-Audio-7B-Instruct":
                     model = Qwen2AudioForConditionalGeneration.from_pretrained(model_name, **model_kwargs)
-                elif model_name == "Qwen/Qwen3-VL-4B-Instruct":
+                elif model_name in [
+                    "Qwen/Qwen3-VL-4B-Instruct", 
+                    "Qwen/Qwen3-VL-2B-Instruct"
+                ]:
                     model = Qwen3VLForConditionalGeneration.from_pretrained(model_name, **model_kwargs)
                 else:
                     raise AssertionError(f"model {model_name} not supported")
@@ -698,7 +705,11 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
         
         # Render template strings
         texts = [
-            proc.apply_chat_template(m, tokenize=False, add_generation_prompt=False)
+            proc.apply_chat_template(
+                m, 
+                tokenize=False, 
+                add_generation_prompt=False
+            )
             for m in cleaned_msgs_per_sample
         ]
         
