@@ -1,10 +1,12 @@
 #!/bin/bash
 
 # SageMaker Accelerate Training Script
-# Launches distributed fine-tuning using Accelerate + DeepSpeed Zero3
+# Launches distributed fine-tuning using Accelerate
+# with improved debugging and environment variable setup
 #
 # Usage: ./sm_accelerate_train.sh --entrypoint <TRAINING_SCRIPT> --accelerate_config <ACCELERATE_CONFIG> --config <CONFIG_YAML>
-# Example: ./sm_accelerate_train.sh --entrypoint train.py --accelerate_config distribution/zero_3.yaml --config recipes/llama_sft.yaml
+# 
+# <ACCELERATE_CONFIG> and <CONFIG_YAML> can be passed as InputData of the SageMaker training job
 
 set -euo pipefail  # Exit on error, undefined vars, pipe failures
 
@@ -56,7 +58,6 @@ Options:
 
 Examples:
     $SCRIPT_NAME --entrypoint train.py --accelerate_config distribution/zero_3.yaml --config recipes/llama_sft.yaml
-    $SCRIPT_NAME --entrypoint train.py --accelerate_config distribution/fsdp.yaml --config recipes/llama_sft.yaml
 
 Environment Variables:
     REQUIREMENTS_FILE         Path to requirements file (default: ./requirements.txt)
@@ -69,16 +70,6 @@ validate_file_exists() {
     
     if [[ ! -f "$file_path" ]]; then
         log_error "$file_description not found: $file_path"
-        return 1
-    fi
-}
-
-validate_positive_integer() {
-    local value="$1"
-    local param_name="$2"
-    
-    if ! [[ "$value" =~ ^[1-9][0-9]*$ ]]; then
-        log_error "$param_name must be a positive integer, got: $value"
         return 1
     fi
 }
@@ -161,6 +152,27 @@ validate_inputs() {
     fi
 }
 
+setup_distributed_environment() {
+    log_info "Setting up distributed training environment variables"
+    
+    # Extract machine rank from SM_CURRENT_HOST (algo-1 -> 0, algo-2 -> 1, etc.)
+    if [[ -n "${SM_CURRENT_HOST:-}" ]]; then
+        MACHINE_RANK=$(echo "$SM_CURRENT_HOST" | sed 's/algo-//' | awk '{print $1-1}')
+        export MACHINE_RANK
+        log_info "  MACHINE_RANK: $MACHINE_RANK (derived from $SM_CURRENT_HOST)"
+    else
+        export MACHINE_RANK=0
+        log_warning "  SM_CURRENT_HOST not set, defaulting MACHINE_RANK to 0"
+    fi
+    
+    # Log SageMaker environment variables
+    log_info "SageMaker Environment Variables:"
+    log_info "  SM_HOSTS: ${SM_HOSTS:-NOT SET}"
+    log_info "  SM_CURRENT_HOST: ${SM_CURRENT_HOST:-NOT SET}"
+    log_info "  SM_NUM_GPUS: ${SM_NUM_GPUS:-NOT SET}"
+    log_info "  SM_NUM_CPUS: ${SM_NUM_CPUS:-NOT SET}"
+}
+
 install_dependencies() {
     if [[ -f "$REQUIREMENTS_FILE" ]]; then
         log_info "Installing Python dependencies from $REQUIREMENTS_FILE..."
@@ -182,7 +194,25 @@ check_accelerate_installation() {
         exit 1
     fi
     
-    log_info "Accelerate version: $(accelerate --version)"
+    log_info "Accelerate version: $(python -c 'import accelerate; print(accelerate.__version__)')"
+}
+
+verify_accelerate_config() {
+    log_info "Verifying accelerate configuration..."
+    
+    # Check if rdzv_backend is set correctly
+    if grep -q "rdzv_backend: static" "$ACCELERATE_CONFIG"; then
+        log_error "CRITICAL: Found 'rdzv_backend: static' in config"
+        log_error "This will cause training to hang on SageMaker multi-node"
+        log_error "Please change to 'rdzv_backend: c10d'"
+        exit 1
+    fi
+    
+    if grep -q "rdzv_backend: c10d" "$ACCELERATE_CONFIG"; then
+        log_success "Accelerate config has correct rdzv_backend: c10d"
+    else
+        log_warning "Could not verify rdzv_backend in config"
+    fi
 }
 
 launch_training() {
@@ -190,10 +220,14 @@ launch_training() {
     log_info "  - Config file: $CONFIG_PATH"
     log_info "  - Accelerate config: $ACCELERATE_CONFIG"
     log_info "  - Training script: $TRAINING_SCRIPT"
+    log_info "  - Machine rank: $MACHINE_RANK"
     
     # Launch training with error handling
     if accelerate launch \
         --config_file "$ACCELERATE_CONFIG" \
+        --machine_rank "$MACHINE_RANK" \
+        --main_process_ip "$SM_MASTER_ADDR" \
+        --main_process_port 29500 \
         "$TRAINING_SCRIPT" \
         --config "$CONFIG_PATH"; then
         
@@ -214,12 +248,18 @@ main() {
     
     # Validate all inputs
     validate_inputs
-    
-    # Check accelerate installation
-    # check_accelerate_installation
-    
+
     # Install dependencies
     # install_dependencies
+    
+    # Setup distributed environment
+    setup_distributed_environment
+    
+    # Verify accelerate config
+    #verify_accelerate_config
+    
+    # Check accelerate installation
+    check_accelerate_installation
     
     # Launch training
     launch_training
