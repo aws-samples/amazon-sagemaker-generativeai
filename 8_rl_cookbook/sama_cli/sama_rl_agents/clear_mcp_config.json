@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "standard-finetuning-data-prep": {
+      "command": "python",
+      "args": ["/home/sagemaker-user/RL/RL-CookBook/GRPO+RLVR/sama_rl_agents/standard_finetuning_data_prep.py"],
+      "disabled": false,
+      "description": "Data preparation for STANDARD fine-tuning (Llama, GPT, etc.) - NON-RL tasks"
+    },
+    "standard-finetuning-training": {
+      "command": "python",
+      "args": ["/home/sagemaker-user/RL/RL-CookBook/GRPO+RLVR/sama_rl_agents/sama_hf_training_server.py"],
+      "disabled": false,
+      "description": "Standard fine-tuning training (Llama, GPT, etc.) - NON-RL tasks"
+    },
+    "grpo-rl-training": {
+      "command": "python",
+      "args": ["/home/sagemaker-user/RL/RL-CookBook/GRPO+RLVR/sama_rl_agents/grpo_rl_training.py"],
+      "disabled": false,
+      "description": "GRPO Reinforcement Learning training - ONLY for RL tasks"
+    }
+  }
+}

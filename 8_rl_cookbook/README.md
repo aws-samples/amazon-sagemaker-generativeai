@@ -1,81 +1,167 @@
-# SAMA RL - Simple API for Reinforcement Learning with Language Models
+# SAMA CLI - Simple API for Machine Learning Agents
 
-SAMA RL provides a clean, intuitive API for training language models with reinforcement learning algorithms like GRPO (Group Relative Policy Optimization). It includes deployment and inference capabilities for trained models.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![AWS SageMaker](https://img.shields.io/badge/AWS-SageMaker-orange.svg)](https://aws.amazon.com/sagemaker/)
 
-## Key Features
+SAMA CLI provides a unified interface for both **Reinforcement Learning** (GRPO, PPO) and **Standard Fine-tuning** of language models on AWS SageMaker. It includes intelligent MCP (Model Context Protocol) servers that automatically route requests to the appropriate training pipeline.
 
-- YAML Configuration - Clean, readable config files for all settings
-- SageMaker Integration - Automatic training job deployment and scaling
-- Model Deployment - Deploy trained models to SageMaker endpoints
-- Inference API - Simple interface for model inference
-- Cost Optimization - Intelligent instance selection based on model size
+## 🚀 Quick Start
 
-## Quick Start
-
-### 1. Installation
+### Installation
 
 ```bash
+git clone <repository-url>
+cd SAMA_CLI
 pip install -e .
 ```
 
-### 2. Complete Example
+### Basic Usage
+
+#### Standard Fine-tuning (Llama 3.2)
+```bash
+# Prepare data and fine-tune Llama 3.2 on Dolly dataset
+q chat "I want to fine-tune a Llama 3.2 model on Dolly dataset using p4d.24xlarge for 20 epochs"
+```
+
+#### Reinforcement Learning (GRPO)
+```bash
+# Train with custom reward functions
+q chat "I want to train a Qwen model using GRPO with my custom reward functions on p5.48xlarge"
+```
+
+## 📁 Project Structure
+
+```
+8_rl_cookbook/
+├── sama_rl/                          # Core RL training library
+│   ├── grpo.py                       # GRPO trainer implementation
+│   ├── deployment.py                 # Model deployment utilities
+│   ├── inference.py                  # Inference utilities
+│   └── recipes/                      # Training configurations
+│       ├── GRPO/                     # GRPO-specific configs
+│       ├── PPO/                      # PPO-specific configs
+│       └── DPO/                      # DPO-specific configs
+├── sama_cli/                         # MCP servers for RL
+│   └── sama_rl_agents                # SAMA RL Agents
+│       ├── model_builder.py          # Interactive GRPO setup
+│       ├── model_deployment_sync.py  # RL model deployment
+│       └── model_evaluation.py       # Model evaluation tools
+│   └──sama-llama32-data-prep-mcp-server   # Data preparation MCP Servers
+│   ├── sama-llama32-finetuning-mcp-server # Fine Tuning pipeline
+│   └── sama-llama32-deployment-mcp-server # Model deployment
+├── user/                             # User customizations
+│   └── reward_functions.py           # Custom reward functions
+└── README.md                         # This file
+```
+
+## 🎯 Core Capabilities
+
+### 1. Reinforcement Learning (SAMA RL)
+
+#### Supported Algorithms
+- **GRPO** (Group Relative Policy Optimization)
+- **PPO** (Proximal Policy Optimization) 
+- **DPO** (Direct Preference Optimization)
+- **RLHF** (Reinforcement Learning from Human Feedback)
+
+#### Key Features
+- **Custom Reward Functions**: Define your own reward criteria
+- **Interactive Setup**: Conversational configuration through MCP
+- **Multi-GPU Support**: P4d, P5 instances for large models
+- **Cost Optimization**: Intelligent instance selection
+- **Experiment Tracking**: WandB integration
+
+#### Example: GRPO Training with Custom Rewards
+```python
+from sama_rl import GRPO
+from user.reward_functions import length_reward, helpfulness_reward
+
+trainer = GRPO(
+    yaml_file="sama_rl/recipes/GRPO/qwen2-0.5b-grpo-config.yaml",
+    reward_functions=[length_reward, helpfulness_reward],
+    max_steps=500,
+    instance_type="ml.p5.48xlarge"
+)
+
+# Train the model
+trainer.train()
+
+# Deploy to endpoint
+endpoint_name = trainer.deploy()
+```
+
+### 2. Standard Fine-tuning (Llama 3.2)
+
+#### Supported Models
+- **Llama 3.2** (3B, 8B, 70B variants)
+- **Qwen 2** (0.5B, 1.5B, 7B variants)
+- **Custom HuggingFace models**
+
+#### Key Features
+- **Automated Data Preparation**: Dolly, custom datasets
+- **SageMaker Integration**: Managed training infrastructure
+- **Endpoint Deployment**: Production-ready serving
+- **Cost Monitoring**: Instance recommendations and billing estimates
+
+## 🎨 Custom Reward Functions
+
+Create your own reward functions in `user/reward_functions.py`:
 
 ```python
-from sama_rl import GRPO, create_inference_model
-
-# 1. Create reward function
-def length_reward(completions, **kwargs):
-    target_length = 400
-    tokenizer = kwargs.get('tokenizer')
+def custom_reward(completions, **kwargs):
+    """
+    Your custom reward logic here.
+    
+    Args:
+        completions (List[str]): Model outputs to evaluate
+        **kwargs: Additional context (tokenizer, etc.)
+    
+    Returns:
+        List[float]: Reward scores for each completion
+    """
     rewards = []
     for completion in completions:
-        if tokenizer:
-            num_tokens = len(tokenizer.encode(completion, add_special_tokens=False))
-        else:
-            num_tokens = len(completion.split())
-        reward = -(abs(num_tokens - target_length) ** 2) / 1000
+        # Your reward calculation logic
+        reward = calculate_reward(completion)
         rewards.append(reward)
     return rewards
 
-# 2. Train model
+# Use in training
 trainer = GRPO(
-    yaml_file="sama_rl/qwen2-0.5b-grpo-config.yaml",
-    reward_functions=[length_reward],
-    max_steps=100,
-    instance_type="ml.g4dn.2xlarge"
+    yaml_file="sama_rl/recipes/GRPO/qwen2-0.5b-grpo-config.yaml",
+    reward_functions=[custom_reward],
+    max_steps=100
 )
-trainer.train()
-
-# 3. Deploy model
-endpoint_name = trainer.deploy()
-
-# 4. Run inference
-model = create_inference_model(endpoint_name)
-completion = model.generate("What is machine learning?", max_new_tokens=200)
 ```
 
-## Project Structure
+### Built-in Reward Functions
+- `length_reward` - Target response length
+- `helpfulness_reward` - Informative content
+- `conciseness_reward` - Balanced brevity
+- `safety_reward` - Content safety
+- `combined_reward` - Multi-criteria optimization
 
-```
-sama_rl/
-├── __init__.py                           # Core imports
-├── grpo.py                              # GRPO trainer with SageMaker integration
-├── deployment.py                        # Model deployment utilities
-├── inference.py                         # Inference utilities
-├── config_loader.py                     # YAML configuration loader
-├── sagemaker_train.py                   # SageMaker training script
-├── requirements.txt                     # Dependencies
-├── qwen2-0.5b-grpo-config.yaml        # Example config for Qwen2-0.5B
-└── qwen2-1.5b-helpfulness-config.yaml # Example config for Qwen2-1.5B
+## 💰 Cost Optimization
 
-notebooks/
-└── SAMA_GRPO.ipynb                     # Complete examples and usage guide
-```
+### Instance Recommendations
+| Instance Type | Cost/Hour | Best For | GPU |
+|---------------|-----------|----------|-----|
+| ml.g4dn.xlarge | $0.526 | Small models (0.5B-1B) | 1x T4 |
+| ml.g5.2xlarge | $1.515 | Medium models (1B-7B) | 1x A10G |
+| ml.p4d.24xlarge | $32.77 | Large models (13B+) | 8x A100 |
+| ml.p5.48xlarge | $98.32 | Massive models (70B+) | 8x H100 |
 
-## Configuration
+## 🔄 Training Job Management
 
-SAMA RL uses YAML files for configuration:
+### Naming Conventions
+- **Standard Fine-tuning**: `sama-finetune-llama32-{timestamp}`
+- **GRPO Training**: `sama-grpo-qwen205binstruct-{timestamp}`
+- **Endpoints**: `sama-endpoint-llama32-{timestamp}`
 
+## 🛠️ Configuration
+
+### YAML Configuration Example
 ```yaml
 model:
   name: "Qwen/Qwen2-0.5B-Instruct"
@@ -91,7 +177,6 @@ training:
   learning_rate: 5e-5
   per_device_train_batch_size: 4
   fp16: true
-  gradient_checkpointing: true
 
 grpo:
   num_generations: 2
@@ -99,171 +184,14 @@ grpo:
   temperature: 0.7
 
 sagemaker:
-  instance_type: "ml.g4dn.2xlarge"
+  instance_type: "ml.p5.48xlarge"
   max_run: 3600
 ```
 
-## Training
-
-### New Training Job
-
-```python
-trainer = GRPO(
-    yaml_file="config.yaml",
-    reward_functions=[reward_function],
-    max_steps=100
-)
-trainer.train()
-```
-
-### Load Existing Training Job
-
-```python
-trainer = GRPO(training_job_name="sama-grpo-qwen205binstruct-1234567890")
-endpoint_name = trainer.deploy()
-```
-
-## Deployment
-
-### Automatic Instance Selection
-
-```python
-# Auto-selects appropriate GPU instance based on model size
-endpoint_name = trainer.deploy()
-```
-
-### Manual Instance Selection
-
-```python
-# Specify instance type
-endpoint_name = trainer.deploy(instance_type="ml.g5.2xlarge")
-```
-
-### Supported Instance Types
-
-- ml.g5.xlarge - Small models (0.5B-1B parameters)
-- ml.g5.2xlarge - Medium models (1B-3B parameters)  
-- ml.g5.4xlarge - Large models (7B+ parameters)
-- ml.g5.12xlarge - Very large models (13B+ parameters)
-
-## Inference
-
-### Basic Usage
-
-```python
-from sama_rl import create_inference_model
-
-model = create_inference_model(endpoint_name)
-completion = model.generate(
-    prompt="Explain reinforcement learning",
-    max_new_tokens=200,
-    temperature=0.7
-)
-```
-
-### Batch Inference
-
-```python
-prompts = ["Question 1", "Question 2", "Question 3"]
-completions = model.batch_inference(prompts, max_new_tokens=100)
-```
-
-### Repetition Control
-
-```python
-completion = model.generate(
-    prompt="What is the capital of France?",
-    max_new_tokens=100,
-    temperature=0.7,
-    stop_on_repetition=True  # Prevents repetitive output
-)
-```
-
-## Training Job Management
-
-### Job Naming Convention
-
-Training jobs are automatically named: `sama-grpo-{modelname}-{timestamp}`
-
-### Monitoring
-
-```python
-# Check status
-print(trainer.get_training_job_status())
-
-# Get model artifacts
-print(trainer.get_model_artifacts())
-
-# View logs
-trainer.get_logs()
-```
-
-## Configuration Overrides
-
-All parameters can be overridden at runtime:
-
-```python
-trainer = GRPO(
-    yaml_file="config.yaml",
-    reward_functions=[reward_func],
-    # Training parameters
-    max_steps=500,
-    learning_rate=2e-5,
-    per_device_train_batch_size=2,
-    # GRPO parameters
-    num_generations=1,
-    temperature=0.6,
-    # Data parameters
-    dataset_name="custom/dataset",
-    # Model parameters
-    model_name="microsoft/DialoGPT-medium"
-)
-```
-
-## Best Practices
-
-1. **Test with small max_steps first** - Use max_steps=10-50 for initial testing
-2. **Use appropriate instance types** - Let auto-selection choose optimal instances
-3. **Monitor costs** - Set max_run times to prevent runaway costs
-4. **Control repetition** - Use stop_on_repetition=True for cleaner outputs
-5. **Start small, scale up** - Begin with smaller models and datasets
-
-## API Reference
-
-### GRPO Class
-
-```python
-GRPO(
-    yaml_file: str = None,
-    reward_functions: List[Callable] = None,
-    training_job_name: str = None,  # For loading existing jobs
-    instance_type: str = None,
-    wandb_api_key: str = None,
-    **overrides  # Any config parameter
-)
-```
-
-### Inference Class
-
-```python
-create_inference_model(
-    endpoint_name: str,
-    base_model_name: str = "Qwen/Qwen2-0.5B-Instruct"
-)
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/new-feature`)
-3. Commit your changes (`git commit -m 'Add new feature'`)
-4. Push to the branch (`git push origin feature/new-feature`)
-5. Open a Pull Request
-
-## License
+## 📄 License
 
 This project is licensed under the MIT License.
 
 ---
 
-SAMA RL: Simple, reliable reinforcement learning for language models.
+**SAMA CLI**: Making reinforcement learning and fine-tuning accessible to everyone. 🚀

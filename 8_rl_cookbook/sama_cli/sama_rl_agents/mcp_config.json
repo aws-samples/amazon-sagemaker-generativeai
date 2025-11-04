@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "sama-rl-model-builder": {
+      "command": "python",
+      "args": ["/home/sagemaker-user/RL/RL-CookBook/GRPO+RLVR/sama_rl_agents/model_builder.py"],
+      "cwd": "sama_rl_agents",
+      "description": "SAMA RL Model Builder - Create GRPO training configurations using natural language"
+    },
+    "sama-rl-model-deployment": {
+      "command": "python", 
+      "args": ["/home/sagemaker-user/RL/RL-CookBook/GRPO+RLVR/sama_rl_agents/model_deployment.py"],
+      "cwd": "sama_rl_agents",
+      "description": "SAMA RL Model Deployment - Deploy trained GRPO models to SageMaker endpoints"
+    },
+    "sama-rl-model-evaluation": {
+      "command": "python",
+      "args": ["/home/sagemaker-user/RL/RL-CookBook/GRPO+RLVR/sama_rl_agents/model_evaluation.py"], 
+      "cwd": "sama_rl_agents",
+      "description": "SAMA RL Model Evaluation - Evaluate deployed models with various metrics and techniques"
+    }
+  }
+}
