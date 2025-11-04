@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sama-finetuning-mcp-server"
+version = "0.1.0"
+description = "SAMA Fine-tuning MCP Server for Q CLI - SageMaker model fine-tuning operations"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "boto3>=1.37.27",
+    "fastmcp>=2.9.2",
+    "mcp[cli]>=1.6.0",
+    "pydantic>=2.10.6",
+    "sagemaker>=2.200.0",
+    "datasets>=2.14.0"
+]
+
+[project.scripts]
+sama-finetuning-mcp-server = "sama_finetuning_mcp_server.server:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sama_finetuning_mcp_server*"]
