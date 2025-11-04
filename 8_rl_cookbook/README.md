@@ -1,4 +1,4 @@
-# SAMA CLI - Simple API for Machine Learning Agents
+# SAMA RL COOKBOOK & SAMA CLI - Making reinforcement learning and fine-tuning accessible to everyone 🚀
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
@@ -61,6 +61,10 @@ q chat "I want to train a Qwen model using GRPO with my custom reward functions 
 
 #### Supported Algorithms
 - **GRPO** (Group Relative Policy Optimization)
+- **LLaMA 3.2 Finetuning** 
+
+#### Upcoming Algorithms
+
 - **PPO** (Proximal Policy Optimization) 
 - **DPO** (Direct Preference Optimization)
 - **RLHF** (Reinforcement Learning from Human Feedback)
@@ -192,6 +196,3 @@ sagemaker:
 
 This project is licensed under the MIT License.
 
----
-
-**SAMA CLI**: Making reinforcement learning and fine-tuning accessible to everyone. 🚀
