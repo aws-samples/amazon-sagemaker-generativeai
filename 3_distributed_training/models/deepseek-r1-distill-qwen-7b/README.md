@@ -23,7 +23,8 @@ This code replicates the training setup used for **[CodeFu-7B-v0.1](https://hugg
 - AWS account with Amazon SageMaker AI access
 - Ray 2.0.0+
 - Python 3.10+
-- Docker (for custom container images)
+- Docker (for building custom container images)
+- AWS CLI configured with appropriate permissions
 
 ## Project Structure
 
@@ -55,6 +56,65 @@ The `launcher.py` script serves as the universal entry point for SageMaker train
 #### ⚠️ Important Note
 
 **The `launcher.py` script is not intended to be modified by users.** This script serves as a universal entrypoint for SageMaker training jobs and handles Ray cluster setup, coordination between nodes, and execution of your custom scripts.
+
+### Container Setup
+
+Before running the training notebook, you must build and push the Docker container to Amazon ECR.
+
+#### Build and Push Container
+
+1. **Set your container name and version** (default: `codefu-pytorch:latest`):
+
+```bash
+export CONTAINER_NAME=codefu-pytorch
+export CONTAINER_VERSION=latest
+export AWS_REGION=<your-region>
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+```
+
+2. **Create ECR repository** (if it doesn't exist):
+
+```bash
+aws ecr create-repository --repository-name ${CONTAINER_NAME} --region ${AWS_REGION}
+```
+
+3. **Build the Docker image**:
+
+```bash
+cd docker
+docker build -t ${CONTAINER_NAME}:${CONTAINER_VERSION} .
+```
+
+4. **Authenticate Docker to ECR**:
+
+```bash
+aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+```
+
+5. **Tag and push to ECR**:
+
+```bash
+docker tag ${CONTAINER_NAME}:${CONTAINER_VERSION} ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${CONTAINER_NAME}:${CONTAINER_VERSION}
+docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${CONTAINER_NAME}:${CONTAINER_VERSION}
+```
+
+#### Update Notebook Configuration
+
+If you change the container name or version, update the notebook accordingly:
+
+```python
+# In model-trainer-notebook.ipynb
+account_id = sts.get_caller_identity()["Account"]
+region = sagemaker_session.boto_session.region_name
+repo_name = "codefu-pytorch" # -> Change to your container name
+tag = "latest" # -> Change to your container version
+
+image_uri = f"{account_id}.dkr.ecr.{region}.amazonaws.com/{repo_name}:{tag}"
+
+image_uri
+```
+
+**Note**: The notebook assumes the container is named `codefu-pytorch` with version `latest`. If you use different values, ensure they match in both the build commands and notebook configuration.
 
 ### Training Script
 
