@@ -1,0 +1,41 @@
+# Model arguments
+model_name_or_path: meta-llama/Llama-3.2-3B-Instruct
+tokenizer_name_or_path: meta-llama/Llama-3.2-3B-Instruct
+model_revision: main
+torch_dtype: bfloat16
+attn_implementation: flash_attention_2
+bf16: true
+tf32: true
+trust_remote_code: true
+
+model_download_location: /opt/ml/input/model
+dataset_local_location: /opt/ml/input/data/training_dataset/
+output_dir: /opt/ml/model/ #/opt/ml/output
+
+# Dataset arguments
+dataset_id_or_path: /opt/ml/input/data/training_dataset/
+max_length: 2048
+packing: true
+
+# Spectrum arguments
+spectrum_config_path: /opt/ml/input/data/code/spectrum-layer/snr_results_meta-llama-Llama-3.2-3B-Instruct_unfrozenparameters_50percent.yaml
+
+# Training arguments
+num_train_epochs: 10
+per_device_train_batch_size: 8
+gradient_accumulation_steps: 2
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: true
+learning_rate: 5.0e-5
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+#weight_decay: 0.01
+
+# Logging arguments
+logging_strategy: steps
+logging_steps: 5
+report_to:
+- none
+save_strategy: "no" # "epoch"
+seed: 42
