@@ -18,6 +18,7 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
+    EarlyStoppingCallback,
     Mxfp4Config,
     Trainer,
     TrainingArguments,
@@ -53,6 +54,9 @@ class ScriptArguments:
     checkpoint_dir: str = field(default=None, metadata={"help": "Checkpoint directory"})
     use_checkpoints: bool = field(
         default=False, metadata={"help": "Whether to use checkpointing"}
+    )
+    early_stopping: bool = field(
+        default=False, metadata={"help": "Whether to use early stopping"}
     )
     load_in_4bit: bool = field(
         default=True, metadata={"help": "Load model in 4-bit quantization"}
@@ -592,6 +596,14 @@ def train(script_args, training_args, train_ds, test_ds):
         model = apply_lora_config(model, script_args)
 
     callbacks = setup_wandb(script_args)
+    if script_args.early_stopping:
+        if callbacks is None:
+            callbacks = []
+        callbacks.append(EarlyStoppingCallback(early_stopping_patience=3))
+
+        training_args.load_best_model_at_end = True
+        training_args.metric_for_best_model = "eval_loss"
+        training_args.greater_is_better = False
     trainer = setup_trainer(
         model, tokenizer, train_ds, config_builder, test_ds, callbacks
     )

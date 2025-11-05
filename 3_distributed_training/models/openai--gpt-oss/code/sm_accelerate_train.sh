@@ -153,8 +153,19 @@ validate_inputs() {
 }
 
 setup_distributed_environment() {
+    log_info "Setting up distributed training environment variables"
+    
+    # Extract machine rank from SM_CURRENT_HOST (algo-1 -> 0, algo-2 -> 1, etc.)
+    if [[ -n "${SM_CURRENT_HOST:-}" ]]; then
+        MACHINE_RANK=$(echo "$SM_CURRENT_HOST" | sed 's/algo-//' | awk '{print $1-1}')
+        export MACHINE_RANK
+        log_info "  MACHINE_RANK: $MACHINE_RANK (derived from $SM_CURRENT_HOST)"
+    else
+        export MACHINE_RANK=0
+        log_warning "  SM_CURRENT_HOST not set, defaulting MACHINE_RANK to 0"
+    fi
+
     NUM_MACHINES=${SM_HOST_COUNT}
-    MACHINE_RANK=${SM_CURRENT_HOST_RANK}
     NUM_PROCESSES=$((SM_HOST_COUNT * SM_NUM_GPUS))
     MAIN_PROCESS_IP=${SM_MASTER_ADDR}
     MAIN_PROCESS_PORT=29500
@@ -164,6 +175,13 @@ setup_distributed_environment() {
     log_info "  - Machine rank: $MACHINE_RANK"
     log_info "  - Main process IP: $MAIN_PROCESS_IP"
     log_info "  - Port: $MAIN_PROCESS_PORT"
+    
+    # Log SageMaker environment variables
+    log_info "SageMaker Environment Variables:"
+    log_info "  - SM_HOSTS: ${SM_HOSTS:-NOT SET}"
+    log_info "  - SM_CURRENT_HOST: ${SM_CURRENT_HOST:-NOT SET}"
+    log_info "  - SM_NUM_GPUS: ${SM_NUM_GPUS:-NOT SET}"
+    log_info "  - SM_NUM_CPUS: ${SM_NUM_CPUS:-NOT SET}"
 }
 
 install_dependencies() {
@@ -213,6 +231,7 @@ launch_training() {
     log_info "  - Config file: $CONFIG_PATH"
     log_info "  - Accelerate config: $ACCELERATE_CONFIG"
     log_info "  - Training script: $TRAINING_SCRIPT"
+    log_info "  - Machine rank: $MACHINE_RANK"
     
     # Launch training with error handling
     if accelerate launch \

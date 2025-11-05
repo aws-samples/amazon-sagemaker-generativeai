@@ -164,13 +164,24 @@ setup_distributed_environment() {
         export MACHINE_RANK=0
         log_warning "  SM_CURRENT_HOST not set, defaulting MACHINE_RANK to 0"
     fi
+
+    NUM_MACHINES=${SM_HOST_COUNT}
+    NUM_PROCESSES=$((SM_HOST_COUNT * SM_NUM_GPUS))
+    MAIN_PROCESS_IP=${SM_MASTER_ADDR}
+    MAIN_PROCESS_PORT=29500
+    log_info "Distributed setup:"
+    log_info "  - Num machines: $NUM_MACHINES"
+    log_info "  - Num processes (GPUs): $NUM_PROCESSES"
+    log_info "  - Machine rank: $MACHINE_RANK"
+    log_info "  - Main process IP: $MAIN_PROCESS_IP"
+    log_info "  - Port: $MAIN_PROCESS_PORT"
     
     # Log SageMaker environment variables
     log_info "SageMaker Environment Variables:"
-    log_info "  SM_HOSTS: ${SM_HOSTS:-NOT SET}"
-    log_info "  SM_CURRENT_HOST: ${SM_CURRENT_HOST:-NOT SET}"
-    log_info "  SM_NUM_GPUS: ${SM_NUM_GPUS:-NOT SET}"
-    log_info "  SM_NUM_CPUS: ${SM_NUM_CPUS:-NOT SET}"
+    log_info "  - SM_HOSTS: ${SM_HOSTS:-NOT SET}"
+    log_info "  - SM_CURRENT_HOST: ${SM_CURRENT_HOST:-NOT SET}"
+    log_info "  - SM_NUM_GPUS: ${SM_NUM_GPUS:-NOT SET}"
+    log_info "  - SM_NUM_CPUS: ${SM_NUM_CPUS:-NOT SET}"
 }
 
 install_dependencies() {
@@ -225,9 +236,11 @@ launch_training() {
     # Launch training with error handling
     if accelerate launch \
         --config_file "$ACCELERATE_CONFIG" \
+        --num_machines "$NUM_MACHINES" \
         --machine_rank "$MACHINE_RANK" \
-        --main_process_ip "$SM_MASTER_ADDR" \
-        --main_process_port 29500 \
+        --num_processes "$NUM_PROCESSES" \
+        --main_process_ip "$MAIN_PROCESS_IP" \
+        --main_process_port "$MAIN_PROCESS_PORT" \
         "$TRAINING_SCRIPT" \
         --config "$CONFIG_PATH"; then
         
