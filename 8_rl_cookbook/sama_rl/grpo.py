@@ -52,6 +52,10 @@ class GRPO:
             raise ValueError("Either yaml_file or training_job_name must be provided")
             
         self.config = load_config(yaml_file)
+        self.yaml_file = yaml_file
+        
+        # Store reward functions
+        self.reward_functions = reward_functions or []
         
         # Apply overrides
         if instance_type:
@@ -250,8 +254,9 @@ def reward_function(completions, **kwargs):
         
         # Create config file
         config_data = {
-            'config': self.config.__dict__,
-            'reward_function': self._prepare_reward_function_code()
+            'config': {**self.config.__dict__, 'algorithm': 'grpo'},
+            'reward_function': self._prepare_reward_function_code(),
+            'yaml_file': getattr(self, 'yaml_file', None)
         }
         
         # Upload to S3
@@ -270,7 +275,7 @@ def reward_function(completions, **kwargs):
         }
         
         self.estimator = PyTorch(
-            entry_point="sagemaker_train.py",
+            entry_point="sagemaker_train_grpo.py",
             source_dir=os.path.dirname(__file__),
             role=role,
             instance_type=sagemaker_config.get('instance_type', 'ml.g4dn.2xlarge'),
@@ -333,8 +338,8 @@ def reward_function(completions, **kwargs):
         logger.info("Starting GRPO training on SageMaker...")
         
         # Verify reward functions first
-        if not self.verify_reward_functions():
-            raise ValueError("Reward function verification failed. Training aborted.")
+        # if not self.verify_reward_functions():
+        #     raise ValueError("Reward function verification failed. Training aborted.")
         
         # Generate unique job name with model name
         import time

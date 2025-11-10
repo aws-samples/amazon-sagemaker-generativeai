@@ -21,54 +21,44 @@ class Config:
 
 
 def load_config(yaml_file: str) -> Config:
-    """
-    Load configuration from YAML file
+    """Load configuration from YAML file, handling both nested and flat structures"""
+    with open(yaml_file, "r") as f:
+        raw_config = yaml.safe_load(f)
     
-    Args:
-        yaml_file: Path to YAML configuration file
+    # Check if config is flat (has model_name_or_path) or nested (has model.name)
+    if "model_name_or_path" in raw_config:
+        # Flat config - convert to nested
+        config_dict = {
+            "model": {"name": raw_config.get("model_name_or_path", "")},
+            "data": {"dataset_name": raw_config.get("train_dataset_id_or_path", "")},
+            "training": {
+                "learning_rate": raw_config.get("learning_rate", 5e-5),
+                "batch_size": raw_config.get("per_device_train_batch_size", 1),
+                "num_epochs": raw_config.get("num_train_epochs", 1)
+            },
+            "algorithm": {},
+            "reward": {},
+            "wandb": {},
+            "output": {"dir": raw_config.get("output_dir", "/opt/ml/model")},
+            "sagemaker": {}
+        }
         
-    Returns:
-        Config object with all settings
-    """
-    if not os.path.exists(yaml_file):
-        raise FileNotFoundError(f"Configuration file not found: {yaml_file}")
-    
-    with open(yaml_file, 'r') as f:
-        config_dict = yaml.safe_load(f)
-    
-    # Extract algorithm-specific config (grpo, ppo, orpo, dpo)
-    algorithm_config = {}
-    for alg in ['grpo', 'ppo', 'orpo', 'dpo']:
-        if alg in config_dict:
-            algorithm_config = config_dict.pop(alg)
-            break
-    
-    return Config(
-        model=config_dict.get('model', {}),
-        data=config_dict.get('data', {}),
-        training=config_dict.get('training', {}),
-        algorithm=algorithm_config,
-        reward=config_dict.get('reward', {}),
-        wandb=config_dict.get('wandb', {}),
-        output=config_dict.get('output', {}),
-        sagemaker=config_dict.get('sagemaker')
-    )
+        # Create config object
+        config = Config(**{key: config_dict.get(key, {}) for key in ["model", "data", "training", "algorithm", "reward", "wandb", "output", "sagemaker"]})
+        
+        # Store original flat config attributes for training script access
+        for key, value in raw_config.items():
+            setattr(config, key, value)
+            
+        return config
+    else:
+        # Nested config - use as is
+        return Config(**{key: raw_config.get(key, {}) for key in ["model", "data", "training", "algorithm", "reward", "wandb", "output", "sagemaker"]})
 
 
-def merge_config_with_overrides(config: Config, **overrides) -> Config:
-    """
-    Merge config with runtime overrides
-    
-    Args:
-        config: Base configuration
-        **overrides: Runtime parameter overrides
-        
-    Returns:
-        Updated configuration
-    """
-    # Simple merge - can be made more sophisticated
+def merge_config_with_overrides(config: Config, overrides: Dict[str, Any]) -> Config:
+    """Merge configuration with override values"""
     for key, value in overrides.items():
-        if hasattr(config, key) and isinstance(getattr(config, key), dict):
-            getattr(config, key).update(value if isinstance(value, dict) else {key: value})
-    
+        if hasattr(config, key):
+            setattr(config, key, value)
     return config
