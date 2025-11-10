@@ -1,0 +1,48 @@
+model:
+  name: "Qwen/Qwen2.5-0.5B-Instruct"
+  trust_remote_code: true
+
+data:
+  dataset_name: "stanfordnlp/imdb"
+  train_split: "train"
+  input_min_length: 2
+  input_max_length: 8
+
+training:
+  learning_rate: 1.41e-5
+  batch_size: 1
+  mini_batch_size: 1
+  gradient_accumulation_steps: 1
+  ppo_epochs: 4
+  max_steps: 100
+  
+  # Generation settings
+  output_min_length: 4
+  output_max_length: 16
+  
+  # PPO specific
+  cliprange: 0.2
+  cliprange_value: 0.2
+  vf_coef: 0.1
+  kl_penalty: "kl"
+  target_kl: 0.1
+  init_kl_coef: 0.2
+
+reward:
+  model_name: "lvwerra/distilbert-imdb"
+  batch_size: 1
+  
+wandb:
+  project: "qwen2.5-ppo-sentiment"
+  run_name: "qwen2.5-0.5b-imdb-ppo"
+  tags: ["qwen2.5", "ppo", "sentiment", "0.5b"]
+
+output:
+  dir: "/opt/ml/model"
+  save_total_limit: 3
+
+sagemaker:
+  instance_type: "ml.g4dn.2xlarge"
+  instance_count: 1
+  max_run: 7200  # 2 hours
+  keep_alive_period: 1800
