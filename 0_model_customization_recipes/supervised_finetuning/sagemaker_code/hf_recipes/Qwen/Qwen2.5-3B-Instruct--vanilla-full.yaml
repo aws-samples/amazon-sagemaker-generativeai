@@ -3,7 +3,7 @@ model_name_or_path: Qwen/Qwen2.5-3B-Instruct
 tokenizer_name_or_path: Qwen/Qwen2.5-3B-Instruct
 model_revision: main
 torch_dtype: bfloat16
-attn_implementation: flash_attention_2
+attn_implementation: eager
 use_liger: false
 bf16: true
 tf32: true
