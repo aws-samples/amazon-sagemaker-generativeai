@@ -6,11 +6,11 @@ torch_dtype: bfloat16
 attn_implementation: eager
 use_liger: false
 bf16: true
-tf32: true
+tf32: false
 output_dir: /opt/ml/output/openai/gpt-oss-20b/spectrum/
 
 # Dataset arguments
-dataset_id_or_path: /opt/ml/input/data/training/open-r1--OpenR1-Math-220k-withthinking.jsonl
+dataset_id_or_path: /opt/ml/input/data/training/interstellarninja--hermes_reasoning_tool_use.jsonl
 max_seq_length: 4096
 packing: false
 
@@ -22,8 +22,8 @@ spectrum_config_path: configs/spectrum/openai/snr_results_openai-gpt-oss-20b_unf
 modality_type: "text"
 
 # Training arguments
-num_train_epochs: 5
-per_device_train_batch_size: 8
+num_train_epochs: 1
+per_device_train_batch_size: 2
 gradient_accumulation_steps: 2
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
@@ -34,7 +34,7 @@ warmup_ratio: 0.1
 
 # Logging arguments
 logging_strategy: steps
-logging_steps: 5
+logging_steps: 1
 report_to:
 - mlflow
 run_name: gpt-oss-20b-spectrum-open-r1--OpenR1-Math-220k-withthinking

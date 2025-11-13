@@ -6,7 +6,7 @@ torch_dtype: bfloat16
 attn_implementation: flash_attention_2
 use_liger: false
 bf16: true
-tf32: true
+tf32: false
 output_dir: /opt/ml/output/microsoft/phi-4/spectrum/
 
 # Dataset arguments

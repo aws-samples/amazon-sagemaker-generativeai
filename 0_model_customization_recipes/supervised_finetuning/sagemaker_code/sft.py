@@ -14,12 +14,14 @@ import os
 import re
 import soundfile as sf
 import json
+import mlflow
 from dataclasses import dataclass
 from datetime import datetime
 from distutils.util import strtobool
 from typing import Optional, Tuple, Dict, Any, List
 
 import torch
+import accelerate
 from datasets import load_dataset, Dataset
 from peft import AutoPeftModelForCausalLM, PeftModel, PeftConfig
 from transformers import (
@@ -32,7 +34,6 @@ from transformers import (
     PreTrainedTokenizer,
     set_seed,
     Qwen2AudioForConditionalGeneration,
-    Qwen3VLForConditionalGeneration,
     GenerationConfig
 )
 from transformers.trainer_utils import get_last_checkpoint
@@ -44,12 +45,16 @@ from trl import (
     SFTConfig,
     get_peft_config
 )
-
 if is_liger_kernel_available():
     from liger_kernel.transformers import AutoLigerKernelForCausalLM
 import base64
 import io
 from PIL import Image
+try:
+    from transformers import Qwen3VLForConditionalGeneration
+except ImportError:
+    print("[WARN] Qwen3VLForConditionalGeneration not found in transformers. Make sure you have the latest version.")
+    pass
 
 
 # here's a list of models that needs its own import from transformers
@@ -58,6 +63,23 @@ EXCEPTION_MODEL_LIST = [
     "Qwen/Qwen3-VL-4B-Instruct",
     "Qwen/Qwen3-VL-2B-Instruct"
 ]
+
+
+def get_run_id_from_name(experiment_name: str, run_name: str) -> str:
+    # Look up the experiment ID
+    experiment = mlflow.get_experiment_by_name(experiment_name)
+    if experiment is None:
+        raise ValueError(f"Experiment '{experiment_name}' not found")
+    # Search runs in that experiment by run_name (stored as tag)
+    runs = mlflow.search_runs(
+        experiment_ids=[experiment.experiment_id],
+        filter_string=f"tags.mlflow.runName = '{run_name}'"
+    )
+    if runs.empty:
+        raise ValueError(f"No run found with name '{run_name}' in experiment '{experiment_name}'")
+
+    # Take the first match (assuming run_name is unique per experiment)
+    return runs.iloc[0].run_id
 
 
 def process_vision_info(messages: list[dict]) -> list[Image.Image]:
@@ -249,6 +271,7 @@ class ScriptArguments:
     
     eval_max_new_tokens: int = 512
     """Maximum number of new tokens to generate during evaluation."""
+
 
 def get_checkpoint_path(training_args: SFTConfig) -> Optional[str]:
     """
@@ -579,54 +602,118 @@ def get_model_save_directory(model_name: str) -> str:
 
 def save_peft_model(trainer: SFTTrainer, training_args: SFTConfig, model_args: ModelConfig) -> None:
     """
-    Save PEFT model, merge with base model, and save final merged model.
-    
-    Args:
-        trainer: The SFT trainer instance
-        training_args: Training configuration
-        model_args: Model configuration
+    Save PEFT adapter shards safely under ZeRO-3.
+    Only rank 0 writes; explicit barriers around I/O.
     """
+    acc = trainer.accelerator
     final_model_dir = get_model_save_directory(model_args.model_name_or_path)
-    final_model_dir = os.path.join(final_model_dir, "peft")
+    final_peft_model_dir = os.path.join(final_model_dir, "peft_adapter")
 
-    logger.info("Saving PEFT model")
-    
-    # Save adapter to final model dir directory
-    trainer.save_model(final_model_dir)
-    logger.info(f"PEFT adapter saved to {final_model_dir}")
-    
-    # Wait for all processes
-    if hasattr(training_args, 'distributed_state'):
-        training_args.distributed_state.wait_for_everyone()
-    
-    # Save tokenizer
-    trainer.processing_class.save_pretrained(final_model_dir)
-    logger.info(f"Tokenizer saved to {final_model_dir}")
+    acc.wait_for_everyone()
+
+    if acc.is_main_process:
+        logging.getLogger(__name__).info("Saving PEFT adapter to %s", final_peft_model_dir)
+        # TRL/Transformers Trainer handles adapter saving; but keep it single-rank
+        trainer.model.save_pretrained(final_peft_model_dir)
+        # tokenizer/processor may be on trainer.processing_class
+        tokenizer_or_processor = getattr(trainer, "processing_class", None)
+        if tokenizer_or_processor is not None:
+            logging.getLogger(__name__).info("saving model processor to disk")
+            tokenizer_or_processor.save_pretrained(final_peft_model_dir)
+        else:
+            # fallback to tokenizer if present
+            if getattr(trainer, "tokenizer", None) is not None:
+                tokenizer_or_processor = trainer.tokenizer
+                logging.getLogger(__name__).info("saving tokenizer to disk")
+                trainer.tokenizer.save_pretrained(final_peft_model_dir)
+        
+        #############################
+        # EXPERIMENTAL
+        ##############################
+        # # Log to MLflow if enabled
+        # if training_args.report_to:
+        #     if "mlflow" in training_args.report_to or training_args.report_to == "mlflow":
+        #         try:
+        #             # Lookup the existing parent run by experiment + run name
+        #             if os.getenv("MLFLOW_EXPERIMENT_NAME", None) is not None:
+        #                 parent_run_id = get_run_id_from_name(
+        #                     experiment_name=os.getenv("MLFLOW_EXPERIMENT_NAME", "Default"),
+        #                     run_name=training_args.run_name
+        #                 )
+        #                 # Attach to the existing parent run
+        #                 logger.info(f"Logging model to mlflow: {final_peft_model_dir} under run ID: {parent_run_id}")
+        #                 with mlflow.start_run(run_id=parent_run_id):
+        #                     mlflow.transformers.log_model(
+        #                         transformers_model={"model": trainer.model, "tokenizer": tokenizer_or_processor},
+        #                         registered_model_name=model_args.model_name_or_path.replace("/", "--").replace(".", "-"),
+        #                         task="text-generation",
+        #                         tags={"model.strategy": "peft"}
+        #                     )
+        #                     logger.info("Model logged to MLflow successfully.")
+        #         except Exception as e:
+        #             logger.error(f"Failed to log model to MLflow: {e}")
+         
+    acc.wait_for_everyone()
 
 
-def save_full_model(trainer: SFTTrainer, training_args: SFTConfig, model_args: ModelConfig) -> None:
+def save_full_model(trainer: SFTTrainer, training_args: SFTConfig, model_args: ModelConfig, spectrum_bool: bool) -> None:
     """
-    Save full fine-tuned model (non-PEFT).
-    
-    Args:
-        trainer: The SFT trainer instance
-        training_args: Training configuration
-        model_args: Model configuration
+    Save the full model safely under ZeRO-3:
+    - gather state dict via Accelerator (all ranks participate)
+    - only rank 0 writes weights to disk
+    - barriers around I/O
     """
-    logger.info("Saving full fine-tuned model")
-    
-    # Save model to final directory
+    acc = trainer.accelerator
     final_model_dir = get_model_save_directory(model_args.model_name_or_path)
-    trainer.save_model(final_model_dir)
-    logger.info(f"Model saved to {final_model_dir}")
-    
-    # Wait for all processes
-    if hasattr(training_args, 'distributed_state'):
-        training_args.distributed_state.wait_for_everyone()
-    
-    # Save tokenizer (fix bug: was saving to wrong directory)
-    trainer.tokenizer.save_pretrained(final_model_dir)
-    logger.info(f"Tokenizer saved to {final_model_dir}")
+
+    acc.wait_for_everyone()
+
+    if acc.is_main_process:
+        logging.getLogger(__name__).info("Saving full model to %s", final_model_dir)
+        # unwrap_model returns the underlying HF model (not the DeepSpeed engine)
+        base_model = trainer.accelerator.unwrap_model(trainer.model)
+        base_model.save_pretrained(final_model_dir, safe_serialization=True)
+        # tokenizer/processor may be on trainer.processing_class
+        tokenizer_or_processor = getattr(trainer, "processing_class", None)
+        if tokenizer_or_processor is not None:
+            logging.getLogger(__name__).info("saving model processor to disk")
+            tokenizer_or_processor.save_pretrained(final_model_dir)
+        else:
+            # fallback to tokenizer if present
+            if getattr(trainer, "tokenizer", None) is not None:
+                tokenizer_or_processor = trainer.tokenizer
+                logging.getLogger(__name__).info("saving tokenizer to disk")
+                trainer.tokenizer.save_pretrained(final_model_dir)
+        
+        #############################
+        # EXPERIMENTAL
+        ##############################
+        # # Log to MLflow if enabled
+        # if training_args.report_to:
+        #     if "mlflow" in training_args.report_to or training_args.report_to == "mlflow":
+        #         try:
+        #             # Lookup the existing parent run by experiment + run name
+        #             if os.getenv("MLFLOW_EXPERIMENT_NAME", None) is not None:
+        #                 parent_run_id = get_run_id_from_name(
+        #                     experiment_name=os.getenv("MLFLOW_EXPERIMENT_NAME", "Default"),
+        #                     run_name=training_args.run_name
+        #                 )
+        #                 # Attach to the existing parent run
+        #                 logger.info(f"Logging model to mlflow: {final_model_dir} under run ID: {parent_run_id}")
+        #                 with mlflow.start_run(run_id=parent_run_id):
+        #                     mlflow.transformers.log_model(
+        #                         transformers_model={"model": base_model, "tokenizer": tokenizer_or_processor},
+        #                         registered_model_name=model_args.model_name_or_path.replace("/", "--").replace(".", "-"),
+        #                         task="text-generation",
+        #                         tags={"model.strategy": "spectrum"} if spectrum_bool else {"model.strategy": "full_finetune"}
+        #                     )
+        #                     logger.info("Model logged to MLflow successfully.")
+        #         except Exception as e:
+        #             logger.error(f"Failed to log model to MLflow: {e}")
+
+    acc.wait_for_everyone()
+
+    return final_model_dir
 
 
 def train_function(model_args: ModelConfig, script_args: ScriptArguments, training_args: SFTConfig) -> None:
@@ -656,8 +743,10 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
     # Setup tokenizer
     tokenizer_or_processor = None
     if script_args.tokenizer_name_or_path:
+        logger.info("Setting up tokenizer")
         tokenizer_or_processor = setup_tokenizer(script_args, model_args)
     elif script_args.processor_name_or_path:
+        logger.info("Setting up processor")
         tokenizer_or_processor = setup_processor(script_args, model_args)
     else:
         assert tokenizer_or_processor is not None, "please specify `tokenizer_name_or_path` (text) or `processor_name_or_path` (vision)"
@@ -667,9 +756,9 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
     if model_args.use_peft:
         logger.info(
             "\n\n"
-            "🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋\n"
+            "🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🪫🔋\n"
             "🪫   CONFIGURING PEFT    🪫\n"
-            "🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋\n"
+            "🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🪫🔋\n"
         )
 
         peft_config = get_peft_config(model_args)
@@ -685,13 +774,12 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
             % spectrum_bool
         )
 
-    
     # Load and configure model
     model_kwargs = create_model_kwargs(model_args, training_args, script_args)
     model = load_model(model_args, training_args, script_args, model_kwargs)
     model = configure_model_for_training(model, script_args)
 
-    def collate_fn_images(examples):
+    def collate_fn_images_qwen(examples):
         proc = tokenizer_or_processor
         cleaned_msgs_per_sample = []
         images_per_sample = []
@@ -768,6 +856,42 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
         batch["labels"] = labels
         return batch
     
+    def collate_fn_images(examples):
+        # Convert chat messages to text template
+        texts = [
+            tokenizer_or_processor.apply_chat_template(
+                example["messages"], tokenize=False, add_generation_prompt=False
+            ).strip()
+            for example in examples
+        ]
+    
+        # Extract images from messages (always multimodal-safe)
+        images = [process_vision_info(example["messages"]) for example in examples]
+    
+        # Tokenize texts and images
+        batch = tokenizer_or_processor(
+            images=images, 
+            text=texts, 
+            return_tensors="pt", 
+            padding=True
+        )
+    
+        # Prepare labels (mask padding + special image tokens)
+        labels = batch["input_ids"].clone()
+        labels[labels == tokenizer_or_processor.tokenizer.pad_token_id] = -100
+    
+        # Mask image tokens (boi/eoi etc.)
+        image_token_ids = [
+            tokenizer_or_processor.tokenizer.convert_tokens_to_ids(tok)
+            for tok in tokenizer_or_processor.tokenizer.special_tokens_map.values()
+            if "image" in tok.lower() or "boi" in tok.lower() or "eoi" in tok.lower()
+        ]
+        for tok_id in image_token_ids:
+            labels[labels == tok_id] = -100
+    
+        batch["labels"] = labels
+        return batch
+
     
     def collate_fn_audio(examples):
         # 1. Convert chat messages into text prompts
@@ -816,16 +940,27 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
         batch["labels"] = labels
         return batch
 
+    m_type = (getattr(model.config, "model_type", "") or model.__class__.__name__).lower()
+    name = (getattr(model.config, "name_or_path", "") or "").lower()
+    is_qwen = ("qwen" in m_type) or ("qwen" in name)
+    print(f"Model type: {m_type}, is_qwen: {is_qwen}")
+
     # collate functions are applicable for multi-modal datasets like images/video/audio
     collator_fn = None
     if script_args.modality_type == "text":
         pass
     elif script_args.modality_type == "image":
-        collator_fn = collate_fn_images
+        if is_qwen:
+            collator_fn = collate_fn_images_qwen
+            logger.info(f"Using Qwen-specific collate fn for images")
+        else:
+            collator_fn = collate_fn_images
+            logger.info(f"Using generic collate fn for images")
     elif script_args.modality_type == "video":
         raise AssertionError(f"current modality {script_args.modality_type} is unsupported!")
     elif script_args.modality_type == "audio":
         collator_fn = collate_fn_audio
+        logger.info(f"Using collate fn for audio")
     else:
         raise AssertionError(f"current modality {script_args.modality_type} is unsupported - choose `image`, `video`, `audio` or `text`!")
 
@@ -866,14 +1001,16 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
     if trainer.is_fsdp_enabled and peft_config:
         trainer.accelerator.state.fsdp_plugin.set_state_dict_type('FULL_STATE_DICT')
     
-    # Restore cache for inference
+    # Ensure all ranks finish training/metric logging before save
+    trainer.accelerator.wait_for_everyone()
     trainer.model.config.use_cache = True
     
     # Save model based on training type
+    saved_model_dir = None
     if model_args.use_peft:
         save_peft_model(trainer, training_args, model_args)
     else:
-        save_full_model(trainer, training_args, model_args)
+        save_full_model(trainer, training_args, model_args, spectrum_bool=spectrum_bool)
     
     # Wait for all processes before evaluation
     if hasattr(training_args, 'distributed_state'):

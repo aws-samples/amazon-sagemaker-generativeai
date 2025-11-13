@@ -17,14 +17,14 @@ packing: true
 # LoRA arguments
 use_peft: true
 load_in_4bit: true
-lora_target_modules: "all-linear"
-lora_modules_to_save: ["lm_head", "embed_tokens"]
-lora_r: 16
+lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+# lora_modules_to_save: ["lm_head", "embed_tokens"]
+lora_r: 8
 lora_alpha: 16
 
 # Training arguments
 num_train_epochs: 1
-per_device_train_batch_size: 8
+per_device_train_batch_size: 2
 gradient_accumulation_steps: 2
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
@@ -35,7 +35,7 @@ warmup_ratio: 0.1
 
 # Logging arguments
 logging_strategy: steps
-logging_steps: 5
+logging_steps: 1
 report_to:
 - mlflow
 run_name: Llama-3.3-70B-Instruct-peft-qlora-Josephgflowers--Finance-Instruct-500k

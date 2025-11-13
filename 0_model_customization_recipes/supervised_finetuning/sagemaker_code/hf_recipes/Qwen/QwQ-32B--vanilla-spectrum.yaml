@@ -3,10 +3,10 @@ model_name_or_path: Qwen/QwQ-32B
 tokenizer_name_or_path: Qwen/QwQ-32B
 model_revision: main
 torch_dtype: bfloat16
-attn_implementation: eager
+attn_implementation: flash_attention_2
 use_liger: false
 bf16: true
-tf32: true
+tf32: false
 output_dir: /opt/ml/output/Qwen/QwQ-32B/spectrum/
 
 # Dataset arguments
@@ -22,7 +22,7 @@ modality_type: "text"
 
 # Training arguments
 num_train_epochs: 1
-per_device_train_batch_size: 8
+per_device_train_batch_size: 2
 gradient_accumulation_steps: 2
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
@@ -33,9 +33,9 @@ warmup_ratio: 0.1
 
 # Logging arguments
 logging_strategy: steps
-logging_steps: 5
+logging_steps: 1
 report_to:
 - mlflow
-run_name: QwQ-32B-spectrum-AI-MO--NuminaMath-CoT
+run_name: QwQ-32B-peft-qlora-AI-MO--NuminaMath-CoT
 save_strategy: "epoch"
 seed: 42
