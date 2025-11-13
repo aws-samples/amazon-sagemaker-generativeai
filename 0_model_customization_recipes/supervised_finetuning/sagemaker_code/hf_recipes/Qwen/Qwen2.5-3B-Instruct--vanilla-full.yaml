@@ -3,7 +3,7 @@ model_name_or_path: Qwen/Qwen2.5-3B-Instruct
 tokenizer_name_or_path: Qwen/Qwen2.5-3B-Instruct
 model_revision: main
 torch_dtype: bfloat16
-attn_implementation: eager
+attn_implementation: flash_attention_2
 use_liger: false
 bf16: true
 tf32: true
@@ -12,14 +12,11 @@ output_dir: /opt/ml/output/Qwen/Qwen2.5-3B-Instruct/full-finetuning/
 # Dataset arguments
 dataset_id_or_path: /opt/ml/input/data/training/Josephgflowers--Finance-Instruct-500k.jsonl
 max_seq_length: 4096
-packing: true
-
-# Modality type
-modality_type: "text"
+packing: false
 
 # Training arguments
 num_train_epochs: 1
-per_device_train_batch_size: 8
+per_device_train_batch_size: 2
 gradient_accumulation_steps: 2
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
@@ -30,7 +27,7 @@ warmup_ratio: 0.1
 
 # Logging arguments
 logging_strategy: steps
-logging_steps: 5
+logging_steps: 1
 report_to:
 - mlflow
 run_name: Qwen2.5-3B-Instruct-full-Josephgflowers--Finance-Instruct-500k

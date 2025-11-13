@@ -12,6 +12,8 @@ This script supports:
 - At the end, writes an evaluation config YAML with paths, metrics, and model judge info
 """
 
+import gc
+import time
 import json
 import logging
 import os
@@ -24,9 +26,31 @@ import torch
 from datasets import Dataset, load_dataset
 from peft import AutoPeftModelForCausalLM
 from tqdm import tqdm
-from transformers import AutoProcessor, AutoTokenizer, set_seed
+# from transformers import AutoProcessor, AutoTokenizer, set_seed
+from transformers import (
+    AutoProcessor, 
+    AutoTokenizer, 
+    AutoModelForCausalLM, 
+    set_seed
+)
 from trl import ModelConfig, SFTConfig, TrlParser
 from vllm import LLM, SamplingParams
+
+try:
+    from transformers import (
+        Qwen3VLConfig, 
+        Qwen3VLForConditionalGeneration
+    )
+    # fixes issue: ValueError: Unrecognized configuration class <class'transformers.models.qwen3_vl.configuration_qwen3_vl.Qwen3VLConfig'>
+    # https://github.com/QwenLM/Qwen3-VL/issues/43
+    AutoModelForCausalLM.register(
+        config_class=Qwen3VLConfig,
+        model_class=Qwen3VLForConditionalGeneration
+    )
+
+except ImportError:
+    print("[WARN] Qwen3VLForConditionalGeneration not found in transformers. Make sure you have the latest version.")
+    pass
 
 
 # Configure logging
@@ -206,7 +230,7 @@ def prepare_model_for_vllm(model_args: ModelConfig, tokenizer, is_peft: bool) ->
         ft_path = os.path.join(
             os.environ.get("SM_MODEL_DIR", "/opt/ml/model"),
             base_model,
-            "peft",
+            "peft_adapter",
         )
         logger.info(f"Merging PEFT adapters from: {ft_path}")
         model = AutoPeftModelForCausalLM.from_pretrained(ft_path)

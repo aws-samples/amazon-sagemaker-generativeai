@@ -19,7 +19,7 @@ spectrum_config_path: configs/spectrum/meta-llama/snr_results_meta-llama-Llama-3
 
 # Training arguments
 num_train_epochs: 1
-per_device_train_batch_size: 8
+per_device_train_batch_size: 2
 gradient_accumulation_steps: 2
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:

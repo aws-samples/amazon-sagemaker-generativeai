@@ -3,15 +3,15 @@ model_name_or_path: Qwen/Qwen3-VL-2B-Instruct
 processor_name_or_path: Qwen/Qwen3-VL-2B-Instruct
 model_revision: main
 torch_dtype: bfloat16
-attn_implementation: flash_attention_2
+attn_implementation: eager
 use_liger: false
 bf16: true
 tf32: false
 output_dir: /opt/ml/output/Qwen/Qwen3-VL-2B-Instruct/spectrum/
 
 # Dataset arguments
-dataset_id_or_path: /opt/ml/input/data/training/HuggingFaceM4--DoclingMatix.jsonl
-max_seq_length: 8192
+dataset_id_or_path: /opt/ml/input/data/training/AI-4-Everyone--Visual-TableQA.jsonl
+max_seq_length: 512
 packing: false
 
 # Spectrum Config
@@ -21,7 +21,7 @@ spectrum_config_path: configs/spectrum/Qwen/snr_results_Qwen-Qwen3-VL-2B-Instruc
 modality_type: "image"
 
 # Training arguments
-num_train_epochs: 25
+num_train_epochs: 1
 per_device_train_batch_size: 1
 gradient_accumulation_steps: 1
 gradient_checkpointing: true
@@ -37,6 +37,6 @@ logging_strategy: steps
 logging_steps: 1
 report_to:
 - mlflow
-run_name: Qwen3-VL-2B-Instruct-peft-qlora-HuggingFaceM4--DoclingMatix
+run_name: Qwen3-VL-2B-Instruct-peft-qlora-AI-4-Everyone--Visual-TableQA
 save_strategy: "epoch"
 seed: 42

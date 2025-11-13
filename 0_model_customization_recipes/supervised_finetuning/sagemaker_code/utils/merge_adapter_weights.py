@@ -2,6 +2,25 @@ from dataclasses import dataclass, field
 import tempfile
 from typing import Optional
 import torch
+from transformers import AutoModelForCausalLM
+
+try:
+    from transformers import (
+        Qwen3VLConfig, 
+        Qwen3VLForConditionalGeneration
+    )
+    # fixes issue: ValueError: Unrecognized configuration class <class'transformers.models.qwen3_vl.configuration_qwen3_vl.Qwen3VLConfig'>
+    # https://github.com/QwenLM/Qwen3-VL/issues/43
+    AutoModelForCausalLM.register(
+        config_class=Qwen3VLConfig,
+        model_class=Qwen3VLForConditionalGeneration
+    )
+
+except ImportError:
+    print("[WARN] Qwen3VLForConditionalGeneration not found in transformers. Make sure you have the latest version.")
+    pass
+
+
 from peft import AutoPeftModelForCausalLM
 from transformers import AutoTokenizer, HfArgumentParser
 from huggingface_hub import HfApi
