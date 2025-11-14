@@ -17,5 +17,5 @@ trl==0.17.0
 psutil
 py7zr
 pynvml
-vllm==0.8.4
+vllm==0.11.0
 wandb
