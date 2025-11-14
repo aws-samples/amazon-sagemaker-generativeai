@@ -54,29 +54,35 @@ class Evaluate:
             'rougeL': rougeL(),
             'rougeLsum': rougeLsum(),
             'bleu': bleu(),
-            'bert': bert_score,
-            'toxicity': toxicity(),
-            'answer_similarity': answer_similarity(
-                model=self.config.model_judge,
-                parameters=self.config.model_judge_parameters
-            ),
-            'answer_correctness': answer_correctness(
-                model=self.config.model_judge,
-                parameters=self.config.model_judge_parameters
-            ),
-            'answer_relevance': answer_relevance(
-                model=self.config.model_judge,
-                parameters=self.config.model_judge_parameters
-            ),
-            'relevance': relevance(
-                model=self.config.model_judge,
-                parameters=self.config.model_judge_parameters
-            ),
-            'faithfulness': faithfulness(
-                model=self.config.model_judge,
-                parameters=self.config.model_judge_parameters
-            )
+            'bert': bert_score
         }
+
+        # if a user provides judge for evaluation
+        if self.config.model_judge:
+            available_metrics_llmjudge = {
+                'toxicity': toxicity(),
+                'answer_similarity': answer_similarity(
+                    model=self.config.model_judge,
+                    parameters=self.config.model_judge_parameters
+                ),
+                'answer_correctness': answer_correctness(
+                    model=self.config.model_judge,
+                    parameters=self.config.model_judge_parameters
+                ),
+                'answer_relevance': answer_relevance(
+                    model=self.config.model_judge,
+                    parameters=self.config.model_judge_parameters
+                ),
+                'relevance': relevance(
+                    model=self.config.model_judge,
+                    parameters=self.config.model_judge_parameters
+                ),
+                'faithfulness': faithfulness(
+                    model=self.config.model_judge,
+                    parameters=self.config.model_judge_parameters
+                )
+            }
+            self.available_metrics = self.available_metrics | available_metrics_llmjudge
 
         self.bert = False
         for metric in self.config.metrics:
@@ -86,6 +92,8 @@ class Evaluate:
             if metric == 'bert':
                 self.bert = True
                 self.config.metrics.remove(metric)
+
+        logging.warning(f"🧑‍⚖️ final list of configured metrics: {self.available_metrics.keys()}")
 
     def run(self):
 

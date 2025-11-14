@@ -28,28 +28,31 @@ from peft import AutoPeftModelForCausalLM
 from tqdm import tqdm
 # from transformers import AutoProcessor, AutoTokenizer, set_seed
 from transformers import (
-    AutoProcessor, 
-    AutoTokenizer, 
-    AutoModelForCausalLM, 
-    set_seed
+    AutoProcessor,
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    set_seed,
 )
 from trl import ModelConfig, SFTConfig, TrlParser
 from vllm import LLM, SamplingParams
 
 try:
     from transformers import (
-        Qwen3VLConfig, 
-        Qwen3VLForConditionalGeneration
+        Qwen3VLConfig,
+        Qwen3VLForConditionalGeneration,
     )
+
     # fixes issue: ValueError: Unrecognized configuration class <class'transformers.models.qwen3_vl.configuration_qwen3_vl.Qwen3VLConfig'>
     # https://github.com/QwenLM/Qwen3-VL/issues/43
     AutoModelForCausalLM.register(
-        config_class=Qwen3VLConfig,
-        model_class=Qwen3VLForConditionalGeneration
+        config_class=Qwen3VLConfig, model_class=Qwen3VLForConditionalGeneration
     )
 
 except ImportError:
-    print("[WARN] Qwen3VLForConditionalGeneration not found in transformers. Make sure you have the latest version.")
+    print(
+        "[WARN] Qwen3VLForConditionalGeneration not found in transformers. "
+        "Make sure you have the latest version."
+    )
     pass
 
 
@@ -58,8 +61,8 @@ def setup_logging() -> logging.Logger:
     """Set up logging configuration for the inference script."""
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[logging.StreamHandler()]
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler()],
     )
     return logging.getLogger(__name__)
 
@@ -70,16 +73,16 @@ logger = setup_logging()
 @dataclass
 class ScriptArguments:
     """Custom arguments for the inference script."""
-    
+
     dataset_id_or_path: str
     """Path to dataset file (.jsonl) or HuggingFace dataset identifier."""
-    
+
     dataset_splits: str = "train"
     """Dataset splits to use for inference."""
-    
+
     max_seq_length: int = 2048
     """Maximum sequence length for tokenization."""
-    
+
     tokenizer_name_or_path: Optional[str] = None
     """Path to tokenizer or HuggingFace tokenizer identifier. If None, uses model tokenizer."""
 
@@ -88,81 +91,102 @@ class ScriptArguments:
 
     modality_type: Optional[str] = "text"
     """Type of modality to use during inference "video", "image", "audio" or "text" """
-    
+
     eval_max_samples: int = 1000
     """Maximum number of samples to use for evaluation (for efficiency)."""
-    
+
     eval_max_new_tokens: int = 2048
     """Maximum number of new tokens to generate during evaluation."""
-    
+
+    eval_batch_size: int = 4
+    """Batch size for inference. Higher values = faster inference but more memory."""
+
     use_liger: bool = False
     """Whether to use LigerKernel over AutoClass for loading model."""
-    
+
     mxfp4: bool = False
     """Whether to use MXFP4 quantization instead of standard 4-bit quantization."""
-    
+
     spectrum_config_path: Optional[str] = None
     """Path to YAML config file specifying which parameters to unfreeze for Spectrum training."""
 
-    eval_mlflow_tracking_server_arn: str = os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
+    eval_mlflow_tracking_server_arn: str = os.getenv(
+        "MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"
+    )
     """MLflow tracking server ARN for evaluation metadata."""
-    
-    eval_mlflow_experiment_name: str = os.getenv("MLFLOW_EXPERIMENT_NAME", "default")
+
+    eval_mlflow_experiment_name: str = os.getenv(
+        "MLFLOW_EXPERIMENT_NAME", "Default"
+    )
     """MLflow experiment name for evaluation metadata."""
-    
+
     eval_metrics: List[str] = field(
-        default_factory=lambda: ["bert", "rouge2", "toxicity", "bleu", "answer_similarity"]
+        default_factory=lambda: [
+            "bert",
+            "bleu",
+            "rouge1",
+            "rouge2",
+            "rougeL",
+            "rougeLsum",
+            "bleu"
+        ]
     )
     """List of evaluation metrics to compute."""
-    
-    eval_model_judge: str = "openai:/gpt-4o"
+
+    eval_model_judge: str = None
     """Model judge identifier for evaluation."""
-    
-    eval_model_judge_parameters: Dict[str, Any] = field(default_factory=lambda: {"temperature": 0.1})
+
+    eval_model_judge_parameters: Dict[str, Any] = field(
+        default_factory=lambda: {"temperature": 0.1}
+    )
     """Parameters for the model judge."""
 
 
 def load_eval_dataset(script_args: ScriptArguments) -> Dataset:
     """
     Load evaluation dataset (90/10 split if local .jsonl).
-    
+
     Args:
         script_args: Script arguments containing dataset configuration
-        
+
     Returns:
         Evaluation dataset
-        
+
     Raises:
         ValueError: If dataset loading fails or required attributes are missing
     """
     dataset_path = script_args.dataset_id_or_path
-    
+
     try:
-        if dataset_path.endswith('.jsonl'):
+        if dataset_path.endswith(".jsonl"):
             # Load local JSONL file
             logger.info(f"Loading local JSONL dataset: {dataset_path}")
             full_dataset = load_dataset("json", data_files=dataset_path, split="train")
             total_samples = len(full_dataset)
             split_idx = int(0.9 * total_samples)
-            logger.warning(f"Using 90/10 split (train={split_idx}, eval={total_samples - split_idx})")
+            logger.warning(
+                f"Using 90/10 split (train={split_idx}, eval={total_samples - split_idx})"
+            )
             # Use evaluation split (last 10%)
             return full_dataset.select(range(split_idx, total_samples))
         else:
             # Load HuggingFace dataset
             logger.info(f"Loading HuggingFace dataset: {dataset_path}")
-            
+
             # Check if we have the required split attributes
-            if not hasattr(script_args, 'dataset_test_split'):
-                raise ValueError("dataset_test_split not found in script_args for HuggingFace dataset")
-            
+            if not hasattr(script_args, "dataset_test_split"):
+                raise ValueError(
+                    "dataset_test_split not found in script_args for HuggingFace dataset"
+                )
+
             test_split = getattr(script_args, "dataset_test_split")
             config = getattr(script_args, "config", None)
-            
+
             if config is not None:
                 return load_dataset(dataset_path, config, split=test_split)
             else:
                 return load_dataset(dataset_path, split=test_split)
-                
+
     except Exception as e:
         logger.error(f"Failed to load evaluation dataset: {e}")
         raise
@@ -171,11 +195,11 @@ def load_eval_dataset(script_args: ScriptArguments) -> Dataset:
 def load_tokenizer_or_processor(script_args: ScriptArguments, model_args: ModelConfig):
     """
     Load tokenizer (default) or processor (for multimodal).
-    
+
     Args:
         script_args: Script arguments containing tokenizer/processor configuration
         model_args: Model arguments containing model configuration
-        
+
     Returns:
         Configured tokenizer or processor
     """
@@ -199,52 +223,67 @@ def load_tokenizer_or_processor(script_args: ScriptArguments, model_args: ModelC
         revision=model_args.model_revision,
         trust_remote_code=model_args.trust_remote_code,
     )
-    
+
     # Set pad token if not present
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
         logger.info("Set pad_token to eos_token")
-    
+
     return tokenizer
 
 
 def prepare_model_for_vllm(model_args: ModelConfig, tokenizer, is_peft: bool) -> str:
     """
     Prepare model for vLLM inference.
-    
-    If PEFT -> merge adapters, save full model + tokenizer to /tmp/<model_name>/ and return path.
+
+    If PEFT -> merge adapters from .../peft_adapter, save full model + tokenizer
+    to the parent directory (i.e., without the /peft_adapter suffix) and return that path.
     Else -> return model path under SM_MODEL_DIR (Spectrum/Full).
-    
+
     Args:
         model_args: Model configuration
         tokenizer: Tokenizer instance
         is_peft: Whether this is a PEFT model
-        
+
     Returns:
         Path to model directory for vLLM
     """
-    base_model = model_args.model_name_or_path
-    tmp_dir = f"/tmp/{os.path.basename(base_model)}"
+    base_model_name = model_args.model_name_or_path
+    sm_model_dir = os.environ.get("SM_MODEL_DIR", "/opt/ml/model")
 
     if is_peft:
-        ft_path = os.path.join(
-            os.environ.get("SM_MODEL_DIR", "/opt/ml/model"),
-            base_model,
-            "peft_adapter",
-        )
-        logger.info(f"Merging PEFT adapters from: {ft_path}")
-        model = AutoPeftModelForCausalLM.from_pretrained(ft_path)
+        base_dir = os.path.join(sm_model_dir, base_model_name)
+        peft_dir = os.path.join(base_dir, "peft_adapter") + "/"
+
+        logger.info(f"Preparing PEFT model for vLLM.")
+        logger.info(f"Base model directory (full model target): {base_dir}")
+        logger.info(f"PEFT adapter directory: {peft_dir}")
+
+        if not os.path.isdir(peft_dir):
+            raise FileNotFoundError(
+                f"Expected PEFT adapter directory not found at {peft_dir}"
+            )
+
+        logger.info(f"Merging PEFT adapters from: {peft_dir}")
+        model = AutoPeftModelForCausalLM.from_pretrained(peft_dir)
         merged = model.merge_and_unload()
 
-        if os.path.exists(tmp_dir):
-            shutil.rmtree(tmp_dir)
-        merged.save_pretrained(tmp_dir)
-        tokenizer.save_pretrained(tmp_dir)
+        # Save merged model + tokenizer to the parent directory (without /peft_adapter)
+        # This ensures vLLM loads from .../<model_name>/ and not from .../peft_adapter
+        if not os.path.exists(base_dir):
+            os.makedirs(base_dir, exist_ok=True)
 
-        logger.info(f"Merged PEFT model + tokenizer saved to: {tmp_dir}")
-        return tmp_dir
+        logger.info(f"Saving merged PEFT model to: {base_dir}")
+        merged.save_pretrained(base_dir)
+        tokenizer.save_pretrained(base_dir)
 
-    return os.path.join(os.environ.get("SM_MODEL_DIR", "/opt/ml/model"), base_model)
+        logger.info(f"Merged PEFT model + tokenizer saved to: {base_dir}")
+        return base_dir
+
+    # Non-PEFT: use the standard model directory under SM_MODEL_DIR
+    model_dir = os.path.join(sm_model_dir, base_model_name)
+    logger.info(f"Using non-PEFT model directory for vLLM: {model_dir}")
+    return model_dir
 
 
 def run_inference_with_vllm(
@@ -255,8 +294,8 @@ def run_inference_with_vllm(
     out_file: str,
 ) -> None:
     """
-    Run inference with vLLM and save results as JSONL.
-    
+    Run inference with vLLM in batches and save results as JSONL.
+
     Args:
         eval_ds: Evaluation dataset
         llm: vLLM instance
@@ -264,69 +303,127 @@ def run_inference_with_vllm(
         script_args: Script arguments
         out_file: Output file path
     """
-    results = []
+    results: List[Dict[str, Any]] = []
+
     max_items = min(len(eval_ds), script_args.eval_max_samples)
+    batch_size = max(1, script_args.eval_batch_size)
+
     sampling_params = SamplingParams(
         temperature=0.7,
         top_p=0.9,
         max_tokens=script_args.eval_max_new_tokens,
     )
 
-    logger.info(f"Running inference on {max_items} samples")
-    
-    for i in tqdm(range(max_items), desc="Inference"):
+    # Collect valid indices that actually have "messages"
+    valid_indices: List[int] = []
+    for i in range(max_items):
         sample = eval_ds[i]
-        messages: List[Dict[str, str]] = sample.get("messages", [])
-        if not messages:
+        messages = sample.get("messages", [])
+        if messages:
+            valid_indices.append(i)
+
+    if not valid_indices:
+        logger.warning("No valid samples with 'messages' found in eval dataset.")
+        # Still write an empty file for downstream consumers
+        with open(out_file, "w", encoding="utf-8") as f:
+            pass
+        return
+
+    logger.info(
+        f"Running batched inference on {len(valid_indices)} samples "
+        f"(batch_size={batch_size}, max_items={max_items})"
+    )
+
+    # Batched loop
+    for start_idx in tqdm(
+        range(0, len(valid_indices), batch_size), desc="Inference (batched)"
+    ):
+        batch_indices = valid_indices[start_idx : start_idx + batch_size]
+
+        prompts: List[str] = []
+        batch_original_messages: List[List[Dict[str, Any]]] = []
+
+        # Build prompts for this batch
+        for idx in batch_indices:
+            sample = eval_ds[idx]
+            messages: List[Dict[str, Any]] = sample.get("messages", [])
+            if not messages:
+                continue
+
+            # Strip last assistant so model responds to user message
+            last_asst = max(
+                [j for j, m in enumerate(messages) if m.get("role") == "assistant"],
+                default=-1,
+            )
+            messages_for_gen = [m for j, m in enumerate(messages) if j != last_asst]
+
+            prompt = tokenizer.apply_chat_template(
+                messages_for_gen,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+            prompts.append(prompt)
+            batch_original_messages.append(messages)
+
+        if not prompts:
             continue
 
-        # Strip last assistant so model responds to user message
-        last_asst = max(
-            [i for i, m in enumerate(messages) if m["role"] == "assistant"],
-            default=-1,
-        )
-        messages_for_gen = [m for i, m in enumerate(messages) if i != last_asst]
+        # Run vLLM on the whole batch of prompts
+        outputs = llm.generate(prompts, sampling_params)
 
-        prompt = tokenizer.apply_chat_template(
-            messages_for_gen,
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-        outputs = llm.generate([prompt], sampling_params)
-        response = outputs[0].outputs[0].text.strip()
+        # Map outputs back to their corresponding messages
+        for messages, out in zip(batch_original_messages, outputs):
+            if not out.outputs:
+                response_text = ""
+            else:
+                response_text = out.outputs[0].text.strip()
 
-        # Build results
-        ground_truth, messages_with_pred = [], []
-        assistant_seen = 0
-        for msg in messages:
-            if msg["role"] == "assistant":
-                ground_truth.append(
-                    {
-                        "role": "assistant",
-                        "content": msg["content"],
-                        "thinking": msg.get("thinking", None),
-                    }
-                )
-                if assistant_seen == 0:
-                    messages_with_pred.append(
+            ground_truth: List[Dict[str, Any]] = []
+            messages_with_pred: List[Dict[str, Any]] = []
+            assistant_seen = 0
+
+            for msg in messages:
+                if msg.get("role") == "assistant":
+                    # Record ground-truth assistant content (including thinking if present)
+                    ground_truth.append(
                         {
                             "role": "assistant",
-                            "content": response,
-                            "thinking": None,
+                            "content": msg.get("content"),
+                            "thinking": msg.get("thinking", None),
                         }
                     )
+
+                    # First assistant turn is replaced by model prediction
+                    if assistant_seen == 0:
+                        messages_with_pred.append(
+                            {
+                                "role": "assistant",
+                                "content": response_text,
+                                "thinking": None,
+                            }
+                        )
+                    else:
+                        # Later assistant messages are kept as-is
+                        messages_with_pred.append(msg)
+
+                    assistant_seen += 1
                 else:
+                    # Non-assistant messages are copied as-is
                     messages_with_pred.append(msg)
-                assistant_seen += 1
-            else:
-                messages_with_pred.append(msg)
 
-        results.append({"messages": messages_with_pred, "ground_truth": ground_truth})
+            results.append(
+                {
+                    "messages": messages_with_pred,
+                    "ground_truth": ground_truth,
+                }
+            )
 
+    # Write all results to JSONL
     with open(out_file, "w", encoding="utf-8") as f:
         for r in results:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    logger.info(f"Saved inference results: {out_file}")
+
+    logger.info(f"Saved batched inference results: {out_file}")
 
 
 def write_eval_config(
@@ -334,11 +431,11 @@ def write_eval_config(
     base_out: str,
     target_out: str,
     script_args: ScriptArguments,
-    run_name: str, 
+    run_name: str,
 ) -> None:
     """
     Write evaluation metadata YAML file for downstream scoring.
-    
+
     Args:
         output_dir: Output directory path
         base_out: Base model predictions file path
@@ -363,10 +460,12 @@ def write_eval_config(
     logger.info(f"Saved evaluation config: {yaml_path}")
 
 
-def inference_function(model_args: ModelConfig, script_args: ScriptArguments, training_args: SFTConfig) -> None:
+def inference_function(
+    model_args: ModelConfig, script_args: ScriptArguments, training_args: SFTConfig
+) -> None:
     """
     Main inference function that orchestrates the entire inference process.
-    
+
     Args:
         model_args: Model configuration from TRL parser
         script_args: Custom script arguments
@@ -380,7 +479,7 @@ def inference_function(model_args: ModelConfig, script_args: ScriptArguments, tr
 
     # Log all parameters
     logger.info(f"Model parameters: {model_args}")
-    logger.info(f"Script parameters: {script_args}")  
+    logger.info(f"Script parameters: {script_args}")
     logger.info(f"Training parameters: {training_args}")
 
     # Load evaluation dataset
@@ -401,7 +500,7 @@ def inference_function(model_args: ModelConfig, script_args: ScriptArguments, tr
     target_out = os.path.join(
         training_args.output_dir, f"{model_base}--{ds_name}__target.jsonl"
     )
-    
+
     if os.path.exists(ft_path):
         logger.info("Loading fine-tuned model with vLLM...")
         llm_kwargs = {
@@ -426,7 +525,7 @@ def inference_function(model_args: ModelConfig, script_args: ScriptArguments, tr
     base_out = os.path.join(
         training_args.output_dir, f"{model_base}--{ds_name}__base.jsonl"
     )
-    
+
     logger.info("Loading base model with vLLM...")
     llm_kwargs = {
         "model": model_args.model_name_or_path,
@@ -444,8 +543,14 @@ def inference_function(model_args: ModelConfig, script_args: ScriptArguments, tr
 
     # ---- Write evaluation config ----
     logger.info("Writing evaluation configuration...")
-    write_eval_config(training_args.output_dir, base_out, target_out, script_args, training_args.run_name)
-    
+    write_eval_config(
+        training_args.output_dir,
+        base_out,
+        target_out,
+        script_args,
+        training_args.run_name,
+    )
+
     logger.info("Inference completed successfully")
     logger.info("=" * 50)
 
@@ -453,7 +558,7 @@ def inference_function(model_args: ModelConfig, script_args: ScriptArguments, tr
 def main() -> None:
     """
     Main entry point for the inference script.
-    
+
     Parses arguments using TRL parser and runs the inference function.
     """
     try:
@@ -468,7 +573,7 @@ def main() -> None:
 
         # Run the main inference loop
         inference_function(model_args, script_args, training_args)
-        
+
     except Exception as e:
         logger.error(f"Inference failed with error: {e}")
         raise

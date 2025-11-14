@@ -3,6 +3,7 @@ from __future__ import annotations
 import yaml
 from pydantic import BaseModel, model_validator
 
+
 class Config(BaseModel, extra="forbid", validate_assignment=True):
     test_dataset: str | None = None
     source_model_path: str | None = None
