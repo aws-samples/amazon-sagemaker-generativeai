@@ -15,13 +15,13 @@ import re
 import soundfile as sf
 import json
 import mlflow
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from distutils.util import strtobool
 from typing import Optional, Tuple, Dict, Any, List
 
 import torch
-import accelerate
+from accelerate import Accelerator 
 from datasets import load_dataset, Dataset
 from peft import AutoPeftModelForCausalLM, PeftModel, PeftConfig
 from transformers import (
@@ -234,43 +234,81 @@ logger = setup_logging()
 
 @dataclass
 class ScriptArguments:
-    """Custom arguments for the SFT training script."""
-    
+    """Custom arguments for SFT training and inference scripts."""
+
+    # Core data / preprocessing
     dataset_id_or_path: str
     """Path to dataset file (.jsonl) or HuggingFace dataset identifier."""
-    
+
     dataset_splits: str = "train"
-    """Dataset splits to use for training."""
-    
+    """Dataset splits to use for training/inference."""
+
+    max_seq_length: int = 2048
+    """Maximum sequence length for tokenization."""
+
     tokenizer_name_or_path: Optional[str] = None
     """Path to tokenizer or HuggingFace tokenizer identifier. If None, uses model tokenizer."""
 
     processor_name_or_path: Optional[str] = None
     """Path to processor or HuggingFace processor identifier. If None, uses model processor."""
-    
+
+    modality_type: Optional[str] = "text"
+    """Type of modality to use: 'video', 'image', 'audio', or 'text'."""
+
+    # Training / model loading options 
     spectrum_config_path: Optional[str] = None
     """Path to YAML config file specifying which parameters to unfreeze for Spectrum training."""
-    
-    max_seq_length: int = 2048
-    """Maximum sequence length for tokenization."""
-    
+
     mxfp4: bool = False
     """Whether to use MXFP4 quantization instead of standard 4-bit quantization."""
 
     use_liger: bool = False
     """Whether to use LigerKernel over AutoClass for loading model."""
 
-    modality_type: Optional[str] = "text"
-    """Type of modality to use during training "video", "image", "audio" or "text" """
-    
+    # Evaluation (shared for train/inference) 
     run_evaluation: bool = True
-    """Whether to run post-training evaluation comparing base and fine-tuned models."""
-    
+    """Whether to run post-training/inference evaluation (base vs fine-tuned, etc.)."""
+
     eval_max_samples: int = 100
-    """Maximum number of samples to use for evaluation (for efficiency)."""
-    
+    """Maximum number of samples to use for evaluation (kept lower for efficiency)."""
+
     eval_max_new_tokens: int = 512
-    """Maximum number of new tokens to generate during evaluation."""
+    """Maximum number of new tokens to generate during evaluation (kept lower for efficiency)."""
+
+    eval_batch_size: int = 4
+    """Batch size for evaluation/inference. Higher values = faster but more memory."""
+
+    # MLflow / metrics for evaluation 
+    eval_mlflow_tracking_server_arn: str = os.getenv(
+        "MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"
+    )
+    """MLflow tracking server URI/endpoint for evaluation metadata."""
+
+    eval_mlflow_experiment_name: str = os.getenv(
+        "MLFLOW_EXPERIMENT_NAME", "Default"
+    )
+    """MLflow experiment name for evaluation metadata."""
+
+    eval_metrics: List[str] = field(
+        default_factory=lambda: [
+            "bert",
+            "bleu",
+            "rouge1",
+            "rouge2",
+            "rougeL",
+            "rougeLsum",
+            "bleu"
+        ]
+    )
+    """List of evaluation metrics to compute."""
+
+    eval_model_judge: str = None
+    """Model judge identifier for evaluation (e.g., Bedrock, OpenAI-compatible, etc.)."""
+
+    eval_model_judge_parameters: Dict[str, Any] = field(
+        default_factory=lambda: {"temperature": 0.1}
+    )
+    """Parameters for the model judge."""
 
 
 def get_checkpoint_path(training_args: SFTConfig) -> Optional[str]:
@@ -609,12 +647,15 @@ def save_peft_model(trainer: SFTTrainer, training_args: SFTConfig, model_args: M
     final_model_dir = get_model_save_directory(model_args.model_name_or_path)
     final_peft_model_dir = os.path.join(final_model_dir, "peft_adapter")
 
-    acc.wait_for_everyone()
+    logging.getLogger(__name__).info("Saving PEFT adapter to %s", final_peft_model_dir)
+    # TRL/Transformers Trainer handles adapter saving; but keep it single-rank
+    trainer.save_model(final_peft_model_dir)
 
+    # Wait for all processes
+    if hasattr(training_args, 'distributed_state'):
+        training_args.distributed_state.wait_for_everyone()
+        
     if acc.is_main_process:
-        logging.getLogger(__name__).info("Saving PEFT adapter to %s", final_peft_model_dir)
-        # TRL/Transformers Trainer handles adapter saving; but keep it single-rank
-        trainer.model.save_pretrained(final_peft_model_dir)
         # tokenizer/processor may be on trainer.processing_class
         tokenizer_or_processor = getattr(trainer, "processing_class", None)
         if tokenizer_or_processor is not None:
@@ -626,34 +667,8 @@ def save_peft_model(trainer: SFTTrainer, training_args: SFTConfig, model_args: M
                 tokenizer_or_processor = trainer.tokenizer
                 logging.getLogger(__name__).info("saving tokenizer to disk")
                 trainer.tokenizer.save_pretrained(final_peft_model_dir)
-        
-        #############################
-        # EXPERIMENTAL
-        ##############################
-        # # Log to MLflow if enabled
-        # if training_args.report_to:
-        #     if "mlflow" in training_args.report_to or training_args.report_to == "mlflow":
-        #         try:
-        #             # Lookup the existing parent run by experiment + run name
-        #             if os.getenv("MLFLOW_EXPERIMENT_NAME", None) is not None:
-        #                 parent_run_id = get_run_id_from_name(
-        #                     experiment_name=os.getenv("MLFLOW_EXPERIMENT_NAME", "Default"),
-        #                     run_name=training_args.run_name
-        #                 )
-        #                 # Attach to the existing parent run
-        #                 logger.info(f"Logging model to mlflow: {final_peft_model_dir} under run ID: {parent_run_id}")
-        #                 with mlflow.start_run(run_id=parent_run_id):
-        #                     mlflow.transformers.log_model(
-        #                         transformers_model={"model": trainer.model, "tokenizer": tokenizer_or_processor},
-        #                         registered_model_name=model_args.model_name_or_path.replace("/", "--").replace(".", "-"),
-        #                         task="text-generation",
-        #                         tags={"model.strategy": "peft"}
-        #                     )
-        #                     logger.info("Model logged to MLflow successfully.")
-        #         except Exception as e:
-        #             logger.error(f"Failed to log model to MLflow: {e}")
-         
-    acc.wait_for_everyone()
+
+    return final_peft_model_dir
 
 
 def save_full_model(trainer: SFTTrainer, training_args: SFTConfig, model_args: ModelConfig, spectrum_bool: bool) -> None:
@@ -665,14 +680,16 @@ def save_full_model(trainer: SFTTrainer, training_args: SFTConfig, model_args: M
     """
     acc = trainer.accelerator
     final_model_dir = get_model_save_directory(model_args.model_name_or_path)
+    
+    logging.getLogger(__name__).info("Saving full model to %s", final_model_dir)
+    # unwrap_model returns the underlying HF model (not the DeepSpeed engine)
+    trainer.save_model(final_model_dir)
 
-    acc.wait_for_everyone()
+    # Wait for all processes
+    if hasattr(training_args, 'distributed_state'):
+        training_args.distributed_state.wait_for_everyone()
 
     if acc.is_main_process:
-        logging.getLogger(__name__).info("Saving full model to %s", final_model_dir)
-        # unwrap_model returns the underlying HF model (not the DeepSpeed engine)
-        base_model = trainer.accelerator.unwrap_model(trainer.model)
-        base_model.save_pretrained(final_model_dir, safe_serialization=True)
         # tokenizer/processor may be on trainer.processing_class
         tokenizer_or_processor = getattr(trainer, "processing_class", None)
         if tokenizer_or_processor is not None:
@@ -684,34 +701,6 @@ def save_full_model(trainer: SFTTrainer, training_args: SFTConfig, model_args: M
                 tokenizer_or_processor = trainer.tokenizer
                 logging.getLogger(__name__).info("saving tokenizer to disk")
                 trainer.tokenizer.save_pretrained(final_model_dir)
-        
-        #############################
-        # EXPERIMENTAL
-        ##############################
-        # # Log to MLflow if enabled
-        # if training_args.report_to:
-        #     if "mlflow" in training_args.report_to or training_args.report_to == "mlflow":
-        #         try:
-        #             # Lookup the existing parent run by experiment + run name
-        #             if os.getenv("MLFLOW_EXPERIMENT_NAME", None) is not None:
-        #                 parent_run_id = get_run_id_from_name(
-        #                     experiment_name=os.getenv("MLFLOW_EXPERIMENT_NAME", "Default"),
-        #                     run_name=training_args.run_name
-        #                 )
-        #                 # Attach to the existing parent run
-        #                 logger.info(f"Logging model to mlflow: {final_model_dir} under run ID: {parent_run_id}")
-        #                 with mlflow.start_run(run_id=parent_run_id):
-        #                     mlflow.transformers.log_model(
-        #                         transformers_model={"model": base_model, "tokenizer": tokenizer_or_processor},
-        #                         registered_model_name=model_args.model_name_or_path.replace("/", "--").replace(".", "-"),
-        #                         task="text-generation",
-        #                         tags={"model.strategy": "spectrum"} if spectrum_bool else {"model.strategy": "full_finetune"}
-        #                     )
-        #                     logger.info("Model logged to MLflow successfully.")
-        #         except Exception as e:
-        #             logger.error(f"Failed to log model to MLflow: {e}")
-
-    acc.wait_for_everyone()
 
     return final_model_dir
 
@@ -731,7 +720,6 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
 
     logger.info(f"\n\n🌀🌀🌀 MODALITY: {script_args.modality_type} 🌀🌀🌀")
 
-    
     # Log all parameters
     logger.info(f"Model parameters: {model_args}")
     logger.info(f"Script parameters: {script_args}")  
@@ -756,9 +744,9 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
     if model_args.use_peft:
         logger.info(
             "\n\n"
-            "🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🪫🔋\n"
+            "🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋\n"
             "🪫   CONFIGURING PEFT    🪫\n"
-            "🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🪫🔋\n"
+            "🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋🪫🔋\n"
         )
 
         peft_config = get_peft_config(model_args)
@@ -768,9 +756,9 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
             spectrum_bool = True
         logger.info(
             "\n\n"
-            "🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟\n"
+            "🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟\n"
             "🌟   RUNNING FINE-TUNING (Spectrum: %s)    🌟\n"
-            "🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟\n"
+            "🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟\n"
             % spectrum_bool
         )
 
