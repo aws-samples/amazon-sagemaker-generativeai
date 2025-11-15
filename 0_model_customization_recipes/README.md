@@ -8,7 +8,7 @@
         - [Training Capabilities](#training-capabilities)
         - [Production Features](#production-features)
     - [Model Customization on Amazon SageMaker AI](#model-customization-on-amazon-sagemaker-ai)
-        - [Supervised Fine-Tuning SFT: Theory and Practical Foundations](#supervised-fine-tuning-sft-theory-and-practical-foundations)
+        - [Supervised Fine-Tuning SFT](#supervised-fine-tuning-sft)
             - [Quick Start](#quick-start)
             - [Available Models and Recipes](#available-models-and-recipes)
             - [Supervised Fine-tuning strategy: Deep Dive](#supervised-fine-tuning-strategy-deep-dive)
@@ -20,15 +20,7 @@
                 - [Example: Minimal Template for a New Recipe](#example-minimal-template-for-a-new-recipe)
                 - [Generating a Spectrum Configuration File](#generating-a-spectrum-configuration-file)
             - [Troubleshooting](#troubleshooting)
-    - [Model Training Parameters](#model-training-parameters)
-                - [Model Arguments](#model-arguments)
-                - [Dataset Arguments](#dataset-arguments)
-                - [Adaptation Method LoRA / Spectrum / Full Fine-Tuning](#adaptation-method-lora--spectrum--full-fine-tuning)
-                    - [LoRA](#lora)
-                    - [Spectrum Training](#spectrum-training)
-                    - [Full Fine-Tuning](#full-fine-tuning)
-                - [Training Arguments](#training-arguments)
-                - [Logging and Experiment Tracking](#logging-and-experiment-tracking)
+            - [Model Training Parameters](#model-training-parameters)
         - [Preference Optimization](#preference-optimization)
         - [Pre-Training](#pre-training)
     - [Running Locally on an EC2/Self-Managed Instance](#running-locally-on-an-ec2self-managed-instance)
@@ -65,7 +57,7 @@ This repository provides a comprehensive framework for model customization on Am
 ![SageMaker Recipe Flow](supervised_finetuning/media/recipe_flow.png)
 
 
-### Supervised Fine-Tuning (SFT): Theory and Practical Foundations
+### Supervised Fine-Tuning (SFT)
 
 [Supervised Fine-Tuning (SFT)](https://docs.aws.amazon.com/sagemaker/latest/dg/nova-fine-tune.html) is the process of adapting pre-trained Large Language Models (LLMs) to specific tasks using labeled datasets. SFT combines the broad generalization abilities learned during large-scale pre-training with targeted supervision, allowing the model to exhibit domain-specific behaviors while retaining foundational knowledge. The training objective typically minimizes next-token cross-entropy over curated input–output pairs, enabling applications such as instruction following, domain adaptation, classification, summarization, and safety alignment.
 
@@ -411,7 +403,7 @@ python spectrum.py --model-name <insert local or HF repo here> --top-percent <to
 
 
 
-##### 1. **Model Arguments**
+1. **Model Arguments**
 Defines the base model and tokenizer to load, along with precision and architectural settings.
 
 Key fields:
@@ -427,9 +419,8 @@ Update this section when:
 - changing precision to match hardware  
 - storing results in a different directory  
 
----
 
-##### 2. **Dataset Arguments**
+2. **Dataset Arguments**
 Controls how the training dataset is loaded and how sequences are tokenized.
 
 Key fields:
@@ -442,12 +433,10 @@ Update this section when:
 - modifying maximum sequence context  
 - enabling/disabling sequence packing for throughput  
 
----
-
-##### 3. **Adaptation Method (LoRA / Spectrum / Full Fine-Tuning)**
+3. **Adaptation Method (LoRA / Spectrum / Full Fine-Tuning)**
 This section determines which fine-tuning strategy is used and what parameters are updated.
 
-###### **LoRA**
+**LoRA**
 Includes:
 - `use_peft: true`
 - `lora_target_modules`: which modules get low-rank adapters  
@@ -459,7 +448,7 @@ Update LoRA settings when:
 - experimenting with different low-rank sizes  
 - creating adapters for specialized domains  
 
-###### **Spectrum Training**
+**Spectrum Training**
 Includes:
 - `spectrum_config_path`: YAML file describing which layers to unfreeze  
 - `mxfp4`: model-quantized weight format (specific to GPT-OSS models)
@@ -469,7 +458,7 @@ Update Spectrum settings when:
 - targeting specific layers for deeper adaptation  
 - changing the pattern of trainable blocks  
 
-###### **Full Fine-Tuning**
+**Full Fine-Tuning**
 Only requires:
 - no `use_peft`  
 - no `spectrum_config_path`  
@@ -480,9 +469,7 @@ Update full fine-tuning when:
 - switching GPU hardware that supports different precisions  
 - customizing training for large domain shifts  
 
----
-
-##### 4. **Training Arguments**
+4. **Training Arguments**
 Defines how the optimization is performed.
 
 Important parameters:
@@ -500,8 +487,7 @@ Update this section when:
 - enabling gradient checkpointing to reduce memory  
 - switching schedulers (cosine, linear, polynomial)  
 
-
-##### 5. **Logging and Experiment Tracking**
+5. **Logging and Experiment Tracking**
 Controls how progress is recorded.
 
 Key fields:
