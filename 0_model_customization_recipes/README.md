@@ -1,6 +1,6 @@
-# SageMaker HuggingFace OSS Recipes
+# Amazon SageMaker OpenSource (OSS) Recipe
 
-A comprehensive collection of training recipes for fine-tuning foundation models on Amazon SageMaker using HuggingFace's open-source libraries. This repository provides production-ready configurations for various model families and training methodologies.
+A comprehensive collection of OSS training recipes for fine-tuning foundation models on Amazon SageMaker AI using HuggingFace's open-source libraries. This repository provides production-ready configurations for various model families and training methodologies.
 
 ## Table of Contents
 
@@ -46,19 +46,94 @@ This repository provides a comprehensive framework for model customization on Am
 
 ![SageMaker Recipe Flow](supervised_finetuning/media/recipe_flow.png)
 
-### Supervised Fine-Tuning
 
-Supervised Fine-Tuning (SFT) is the process of adapting pre-trained foundation models to specific tasks or domains using labeled datasets. This approach leverages the rich representations learned during pre-training while specializing the model for downstream applications. Our framework supports three distinct SFT methodologies, each optimized for different resource constraints and performance requirements.
+### Supervised Fine-Tuning (SFT): Theory and Practical Foundations
 
-**LoRA (Low-Rank Adaptation)** represents the most resource-efficient approach, introducing trainable low-rank matrices into existing model layers while keeping the original parameters frozen. This method dramatically reduces memory requirements and training time, making it ideal for scenarios with limited computational resources or when quick experimentation is needed. LoRA is particularly effective for instruction-following tasks, domain adaptation, and scenarios where maintaining the base model's general capabilities is crucial. Choose LoRA when you need fast iteration cycles, have memory constraints, or want to create multiple specialized adapters from a single base model.
+[Supervised Fine-Tuning (SFT)](https://docs.aws.amazon.com/sagemaker/latest/dg/nova-fine-tune.html) is the process of adapting pre-trained Large Language Models (LLMs) to specific tasks using labeled datasets. SFT combines the broad generalization abilities learned during large-scale pre-training with targeted supervision, allowing the model to exhibit domain-specific behaviors while retaining foundational knowledge. The training objective typically minimizes next-token cross-entropy over curated input–output pairs, enabling applications such as instruction following, domain adaptation, classification, summarization, and safety alignment.
 
-**Spectrum Training** offers a middle ground between efficiency and performance by selectively unfreezing specific parameter groups based on configurable patterns. This approach provides fine-grained control over which parts of the model to adapt, allowing practitioners to target specific layers or components that are most relevant to their task. Spectrum training is optimal when you have insights into which model components are most important for your specific use case, need better performance than LoRA but can't afford full fine-tuning, or want to experiment with different parameter selection strategies.
+SFT methods vary in how many parameters they update and how much representational change they can induce. Three major approaches—LoRA, Spectrum Training, and Full Fine-Tuning—span the efficiency/performance spectrum and offer practitioners different trade-offs depending on resource constraints and task complexity.
 
-**Full Fine-tuning** updates all model parameters, providing maximum adaptation capability at the cost of increased computational requirements. This traditional approach offers the best performance for domain-specific tasks where significant model adaptation is required. Full fine-tuning is recommended when you have sufficient computational resources, need maximum model performance for critical applications, are working with significantly different domains from the pre-training data, or when the task requires substantial changes to the model's behavior.
+---
 
-The choice between these methods depends on your specific constraints: use LoRA for resource-constrained environments and rapid prototyping, Spectrum for balanced performance and efficiency with targeted adaptation, and Full fine-tuning for maximum performance when computational resources are available.
+#### LoRA (Low-Rank Adaptation)
 
-## Available Models and Recipes
+LoRA introduces learnable low-rank matrices into selected model layers while keeping the original weights frozen. Instead of updating the full weight matrix **W**, LoRA learns a decomposition:
+
+\[
+\Delta W = A B^T \quad \text{where} \quad \text{rank}(A B^T) \ll \text{rank}(W)
+\]
+
+##### Theoretical Basis
+- Fine-tuning updates often lie in low-dimensional subspaces; therefore, they can be effectively represented using low-rank approximations.
+- Injecting parameter-efficient updates preserves the base model while allowing meaningful adaptation.
+
+##### Practical Characteristics
+- **Extremely parameter-efficient**, enabling training on smaller GPUs.
+- **Minimal memory overhead**, since only low-rank matrices are trained.
+- **Fast iteration cycles**, making it suitable for experimentation.
+- **Supports multiple adapters**, allowing one base model to serve many domains.
+
+##### Ideal Use Cases
+- Instruction-following tasks  
+- Lightweight domain adaptation  
+- Scenarios requiring rapid prototyping or memory-constrained deployment  
+- Multi-adapter or multi-tenant workflows  
+
+---
+
+#### Spectrum Training (Selective Parameter Fine-Tuning)
+
+Spectrum Training selectively unfreezes specific parts of the model—such as attention blocks, MLP modules, embeddings, or normalization layers—based on configurable patterns. It provides a controlled middle ground between LoRA and full end-to-end training.
+
+##### Theoretical Basis
+- Different tasks rely on different anatomical components of the model; unfreezing only the most relevant submodules allows targeted representational shifts.
+- Selective adaptation captures most of the benefit of full fine-tuning without redundant updates to unrelated layers.
+
+##### Practical Characteristics
+- **Higher capacity than LoRA**, enabling deeper task specialization.
+- **Lower computational cost than full fine-tuning** because only a subset of parameters is updated.
+- **Fine-grained flexibility**, useful for ablation studies or principled adaptation strategies.
+
+##### Ideal Use Cases
+- Tasks where LoRA underperforms but full fine-tuning is unnecessary or too expensive  
+- Domains requiring moderate representational shifts  
+- Scenarios where experts can identify the most task-relevant layers  
+
+---
+
+#### Full Fine-Tuning (End-to-End Parameter Updates)
+
+Full fine-tuning trains **all** parameters of the LLM, allowing the model to completely reorganize internal representations. This provides maximum expressive power at the cost of high computational and memory requirements.
+
+##### Theoretical Basis
+- End-to-end training enables the model to align all layers to new distributions, making it suitable for domains that diverge significantly from pre-training corpora.
+- Full adaptation is sometimes necessary when the task requires deep architectural-level changes in reasoning pathways or language style.
+
+##### Practical Characteristics
+- **Highest performance potential**, especially for specialized or heavily domain-shifted tasks.
+- **Significant resource requirements**, including high-end multi-GPU or distributed training setups.
+- **Ideal for mission-critical workloads** with strict accuracy requirements.
+
+##### Ideal Use Cases
+- Biomedical, legal, scientific, or financial domains with unique linguistic structure  
+- Complex reasoning applications requiring deep model re-alignment  
+- Workloads with sufficient GPU capacity where peak performance is essential  
+
+---
+
+#### Comparing the Three SFT Approaches
+
+| Method | Trainable Parameters | Compute Cost | Adaptation Depth | Strengths |
+|--------|----------------------|--------------|------------------|-----------|
+| **LoRA** | Very Low | Very Low | Moderate | Adapter-based flexibility, fast training, minimal memory |
+| **Spectrum** | Medium (Configurable) | Medium | High | Balanced efficiency, selective adaptation, tunable complexity |
+| **Full Fine-Tuning** | All Parameters | High | Maximum | Best performance for large domain shifts or highly specialized tasks |
+
+
+Supervised Fine-Tuning provides a principled way to specialize LLMs to new tasks while leveraging the power of pre-training. LoRA enables efficient and scalable customization, Spectrum Training offers a flexible mid-point with stronger adaptation capacity, and Full Fine-Tuning delivers maximal expressiveness for domains requiring deep model transformation. The optimal choice depends on compute availability, domain shift, and the performance requirements of the downstream application.
+
+
+#### Available Models and Recipes
 
 | Model | Modality | Reasoning | QLoRA | Spectrum | Full | Notebook | Notes |
 |-------|----------|-----------|-------|----------|------|----------|-------|
@@ -89,6 +164,257 @@ The choice between these methods depends on your specific constraints: use LoRA 
 | **🌟 Google** | | | | | | | |
 | google/gemma-3-4b-it | Text to Text | No | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/google/gemma-3-4b-it--vanilla-peft-qlora.yaml) | ❌ Unsupported | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/google/gemma-3-4b-it--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--google--gemma-3-4b-it.ipynb) | Efficient 4B model |
 | google/gemma-3-27b-it | Text to Text | No | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/google/gemma-3-27b-it--vanilla-peft-qlora.yaml) | ❌ Unsupported | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/google/gemma-3-27b-it--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--google--gemma-3-27b-it.ipynb) | Latest Gemma model, instruction-tuned |
+
+#### Crafting your Own OSS Recipes
+
+Fine-tuning recipes in this framework follow a consistent YAML structure that cleanly separates model configuration, dataset parameters, adaptation method (LoRA, Spectrum, or Full), training hyperparameters, and logging settings. Understanding this structure makes it straightforward to author new recipes or modify existing ones to fit your model, dataset, or training environment.
+
+A recipe acts as a **single source of truth** for all fine-tuning decisions—model architecture, precision, target modules, optimization strategy, scheduling, and experiment tracking. Each block is declarative, making it easy to version, store in Git, share within teams, or auto-load into training scripts.
+
+Here's an example of a recipe for fine-tuning a model with LoRA:
+
+##### Example: Minimal Template for a New Recipe
+
+```yaml
+# Model arguments
+model_name_or_path: <model-path>
+tokenizer_name_or_path: <tokenizer-path>
+torch_dtype: bfloat16
+output_dir: <output-directory>
+
+# Dataset arguments
+dataset_id_or_path: <dataset-path>
+max_seq_length: 4096
+packing: false
+
+# Adaptation method (choose one)
+use_peft: true                # For LoRA (set to false for full FT)
+lora_target_modules: "all-linear"
+lora_r: 8
+lora_alpha: 16
+
+# or Spectrum
+# spectrum_config_path: configs/spectrum/<your-config>.yaml
+
+# Training arguments
+num_train_epochs: 1
+per_device_train_batch_size: 2
+gradient_accumulation_steps: 2
+learning_rate: 1e-4
+lr_scheduler_type: cosine
+
+# Logging arguments
+report_to:
+- mlflow
+run_name: <experiment-name>
+save_strategy: epoch
+seed: 42
+```
+
+Below is a breakdown of the core sections and how they should be customized.
+
+---
+
+##### 1. **Model Arguments**
+Defines the base model and tokenizer to load, along with precision and architectural settings.
+
+Key fields:
+- `model_name_or_path`: HF Hub ID or local model path  
+- `tokenizer_name_or_path`: typically matches the model path  
+- `torch_dtype`: precision format (`bfloat16`, `float16`, `auto`)  
+- `attn_implementation`: attention backend (`flash_attention_2`, `eager`, etc.)  
+- `output_dir`: where checkpoints and merged models will be saved  
+
+Update this section when:
+- switching to a new model family  
+- switching tokenizer variants  
+- changing precision to match hardware  
+- storing results in a different directory  
+
+---
+
+##### 2. **Dataset Arguments**
+Controls how the training dataset is loaded and how sequences are tokenized.
+
+Key fields:
+- `dataset_id_or_path`: local JSONL or HF dataset  
+- `max_seq_length`: context length for tokenization  
+- `packing`: whether multiple sequences are packed into one window  
+
+Update this section when:
+- changing datasets  
+- modifying maximum sequence context  
+- enabling/disabling sequence packing for throughput  
+
+---
+
+##### 3. **Adaptation Method (LoRA / Spectrum / Full Fine-Tuning)**
+This section determines which fine-tuning strategy is used and what parameters are updated.
+
+###### **LoRA**
+Includes:
+- `use_peft: true`
+- `lora_target_modules`: which modules get low-rank adapters  
+- `lora_r`, `lora_alpha`: rank and scaling  
+- `lora_modules_to_save`: optional modules to retain outside adapters  
+
+Update LoRA settings when:
+- tuning only attention, MLPs, or mixture-of-experts blocks  
+- experimenting with different low-rank sizes  
+- creating adapters for specialized domains  
+
+###### **Spectrum Training**
+Includes:
+- `spectrum_config_path`: YAML file describing which layers to unfreeze  
+- `mxfp4`: model-quantized weight format (specific to GPT-OSS models)
+
+Update Spectrum settings when:
+- unfreezing different percentages of parameters  
+- targeting specific layers for deeper adaptation  
+- changing the pattern of trainable blocks  
+
+###### **Full Fine-Tuning**
+Only requires:
+- no `use_peft`  
+- no `spectrum_config_path`  
+- optionally `mxfp4` for weight conversion  
+
+Update full fine-tuning when:
+- moving from adapters to end-to-end training  
+- switching GPU hardware that supports different precisions  
+- customizing training for large domain shifts  
+
+---
+
+##### 4. **Training Arguments**
+Defines how the optimization is performed.
+
+Important parameters:
+- `num_train_epochs`  
+- `per_device_train_batch_size`  
+- `gradient_accumulation_steps`  
+- `gradient_checkpointing`  
+- `learning_rate`  
+- `lr_scheduler_type`  
+- `warmup_ratio`  
+
+Update this section when:
+- scaling up batch size on larger clusters  
+- lowering learning rate for delicate domains (e.g., medical/legal)  
+- enabling gradient checkpointing to reduce memory  
+- switching schedulers (cosine, linear, polynomial)  
+
+---
+
+##### 5. **Logging and Experiment Tracking**
+Controls how progress is recorded.
+
+Key fields:
+- `report_to: ["mlflow"]` or `["tensorboard"]`  
+- `run_name`: helps identify experiment lineage  
+- `logging_strategy` / `logging_steps`  
+- `save_strategy`: checkpoint frequency  
+- `seed`: reproducibility  
+
+Update this section when:
+- creating new experiment families  
+- using MLflow/Tensorboard for tracking  
+- adjusting checkpoint frequency for long jobs  
+
+#### Putting it all together!
+
+                            ┌───────────────────────────┐
+                            │   Start With a Template   │
+                            │  (LoRA / Spectrum / Full) │
+                            └─────────────┬─────────────┘
+                                          │
+                                          ▼
+                            ┌───────────────────────────┐
+                            │   Update Model Section    │
+                            │ - model path              │
+                            │ - tokenizer path          │
+                            │ - dtype / precision       │
+                            │ - output directory        │
+                            └─────────────┬─────────────┘
+                                          │
+                                          ▼
+                            ┌────────────────────────────┐
+                            │     Configure Dataset      │
+                            │ - dataset path             │
+                            │ - seq length               │
+                            │ - packing setting          │
+                            └─────────────┬──────────────┘
+                                          │
+                                          ▼
+            ┌──────────────────────────────────────────────────────────┐
+            │                 Choose Adaptation Method                 │
+            │──────────────────────────────────────────────────────────│
+            │   LoRA:     use_peft: true, r/alpha, target modules      │
+            │   Spectrum: spectrum_config_path: <yaml>                 │
+            │   Full FT:  update all params, no adapters               │
+            └───────────────────────────────┬──────────────────────────┘
+                                            │
+                                            ▼
+                            ┌────────────────────────────┐
+                            │     Set Training Params    │
+                            │ - epochs                   │
+                            │ - batch size               │
+                            │ - grad accumulation        │
+                            │ - lr + scheduler           │
+                            │ - checkpointing            │
+                            └─────────────┬──────────────┘
+                                          │
+                                          ▼
+                            ┌────────────────────────────┐
+                            │      Configure Logging     │
+                            │ - MLflow / W&B             │
+                            │ - run name                 │
+                            │ - save strategy            │
+                            │ - seed                     │
+                            └─────────────┬──────────────┘
+                                          │
+                                          ▼
+            ┌──────────────────────────────────────────────────────────┐
+            │         Validate YAML Structure & Paths                  │
+            │ - indentation                                            │
+            │ - local/remote paths                                     │
+            │ - config loads without error                             │
+            └─────────────────────────────┬────────────────────────────┘
+                                          │
+                                          ▼
+            ┌──────────────────────────────────────────────────────────┐
+            │         Run a Dry-Run Using --config                     │
+            │     (Validate before large-scale training)               │
+            └──────────────────────────────────────────────────────────┘
+
+
+
+1. **Start by duplicating the closest existing recipe**  
+   Choose LoRA, Spectrum, or Full Fine-Tuning as a template depending on your needs.
+
+2. **Update the model section**  
+   Replace the model path, tokenizer, and precision choices based on the base model you are using.
+
+3. **Specify the dataset**  
+   Point to your training JSONL or HF dataset and adjust `max_seq_length`.
+
+4. **Select the fine-tuning method**  
+   - Add **LoRA blocks** for parameter-efficient training.  
+   - Add a **Spectrum config path** if selectively unfreezing layers.  
+   - Remove both for full training.  
+
+5. **Tune training hyperparameters**  
+   Adjust batch size, learning rate, scheduler, and epochs based on hardware and dataset size.
+
+6. **Configure logging**  
+   Set the `run_name`, MLflow/W&B settings, and checkpoint/save strategy.
+
+7. **Validate paths and indentation**  
+   YAML is indentation-sensitive—ensure that nested structures like `gradient_checkpointing_kwargs` remain aligned.
+
+8. **Run a dry-run**  
+   Use the training script’s `--config` flag to validate that all parameters load correctly before kicking off large jobs.
+
 
 ### Preference Optimization
 
