@@ -1,5 +1,43 @@
 # Amazon SageMaker AI - OpenSource (OSS) Foundation Model Fine-tuning Recipes
 
+<!-- TOC -->
+
+- [Amazon SageMaker AI - OpenSource OSS Foundation Model Fine-tuning Recipes](#amazon-sagemaker-ai---opensource-oss-foundation-model-fine-tuning-recipes)
+    - [Overview](#overview)
+    - [Key Features](#key-features)
+        - [Training Capabilities](#training-capabilities)
+        - [Production Features](#production-features)
+    - [Model Customization on Amazon SageMaker AI](#model-customization-on-amazon-sagemaker-ai)
+        - [Supervised Fine-Tuning SFT: Theory and Practical Foundations](#supervised-fine-tuning-sft-theory-and-practical-foundations)
+            - [Quick Start](#quick-start)
+            - [Available Models and Recipes](#available-models-and-recipes)
+            - [Supervised Fine-tuning strategy: Deep Dive](#supervised-fine-tuning-strategy-deep-dive)
+                - [LoRA Low-Rank Adaptation](#lora-low-rank-adaptation)
+                - [Spectrum Training Selective Parameter Fine-Tuning](#spectrum-training-selective-parameter-fine-tuning)
+                - [Full Fine-Tuning End-to-End Parameter Updates](#full-fine-tuning-end-to-end-parameter-updates)
+            - [Comparing the Three SFT Approaches](#comparing-the-three-sft-approaches)
+            - [Crafting your own - Fine-tuning OSS Recipe](#crafting-your-own---fine-tuning-oss-recipe)
+                - [Example: Minimal Template for a New Recipe](#example-minimal-template-for-a-new-recipe)
+                - [Generating a Spectrum Configuration File](#generating-a-spectrum-configuration-file)
+            - [Troubleshooting](#troubleshooting)
+    - [Model Training Parameters](#model-training-parameters)
+                - [Model Arguments](#model-arguments)
+                - [Dataset Arguments](#dataset-arguments)
+                - [Adaptation Method LoRA / Spectrum / Full Fine-Tuning](#adaptation-method-lora--spectrum--full-fine-tuning)
+                    - [LoRA](#lora)
+                    - [Spectrum Training](#spectrum-training)
+                    - [Full Fine-Tuning](#full-fine-tuning)
+                - [Training Arguments](#training-arguments)
+                - [Logging and Experiment Tracking](#logging-and-experiment-tracking)
+        - [Preference Optimization](#preference-optimization)
+        - [Pre-Training](#pre-training)
+    - [Running Locally on an EC2/Self-Managed Instance](#running-locally-on-an-ec2self-managed-instance)
+    - [License](#license)
+    - [Support](#support)
+    - [Contributing](#contributing)
+
+<!-- /TOC -->
+
 A comprehensive collection of OSS training recipes for fine-tuning foundation models on Amazon SageMaker AI using HuggingFace's open-source libraries. This repository provides production-ready configurations for various model families and training methodologies.
 
 ## Overview
@@ -92,6 +130,7 @@ Each notebook provides:
 - Model evaluation and deployment
 - Best practices and optimization tips
 
+
 | Model | Modality | Reasoning | QLoRA | Spectrum | Full | Notebook | Notes |
 |-------|----------|-----------|-------|----------|------|----------|-------|
 | | | | | | | | |
@@ -128,62 +167,62 @@ Each notebook provides:
 
 ##### LoRA (Low-Rank Adaptation)
 
-LoRA introduces learnable low-rank matrices into selected model layers while keeping the original weights frozen. Instead of updating the full weight matrix **W**, LoRA learns a decomposition:
+LoRA introduces **learnable low-rank matrices** into selected model layers while keeping the original weights frozen. Instead of updating the full weight matrix **W**, LoRA learns a decomposition:
 
 
-**Theoretical Basis**
-- Fine-tuning updates often lie in low-dimensional subspaces; therefore, they can be effectively represented using low-rank approximations.
-- Injecting parameter-efficient updates preserves the base model while allowing meaningful adaptation.
+- Theoretical Basis:
+  - Fine-tuning updates often lie in low-dimensional subspaces; therefore, they can be effectively represented using low-rank approximations.
+  - Injecting parameter-efficient updates preserves the base model while allowing meaningful adaptation.
 
-**Practical Characteristics**
-- **Extremely parameter-efficient**, enabling training on smaller GPUs.
-- **Minimal memory overhead**, since only low-rank matrices are trained.
-- **Fast iteration cycles**, making it suitable for experimentation.
-- **Supports multiple adapters**, allowing one base model to serve many domains.
+- Practical Characteristics:
+  - Extremely parameter-efficient, enabling training on smaller GPUs.
+  - Minimal memory overhead, since only low-rank matrices are trained.
+  - Fast iteration cycles, making it suitable for experimentation.
+  - Supports multiple adapters, allowing one base model to serve many domains.
 
-**Ideal Use Cases**
-- Instruction-following tasks  
-- Lightweight domain adaptation  
-- Scenarios requiring rapid prototyping or memory-constrained deployment  
-- Multi-adapter or multi-tenant workflows  
+- Ideal Use Cases:
+  - Instruction-following tasks  
+  - Lightweight domain adaptation  
+  - Scenarios requiring rapid prototyping or memory-constrained deployment  
+  - Multi-adapter or multi-tenant workflows  
 
 
 ##### Spectrum Training (Selective Parameter Fine-Tuning)
 
-Spectrum Training selectively unfreezes specific parts of the model—such as attention blocks, MLP modules, embeddings, or normalization layers—based on configurable patterns. It provides a controlled middle ground between LoRA and full end-to-end training.
+Spectrum Training **selectively unfreezes** specific parts of the model—such as attention blocks, MLP modules, embeddings, or normalization layers—based on configurable patterns. It provides a controlled middle ground between LoRA and full end-to-end training.
 
-**Theoretical Basis**
-- Different tasks rely on different anatomical components of the model; unfreezing only the most relevant submodules allows targeted representational shifts.
-- Selective adaptation captures most of the benefit of full fine-tuning without redundant updates to unrelated layers.
+- Theoretical Basis:
+  - Different tasks rely on different anatomical components of the model; unfreezing only the most relevant submodules allows targeted representational shifts.
+  - Selective adaptation captures most of the benefit of full fine-tuning without redundant updates to unrelated layers.
 
-**Practical Characteristics**
-- **Higher capacity than LoRA**, enabling deeper task specialization.
-- **Lower computational cost than full fine-tuning** because only a subset of parameters is updated.
-- **Fine-grained flexibility**, useful for ablation studies or principled adaptation strategies.
+- Practical Characteristics:
+  - Higher capacity than LoRA, enabling deeper task specialization.
+  - Lower computational cost than full fine-tuning because only a subset of parameters is updated.
+  - Fine-grained flexibility, useful for ablation studies or principled adaptation strategies.
 
-**Ideal Use Cases**
-- Tasks where LoRA underperforms but full fine-tuning is unnecessary or too expensive  
-- Domains requiring moderate representational shifts  
-- Scenarios where experts can identify the most task-relevant layers  
+- Ideal Use Cases:
+  - Tasks where LoRA underperforms but full fine-tuning is unnecessary or too expensive  
+  - Domains requiring moderate representational shifts  
+  - Scenarios where experts can identify the most task-relevant layers  
 
 
 ##### Full Fine-Tuning (End-to-End Parameter Updates)
 
 Full fine-tuning trains **all** parameters of the LLM, allowing the model to completely reorganize internal representations. This provides maximum expressive power at the cost of high computational and memory requirements.
 
-**Theoretical Basis**
-- End-to-end training enables the model to align all layers to new distributions, making it suitable for domains that diverge significantly from pre-training corpora.
-- Full adaptation is sometimes necessary when the task requires deep architectural-level changes in reasoning pathways or language style.
+- Theoretical Basis:
+  - End-to-end training enables the model to align all layers to new distributions, making it suitable for domains that diverge significantly from pre-training corpora.
+  - Full adaptation is sometimes necessary when the task requires deep architectural-level changes in reasoning pathways or language style.
 
-**Practical Characteristics**
-- **Highest performance potential**, especially for specialized or heavily domain-shifted tasks.
-- **Significant resource requirements**, including high-end multi-GPU or distributed training setups.
-- **Ideal for mission-critical workloads** with strict accuracy requirements.
+- Practical Characteristics:
+  - Highest performance potential, especially for specialized or heavily domain-shifted tasks.
+  - Significant resource requirements, including high-end multi-GPU or distributed training setups.
+  - Ideal for mission-critical workloads with strict accuracy requirements.
 
-**Ideal Use Cases**
-- Biomedical, legal, scientific, or financial domains with unique linguistic structure  
-- Complex reasoning applications requiring deep model re-alignment  
-- Workloads with sufficient GPU capacity where peak performance is essential  
+- Ideal Use Cases:
+  - Biomedical, legal, scientific, or financial domains with unique linguistic structure  
+  - Complex reasoning applications requiring deep model re-alignment  
+  - Workloads with sufficient GPU capacity where peak performance is essential  
 
 #### Comparing the Three SFT Approaches
 
@@ -340,8 +379,6 @@ python spectrum.py --model-name <insert local or HF repo here> --top-percent <to
 
 #### Troubleshooting
 
-##### Common Issues
-
 **Out of Memory (OOM)**
 - Reduce `per_device_train_batch_size`
 - Enable `gradient_checkpointing`
@@ -370,61 +407,7 @@ python spectrum.py --model-name <insert local or HF repo here> --top-percent <to
 
 
 
-## Running Locally on an EC2/Self-Managed Instance
-
-Start by updating the local instance (assuming a fresh VM),
-
-```bash
-
-sudo apt-get update -y && sudo apt-get install python3-pip python3-venv -y
-
-```
-
-Use uv (recommended to create a virtual env and install packages).
-
-```bash
-# install uv package and env manager
-sudo pip install uv
-
-# create a py3.XX environment
-uv venv py311 --python 3.11
-
-# activate venv
-source py311/bin/activate
-```
-
-Clone git repo and navigate to the supervised fine-tuning repository
-
-```bash
-# clone repository
-git clone https://github.com/aws-samples/amazon-sagemaker-generativeai.git
-
-# navigate supervised fine-tuning repository
-cd amazon-sagemaker-generativeai/0_model_customization_recipes/supervised_finetuning/
-```
-
-Run distributed training using Accelerate orchestrator
-
-```bash
-# Set model output directory
-SM_MODEL_DIR="/home/ubuntu/amazon-sagemaker-generativeai/0_model_customization_recipes/supervised_finetuning/models"
-
-# Run training with accelerate
-accelerate launch \
-    --config_file sagemaker_code/configs/accelerate/ds_zero3.yaml \
-    --num_processes 1 \
-    sagemaker_code/sft.py \
-    --config sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-peft-qlora.yaml
-```
-
-### Available Accelerate Configurations
-
-- **DeepSpeed ZeRO Stage 1**: `supervised_finetuning/sagemaker_code/configs/accelerate/ds_zero1.yaml` (legacy)
-- **DeepSpeed ZeRO Stage 3**: `supervised_finetuning/sagemaker_code/configs/accelerate/ds_zero3.yaml` (recommended)
-- **FSDP**: `supervised_finetuning/sagemaker_code/configs/accelerate/fsdp.yaml` (WIP)
-- **FSDP with QLoRA**: `supervised_finetuning/sagemaker_code/configs/accelerate/fsdp_qlora.yaml` (WIP)
-
-## Model Training Parameters,
+#### Model Training Parameters
 
 
 
@@ -571,6 +554,52 @@ Pre-training on Amazon SageMaker AI enables practitioners to create custom found
 | | | | | |
 | **🚧 Coming Soon** | ⏳ | ⏳ | ⏳ | Pre-training recipes in development |
 
+## Running Locally on an EC2/Self-Managed Instance
+
+Start by updating the local instance (assuming a fresh VM),
+
+```bash
+
+sudo apt-get update -y && sudo apt-get install python3-pip python3-venv -y
+
+```
+
+Use uv (recommended to create a virtual env and install packages).
+
+```bash
+# install uv package and env manager
+sudo pip install uv
+
+# create a py3.XX environment
+uv venv py311 --python 3.11
+
+# activate venv
+source py311/bin/activate
+```
+
+Clone git repo and navigate to the supervised fine-tuning repository
+
+```bash
+# clone repository
+git clone https://github.com/aws-samples/amazon-sagemaker-generativeai.git
+
+# navigate supervised fine-tuning repository
+cd amazon-sagemaker-generativeai/0_model_customization_recipes/supervised_finetuning/
+```
+
+Run distributed training using Accelerate orchestrator
+
+```bash
+# Set model output directory
+SM_MODEL_DIR="/home/ubuntu/amazon-sagemaker-generativeai/0_model_customization_recipes/supervised_finetuning/models"
+
+# Run training with accelerate
+accelerate launch \
+    --config_file sagemaker_code/configs/accelerate/ds_zero3.yaml \
+    --num_processes 1 \
+    sagemaker_code/sft.py \
+    --config sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-peft-qlora.yaml
+```
 
 ## License
 
