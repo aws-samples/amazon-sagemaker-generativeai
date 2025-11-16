@@ -249,17 +249,14 @@ Pro Tips:
 ![SFT Strategies](./supervised_finetuning/media/sft-strategies.png)
 
 
+| Method                      | Parameter Efficiency (GPU / Memory) | Capacity / Task Specialization | Typical Profile                               |
+| --------------------------- | ----------------------------------- | ------------------------------ | --------------------------------------------- |
+| **LoRA (Adapters)**         | ★★★★★                               | ★★☆☆☆                          | Ultra-efficient, great for rapid iteration    |
+| **Spectrum (Selective FT)** | ★★★☆☆                               | ★★★★☆                          | Balanced cost vs. accuracy, targeted layers   |
+| **Full Fine-Tuning**        | ★★☆☆☆                               | ★★★★★                          | Maximum specialization, highest resource cost |
+
 ```
                               SUPERVISED FINE-TUNING DESIGN SPACE
-
-          Efficiency ↑                                                       Capacity ↑
-          GPU / Memory ↓                                                 Task Specialization ↓
-
-              ┌──────────────┐        ┌──────────────────┐        ┌──────────────────────┐
-              │    LoRA      │  --->  │     Spectrum     │  --->  │   Full Fine-Tuning   │
-              │ (Adapters)   │        │ (Selective FT)   │        │   (All Parameters)   │
-              └──────────────┘        └──────────────────┘        └──────────────────────┘
-
 
         ┌──────────────────────────── LoRA (Low-Rank Adaptation) ────────────────────────────┐
         │ Core idea:                                                                         │
