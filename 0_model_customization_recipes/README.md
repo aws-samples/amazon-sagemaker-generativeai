@@ -12,8 +12,6 @@
             - [Quick Start](#quick-start)
             - [Available Models and Recipes](#available-models-and-recipes)
             - [Quick Instance Reference Guide](#quick-instance-reference-guide)
-                - [By Model Size PeFT/QLoRA Training](#by-model-size-peftqlora-training)
-                - [By Training Strategy](#by-training-strategy)
             - [Supervised Fine-tuning strategy: Deep Dive](#supervised-fine-tuning-strategy-deep-dive)
             - [Comparing the Three SFT Approaches](#comparing-the-three-sft-approaches)
             - [Crafting your own - Fine-tuning OSS Recipe](#crafting-your-own---fine-tuning-oss-recipe)
@@ -157,7 +155,7 @@ Each notebook provides:
 
 #### Quick Instance Reference Guide
 
-##### By Model Size (PeFT/QLoRA Training)
+**By Model Size (PeFT/QLoRA Training)**
 
 ```
 1-4B Parameters    →  ml.g5.2xlarge      (1x A10G, 24GB)
@@ -168,9 +166,7 @@ Each notebook provides:
 600B+ Parameters   →  ml.p5en.48xlarge   (8x H200, 1120GB)
 ```
 
-##### By Training Strategy
-
-**PeFT (QLoRA) - Most Memory Efficient**
+**By Training Strategy: PeFT (QLoRA) - Most Memory Efficient**
 ```
 Small (1-4B)    →  ml.g5.2xlarge
 Medium (7-14B)  →  ml.g6e.2xlarge
@@ -179,7 +175,7 @@ XL (70-120B)    →  ml.p5e.48xlarge
 XXL (600B+)     →  ml.p5en.48xlarge
 ```
 
-**Spectrum - Balanced Approach**
+**By Training Strategy: Spectrum - Balanced Approach**
 ```
 Small (1-4B)    →  ml.g6e.2xlarge
 Medium (7-14B)  →  ml.g6e.2xlarge or ml.g6e.4xlarge
@@ -188,7 +184,7 @@ XL (70-120B)    →  ml.p5e.48xlarge
 XXL (600B+)     →  ml.p5en.48xlarge
 ```
 
-**Full Fine-tuning - Maximum Performance**
+**By Training Strategy: Full Fine-tuning - Maximum Performance**
 ```
 Small (1-4B)    →  ml.g6e.2xlarge
 Medium (7-14B)  →  ml.g6e.2xlarge or ml.g6e.12xlarge
