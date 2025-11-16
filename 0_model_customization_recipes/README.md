@@ -346,8 +346,18 @@ Supervised Fine-Tuning provides a principled way to specialize LLMs to new tasks
 
 > [!TIP]
 > We strong recommend using [sft_recipe_generator.py](./supervised_finetuning/sft_recipe_generator.py) script to craft your custom recipes.
-> Run `python3 sft_recipe_generator.py --easy` to follow a simple guided workflow to generate a quick test recipe for PeFT/Spectrum/Full fine-tuing strategy
-> Run `python3 sft_recipe_generator.py` to follow a granular workflow to generate a fine-tuning workflow recipe for PeFT/Spectrum/Full fine-tuing strategy
+>
+> Run 
+> ```python
+> python3 sft_recipe_generator.py --easy
+> ```
+> to follow a simple guided workflow to generate a quick test recipe for PeFT/Spectrum/Full fine-tuing strategy
+> 
+> Run 
+> ```python
+> python3 sft_recipe_generator.py
+>```
+>to follow a granular workflow to generate a fine-tuning workflow recipe for PeFT/Spectrum/Full fine-tuing strategy
 
 > [!NOTE]  
 > Learn more about recipe structure below
