@@ -21,6 +21,7 @@
                 - [Full Fine-Tuning End-to-End Parameter Updates](#full-fine-tuning-end-to-end-parameter-updates)
             - [Comparing the Three SFT Approaches](#comparing-the-three-sft-approaches)
             - [Crafting your own - Fine-tuning OSS Recipe](#crafting-your-own---fine-tuning-oss-recipe)
+                - [Automate Recipe Generation](#automate-recipe-generation)
                 - [Example: Minimal Template for a New Recipe](#example-minimal-template-for-a-new-recipe)
                 - [Generating a Spectrum Configuration File](#generating-a-spectrum-configuration-file)
             - [Troubleshooting](#troubleshooting)
@@ -344,6 +345,7 @@ Supervised Fine-Tuning provides a principled way to specialize LLMs to new tasks
 
 #### Crafting your own - Fine-tuning OSS Recipe
 
+##### Automate Recipe Generation
 > [!TIP]
 > We strong recommend using [sft_recipe_generator.py](./supervised_finetuning/sft_recipe_generator.py) script to craft your custom recipes.
 >
@@ -359,8 +361,8 @@ Supervised Fine-Tuning provides a principled way to specialize LLMs to new tasks
 >```
 >to follow a granular workflow to generate a fine-tuning workflow recipe for PeFT/Spectrum/Full fine-tuing strategy
 
-> [!NOTE]  
-> Learn more about recipe structure below
+
+##### Hand-Crafted Recipe Generation
 
 Fine-tuning recipes in this framework follow a consistent YAML structure that cleanly separates model configuration, dataset parameters, adaptation method (LoRA, Spectrum, or Full), training hyperparameters, and logging settings. Understanding this structure makes it straightforward to author new recipes or modify existing ones to fit your model, dataset, or training environment.
 
