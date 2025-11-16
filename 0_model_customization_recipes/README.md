@@ -5,8 +5,6 @@
 - [Amazon SageMaker AI - OpenSource OSS Foundation Model Fine-tuning Recipes](#amazon-sagemaker-ai---opensource-oss-foundation-model-fine-tuning-recipes)
     - [Overview](#overview)
     - [Key Features](#key-features)
-        - [Training Capabilities](#training-capabilities)
-        - [Production Features](#production-features)
     - [Model Customization on Amazon SageMaker AI](#model-customization-on-amazon-sagemaker-ai)
         - [Supervised Fine-Tuning SFT](#supervised-fine-tuning-sft)
             - [Quick Start](#quick-start)
@@ -36,19 +34,15 @@ This repository provides a comprehensive framework for model customization on Am
 
 ## Key Features
 
-### Training Capabilities
-- **Multiple Training Methods**: LoRA, Spectrum, and Full fine-tuning
-- **Advanced Quantization**: Support for 4-bit quantization (BitsAndBytes, MXFP4)
-- **Distributed Training**: Built-in support for multi-GPU and multi-node training
-- **Memory Optimization**: Gradient checkpointing, Flash Attention 2, Liger Kernel
-- **Flexible Data Loading**: Support for JSONL files and HuggingFace datasets
-- **Checkpoint Management**: Automatic checkpoint saving and resumption
+- **🚀 One-Command Training Pipeline**: Single bash script orchestrates the entire workflow—from dependency installation and GPU discovery to distributed training, PEFT adapter merging, and optional evaluation. Just point to your YAML config and let the automation handle the rest.
 
-### Production Features
-- **SageMaker Integration**: Optimized for SageMaker Training Jobs
-- **Comprehensive Logging**: MLflow/Tensorboard integration and detailed metrics
-- **Model Deployment**: Automatic model saving for inference deployment
-- **Recipe-based Configuration**: YAML-based configuration management
+- **🌐 Seamless Multi-Node & Multi-GPU Training**: Automatically detects SageMaker topology, configures distributed backends (DeepSpeed ZeRO-3, FSDP), and scales from single-GPU to multi-node clusters. Dynamic rendezvous backend selection ensures optimal performance whether running on 1 GPU or 100+.
+
+- **🎯 Zero-Config Model & Data Handling**: Intelligent auto-detection of model architectures, tokenizers, and processors. Supports text, vision, and audio modalities out-of-the-box. Works with local JSONL files or HuggingFace datasets with automatic train/eval splitting.
+
+- **⚡ Production-Ready Optimization Stack**: Built-in Flash Attention 2/3, Liger Kernel, gradient checkpointing, 4-bit quantization (BitsAndBytes/MXFP4), and mixed-precision training. Memory-efficient by default, with automatic batch size recommendations per instance type.
+
+- **🔄 End-to-End Automation**: Post-training pipeline automatically merges PEFT adapters with base models, runs vLLM-powered batch inference, and executes comprehensive evaluation harnesses—all within the same training job. Deploy-ready models with zero manual intervention.
 
 ## Model Customization on Amazon SageMaker AI
 
