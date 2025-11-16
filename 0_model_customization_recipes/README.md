@@ -115,13 +115,6 @@ model_trainer = ModelTrainer(
 
 #### Available Models and Recipes
 
-Each notebook provides:
-- SageMaker setup and configuration
-- Dataset preparation and formatting
-- Training job execution
-- Model evaluation and deployment
-- Best practices and optimization tips
-
 
 | Model | Modality | Reasoning | QLoRA | Spectrum | Full | Notebook | Notes |
 |-------|----------|-----------|-------|----------|------|----------|-------|
