@@ -250,62 +250,62 @@ Pro Tips:
 
 
 ```
-                      SUPERVISED FINE-TUNING DESIGN SPACE
+                              SUPERVISED FINE-TUNING DESIGN SPACE
 
-  Efficiency ↑                                                       Capacity ↑
-  GPU / Memory ↓                                                 Task Specialization ↓
+          Efficiency ↑                                                       Capacity ↑
+          GPU / Memory ↓                                                 Task Specialization ↓
 
-      ┌──────────────┐        ┌──────────────────┐        ┌──────────────────────┐
-      │    LoRA      │  --->  │     Spectrum     │  --->  │   Full Fine-Tuning   │
-      │ (Adapters)   │        │ (Selective FT)   │        │   (All Parameters)   │
-      └──────────────┘        └──────────────────┘        └──────────────────────┘
-
-
-┌──────────────────────────── LoRA (Low-Rank Adaptation) ────────────────────────────┐
-│ Core idea:                                                                         │
-│   • Insert small low-rank matrices into selected layers; keep base weights frozen. │
-│   • Assumes useful updates live in a low-dimensional subspace.                     │
-│                                                                                    │
-│ Practical profile:                                                                 │
-│   • Parameter-efficient, low memory, runs on smaller GPUs.                         │
-│   • Fast iteration; easy to train many adapters on one base model.                 │
-│                                                                                    │
-│ Best for:                                                                          │
-│   • Instruction-following and lightweight domain adaptation.                       │
-│   • Rapid prototyping, constrained environments, multi-tenant adapter setups.      │
-└────────────────────────────────────────────────────────────────────────────────────┘
+              ┌──────────────┐        ┌──────────────────┐        ┌──────────────────────┐
+              │    LoRA      │  --->  │     Spectrum     │  --->  │   Full Fine-Tuning   │
+              │ (Adapters)   │        │ (Selective FT)   │        │   (All Parameters)   │
+              └──────────────┘        └──────────────────┘        └──────────────────────┘
 
 
-┌──────────────────── Spectrum Training (Selective Parameter Fine-Tuning) ───────────────────┐
-│ Core idea:                                                                                 │
-│   • Unfreeze only chosen submodules (attention, MLPs, norms, embeddings, etc.).           │
-│   • Targets “anatomically” relevant components for the task.                              │
-│                                                                                           │
-│ Practical profile:                                                                        │
-│   • More capacity than LoRA (more weights can move).                                      │
-│   • Cheaper than full FT (only a subset of parameters is updated).                        │
-│   • Highly configurable: good for ablations and controlled adaptation strategies.         │
-│                                                                                           │
-│ Best for:                                                                                 │
-│   • Cases where LoRA underperforms but full FT is overkill.                               │
-│   • Moderate domain shift and tasks needing deeper specialization of specific layers.     │
-└────────────────────────────────────────────────────────────────────────────────────────────┘
+        ┌──────────────────────────── LoRA (Low-Rank Adaptation) ────────────────────────────┐
+        │ Core idea:                                                                         │
+        │   • Insert small low-rank matrices into selected layers; keep base weights frozen. │
+        │   • Assumes useful updates live in a low-dimensional subspace.                     │
+        │                                                                                    │
+        │ Practical profile:                                                                 │
+        │   • Parameter-efficient, low memory, runs on smaller GPUs.                         │
+        │   • Fast iteration; easy to train many adapters on one base model.                 │
+        │                                                                                    │
+        │ Best for:                                                                          │
+        │   • Instruction-following and lightweight domain adaptation.                       │
+        │   • Rapid prototyping, constrained environments, multi-tenant adapter setups.      │
+        └────────────────────────────────────────────────────────────────────────────────────┘
 
 
-┌──────────────────────── Full Fine-Tuning (End-to-End) ────────────────────────────┐
-│ Core idea:                                                                       │
-│   • Update all model parameters; the entire network can realign to the new data. │
-│   • Enables large representational and behavioral shifts.                        │
-│                                                                                  │
-│ Practical profile:                                                               │
-│   • Highest performance ceiling, especially for heavy domain shifts.             │
-│   • Most expensive: requires substantial GPU memory and training time.           │
-│                                                                                  │
-│ Best for:                                                                        │
-│   • Specialized domains (biomedical, legal, scientific, financial, etc.).        │
-│   • Complex reasoning workloads where maximum accuracy is critical.              │
-│   • Setups with ample compute budget and strong reliability requirements.        │
-└───────────────────────────────────────────────────────────────────────────────────┘
+        ┌──────────────────── Spectrum Training (Selective Parameter Fine-Tuning) ───────────────────┐
+        │ Core idea:                                                                                 │
+        │   • Unfreeze only chosen submodules (attention, MLPs, norms, embeddings, etc.).            │
+        │   • Targets “anatomically” relevant components for the task.                               │
+        │                                                                                            │
+        │ Practical profile:                                                                         │
+        │   • More capacity than LoRA (more weights can move).                                       │
+        │   • Cheaper than full FT (only a subset of parameters is updated).                         │
+        │   • Highly configurable: good for ablations and controlled adaptation strategies.          │
+        │                                                                                            │
+        │ Best for:                                                                                  │
+        │   • Cases where LoRA underperforms but full FT is overkill.                                │
+        │   • Moderate domain shift and tasks needing deeper specialization of specific layers.      │
+        └────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+        ┌──────────────────────── Full Fine-Tuning (End-to-End) ────────────────────────────┐
+        │ Core idea:                                                                        │
+        │   • Update all model parameters; the entire network can realign to the new data.  │
+        │   • Enables large representational and behavioral shifts.                         │
+        │                                                                                   │
+        │ Practical profile:                                                                │
+        │   • Highest performance ceiling, especially for heavy domain shifts.              │
+        │   • Most expensive: requires substantial GPU memory and training time.            │
+        │                                                                                   │
+        │ Best for:                                                                         │
+        │   • Specialized domains (biomedical, legal, scientific, financial, etc.).         │
+        │   • Complex reasoning workloads where maximum accuracy is critical.               │
+        │   • Setups with ample compute budget and strong reliability requirements.         │
+        └───────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 #### Comparing the Three SFT Approaches
