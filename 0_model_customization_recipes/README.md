@@ -537,28 +537,20 @@ uv venv py311 --python 3.11
 source py311/bin/activate
 ```
 
-Clone git repo and navigate to the supervised fine-tuning repository
+Clone git repo and navigate to the supervised fine-tuning repository,
 
 ```bash
 # clone repository
 git clone https://github.com/aws-samples/amazon-sagemaker-generativeai.git
 
 # navigate supervised fine-tuning repository
-cd amazon-sagemaker-generativeai/0_model_customization_recipes/supervised_finetuning/
+cd amazon-sagemaker-generativeai/0_model_customization_recipes/supervised_finetuning/sagemaker_code/
 ```
 
-Run distributed training using Accelerate orchestrator
+Run distributed training using accelerate orchestrator,
 
 ```bash
-# Set model output directory
-SM_MODEL_DIR="/home/ubuntu/amazon-sagemaker-generativeai/0_model_customization_recipes/supervised_finetuning/models"
-
-# Run training with accelerate
-accelerate launch \
-    --config_file sagemaker_code/configs/accelerate/ds_zero3.yaml \
-    --num_processes 1 \
-    sagemaker_code/sft.py \
-    --config sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-peft-qlora.yaml
+bash sm_accelerate_train.sh --config hf_recipes/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B--vanilla-peft-qlora.yaml
 ```
 
 ## License
