@@ -11,6 +11,10 @@
         - [Supervised Fine-Tuning SFT](#supervised-fine-tuning-sft)
             - [Quick Start](#quick-start)
             - [Available Models and Recipes](#available-models-and-recipes)
+            - [Quick Instance Reference Guide](#quick-instance-reference-guide)
+                - [By Model Size PeFT/QLoRA Training](#by-model-size-peftqlora-training)
+                - [By Training Strategy](#by-training-strategy)
+                - [Tested Model Configurations](#tested-model-configurations)
             - [Supervised Fine-tuning strategy: Deep Dive](#supervised-fine-tuning-strategy-deep-dive)
                 - [LoRA Low-Rank Adaptation](#lora-low-rank-adaptation)
                 - [Spectrum Training Selective Parameter Fine-Tuning](#spectrum-training-selective-parameter-fine-tuning)
@@ -153,6 +157,116 @@ Each notebook provides:
 | google/gemma-3-4b-it | Text to Text | No | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/google/gemma-3-4b-it--vanilla-peft-qlora.yaml) | ❌ Unsupported | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/google/gemma-3-4b-it--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--google--gemma-3-4b-it.ipynb) | Efficient 4B model |
 | google/gemma-3-27b-it | Text to Text | No | ✅ [QLoRA](supervised_finetuning/sagemaker_code/hf_recipes/google/gemma-3-27b-it--vanilla-peft-qlora.yaml) | ❌ Unsupported | ✅ [Full](supervised_finetuning/sagemaker_code/hf_recipes/google/gemma-3-27b-it--vanilla-full.yaml) | 📓 [Notebook](supervised_finetuning/finetune--google--gemma-3-27b-it.ipynb) | Latest Gemma model, instruction-tuned |
 
+#### Quick Instance Reference Guide
+
+##### By Model Size (PeFT/QLoRA Training)
+
+```
+1-4B Parameters    →  ml.g5.2xlarge      (1x A10G, 24GB)
+4-14B Parameters   →  ml.g6e.2xlarge     (1x L40S, 48GB)
+17-27B Parameters  →  ml.p4de.24xlarge   (8x A100, 320GB)
+32-70B Parameters  →  ml.p4de.24xlarge   (8x A100, 320GB)
+120B Parameters    →  ml.p5e.48xlarge    (8x H100, 640GB)
+600B+ Parameters   →  ml.p5en.48xlarge   (8x H200, 1120GB)
+```
+
+##### By Training Strategy
+
+**PeFT (QLoRA) - Most Memory Efficient**
+```
+Small (1-4B)    →  ml.g5.2xlarge
+Medium (7-14B)  →  ml.g6e.2xlarge
+Large (17-32B)  →  ml.p4de.24xlarge
+XL (70-120B)    →  ml.p5e.48xlarge
+XXL (600B+)     →  ml.p5en.48xlarge
+```
+
+**Spectrum - Balanced Approach**
+```
+Small (1-4B)    →  ml.g6e.2xlarge
+Medium (7-14B)  →  ml.g6e.2xlarge or ml.g6e.4xlarge
+Large (17-32B)  →  ml.p4de.24xlarge
+XL (70-120B)    →  ml.p5e.48xlarge
+XXL (600B+)     →  ml.p5en.48xlarge
+```
+
+**Full Fine-tuning - Maximum Performance**
+```
+Small (1-4B)    →  ml.g6e.2xlarge
+Medium (7-14B)  →  ml.g6e.2xlarge or ml.g6e.12xlarge
+Large (17-32B)  →  ml.p4de.24xlarge or ml.p5e.48xlarge
+XL (70-120B)    →  ml.p5e.48xlarge
+XXL (600B+)     →  ml.p5en.48xlarge
+```
+
+**Instance Type Specs**
+
+| Instance | GPUs | GPU Type | VRAM/GPU | Total VRAM | Use Case |
+|----------|------|----------|----------|------------|----------|
+| ml.g5.2xlarge | 1 | A10G | 24GB | 24GB | Small models, dev/test |
+| ml.g6e.2xlarge | 1 | L40S | 48GB | 48GB | Small-medium models |
+| ml.g6e.4xlarge | 1 | L40S | 48GB | 48GB | Medium models, higher compute |
+| ml.g6e.12xlarge | 4 | L40S | 48GB | 192GB | Large models, multi-GPU |
+| ml.p4de.24xlarge | 8 | A100 | 40GB | 320GB | Large models, production |
+| ml.p5e.48xlarge | 8 | H100 | 80GB | 640GB | XL models, latest gen |
+| ml.p5en.48xlarge | 8 | H200 | 140GB | 1120GB | XXL models, max capacity |
+
+
+##### Tested Model Configurations
+
+**Text Models**
+- **1.5B**: DeepSeek-R1-Distill-Qwen → ml.g5.2xlarge (PeFT)
+- **3B**: Llama-3.2, Qwen2.5, Phi-3-mini → ml.g5.2xlarge (PeFT)
+- **14B**: Phi-4 → ml.g6e.2xlarge (PeFT)
+- **17B**: Llama-4-Maverick → ml.p4de.24xlarge (PeFT)
+- **20B**: GPT-OSS → ml.p4de.24xlarge (PeFT)
+- **32B**: QwQ → ml.p4de.24xlarge (PeFT)
+- **70B**: Llama-3.3 → ml.p4de.24xlarge (PeFT)
+- **120B**: GPT-OSS → ml.p5e.48xlarge (PeFT)
+- **671B**: DeepSeek-R1 → ml.p5en.48xlarge (PeFT)
+
+**Multimodal Models**
+- **2B Vision**: Qwen3-VL → ml.g5.2xlarge (PeFT)
+- **4B Vision**: Qwen3-VL → ml.g6e.2xlarge (PeFT)
+- **7B Audio**: Qwen2-Audio → ml.g6e.2xlarge (PeFT)
+- **11B Vision**: Llama-3.2-Vision → ml.g6e.2xlarge (PeFT)
+- **27B Text**: Gemma-3 → ml.g6e.2xlarge (PeFT)
+
+**Decision Tree**
+
+```
+Start Here
+    ↓
+Is your model < 4B parameters?
+    YES → Use ml.g5.2xlarge (PeFT)
+    NO  → Continue
+    ↓
+Is your model 4-14B parameters?
+    YES → Use ml.g6e.2xlarge (PeFT/Spectrum)
+    NO  → Continue
+    ↓
+Is your model 17-32B parameters?
+    YES → Use ml.p4de.24xlarge (PeFT/Spectrum)
+    NO  → Continue
+    ↓
+Is your model 32-120B parameters?
+    YES → Use ml.p5e.48xlarge (PeFT/Full)
+    NO  → Continue
+    ↓
+Is your model 600B+ parameters?
+    YES → Use ml.p5en.48xlarge (PeFT/Spectrum/Full)
+```
+
+Pro Tips:
+
+1. **Always start with PeFT on the smallest recommended instance**
+2. **Use Spot instances** to save 50-70% on costs
+3. **Enable warm pools** (`keep_alive_period_in_seconds=1800`) for iterative training
+4. **Multimodal models** need one tier higher than text-only models
+5. **Full fine-tuning** typically needs 2-4x more memory than PeFT
+6. **Batch size** can be adjusted to fit available memory (see main guide)
+
+
 #### Supervised Fine-tuning strategy: Deep Dive
 
 ![SFT Strategies](./supervised_finetuning/media/sft-strategies.png)
@@ -229,6 +343,14 @@ Supervised Fine-Tuning provides a principled way to specialize LLMs to new tasks
 
 
 #### Crafting your own - Fine-tuning OSS Recipe
+
+> [!TIP]
+> We strong recommend using [sft_recipe_generator.py](./supervised_finetuning/sft_recipe_generator.py) script to craft your custom recipes.
+> Run `python3 sft_recipe_generator.py --easy` to follow a simple guided workflow to generate a quick test recipe for PeFT/Spectrum/Full fine-tuing strategy
+> Run `python3 sft_recipe_generator.py` to follow a granular workflow to generate a fine-tuning workflow recipe for PeFT/Spectrum/Full fine-tuing strategy
+
+> [!NOTE]  
+> Learn more about recipe structure below
 
 Fine-tuning recipes in this framework follow a consistent YAML structure that cleanly separates model configuration, dataset parameters, adaptation method (LoRA, Spectrum, or Full), training hyperparameters, and logging settings. Understanding this structure makes it straightforward to author new recipes or modify existing ones to fit your model, dataset, or training environment.
 
