@@ -20,7 +20,6 @@
                 - [Example: Minimal Template for a New Recipe](#example-minimal-template-for-a-new-recipe)
                 - [Generating a Spectrum Configuration File](#generating-a-spectrum-configuration-file)
             - [Troubleshooting](#troubleshooting)
-            - [Model Training Parameters](#model-training-parameters)
         - [Preference Optimization](#preference-optimization)
         - [Pre-Training](#pre-training)
     - [Running Locally on an EC2/Self-Managed Instance](#running-locally-on-an-ec2self-managed-instance)
@@ -494,7 +493,7 @@ python spectrum.py --model-name <insert local or HF repo here> --top-percent <to
 - Validate output directory permissions and paths
   
 
-### Preference Optimization
+### (WIP) Preference Optimization
 
 Preference Optimization represents the next frontier in model alignment, focusing on training models to generate outputs that align with human preferences and values. Unlike supervised fine-tuning which learns from demonstrations, preference optimization learns from comparative feedback, making models more helpful, harmless, and honest.
 
@@ -515,22 +514,6 @@ These preference optimization techniques are essential for creating models that 
 | | | | |
 | **🚧 More Models Coming Soon** | ⏳ | ⏳ | Preference optimization recipes in development |
 
-### Pre-Training
-
-Pre-training represents the foundational phase of large language model development, where models learn rich representations from vast amounts of unlabeled text data. This process creates the base knowledge and capabilities that can later be specialized through fine-tuning and alignment techniques.
-
-**Autoregressive Language Modeling** forms the core of modern pre-training, where models learn to predict the next token in a sequence given the previous context. This seemingly simple objective enables models to develop sophisticated understanding of language, reasoning capabilities, and world knowledge. The scale of pre-training data and compute directly impacts the emergent capabilities of the resulting models.
-
-**Distributed Pre-training** requires careful orchestration of training across multiple GPUs and nodes, involving techniques like data parallelism, model parallelism, and pipeline parallelism. Efficient pre-training also leverages advanced optimizations such as gradient accumulation, mixed precision training, and dynamic loss scaling to maximize throughput while maintaining numerical stability.
-
-**Curriculum Learning and Data Composition** play crucial roles in pre-training effectiveness, involving strategic sequencing of training data and careful balancing of different data sources. Modern pre-training approaches also incorporate techniques like data deduplication, quality filtering, and domain-specific sampling to optimize the learning process.
-
-Pre-training on Amazon SageMaker AI enables practitioners to create custom foundation models tailored to specific domains, languages, or use cases, providing the flexibility to build models that capture domain-specific knowledge and patterns not present in general-purpose models.
-
-| Model | Autoregressive | Distributed | Curriculum | Notes |
-|-------|---------------|-------------|------------|-------|
-| | | | | |
-| **🚧 Coming Soon** | ⏳ | ⏳ | ⏳ | Pre-training recipes in development |
 
 ## Running Locally on an EC2/Self-Managed Instance
 
