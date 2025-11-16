@@ -14,14 +14,11 @@
             - [Quick Instance Reference Guide](#quick-instance-reference-guide)
                 - [By Model Size PeFT/QLoRA Training](#by-model-size-peftqlora-training)
                 - [By Training Strategy](#by-training-strategy)
-                - [Tested Model Configurations](#tested-model-configurations)
             - [Supervised Fine-tuning strategy: Deep Dive](#supervised-fine-tuning-strategy-deep-dive)
-                - [LoRA Low-Rank Adaptation](#lora-low-rank-adaptation)
-                - [Spectrum Training Selective Parameter Fine-Tuning](#spectrum-training-selective-parameter-fine-tuning)
-                - [Full Fine-Tuning End-to-End Parameter Updates](#full-fine-tuning-end-to-end-parameter-updates)
             - [Comparing the Three SFT Approaches](#comparing-the-three-sft-approaches)
             - [Crafting your own - Fine-tuning OSS Recipe](#crafting-your-own---fine-tuning-oss-recipe)
                 - [Automate Recipe Generation](#automate-recipe-generation)
+                - [Hand-Crafted Recipe Generation](#hand-crafted-recipe-generation)
                 - [Example: Minimal Template for a New Recipe](#example-minimal-template-for-a-new-recipe)
                 - [Generating a Spectrum Configuration File](#generating-a-spectrum-configuration-file)
             - [Troubleshooting](#troubleshooting)
@@ -212,27 +209,6 @@ XXL (600B+)     →  ml.p5en.48xlarge
 | ml.p5e.48xlarge | 8 | H100 | 80GB | 640GB | XL models, latest gen |
 | ml.p5en.48xlarge | 8 | H200 | 140GB | 1120GB | XXL models, max capacity |
 
-
-##### Tested Model Configurations
-
-**Text Models**
-- **1.5B**: DeepSeek-R1-Distill-Qwen → ml.g5.2xlarge (PeFT)
-- **3B**: Llama-3.2, Qwen2.5, Phi-3-mini → ml.g5.2xlarge (PeFT)
-- **14B**: Phi-4 → ml.g6e.2xlarge (PeFT)
-- **17B**: Llama-4-Maverick → ml.p4de.24xlarge (PeFT)
-- **20B**: GPT-OSS → ml.p4de.24xlarge (PeFT)
-- **32B**: QwQ → ml.p4de.24xlarge (PeFT)
-- **70B**: Llama-3.3 → ml.p4de.24xlarge (PeFT)
-- **120B**: GPT-OSS → ml.p5e.48xlarge (PeFT)
-- **671B**: DeepSeek-R1 → ml.p5en.48xlarge (PeFT)
-
-**Multimodal Models**
-- **2B Vision**: Qwen3-VL → ml.g5.2xlarge (PeFT)
-- **4B Vision**: Qwen3-VL → ml.g6e.2xlarge (PeFT)
-- **7B Audio**: Qwen2-Audio → ml.g6e.2xlarge (PeFT)
-- **11B Vision**: Llama-3.2-Vision → ml.g6e.2xlarge (PeFT)
-- **27B Text**: Gemma-3 → ml.g6e.2xlarge (PeFT)
-
 **Decision Tree**
 
 ```
@@ -272,64 +248,65 @@ Pro Tips:
 
 ![SFT Strategies](./supervised_finetuning/media/sft-strategies.png)
 
-##### LoRA (Low-Rank Adaptation)
 
-LoRA introduces **learnable low-rank matrices** into selected model layers while keeping the original weights frozen. Instead of updating the full weight matrix **W**, LoRA learns a decomposition:
+```
+                      SUPERVISED FINE-TUNING DESIGN SPACE
 
+  Efficiency ↑                                                       Capacity ↑
+  GPU / Memory ↓                                                 Task Specialization ↓
 
-- Theoretical Basis:
-  - Fine-tuning updates often lie in low-dimensional subspaces; therefore, they can be effectively represented using low-rank approximations.
-  - Injecting parameter-efficient updates preserves the base model while allowing meaningful adaptation.
-
-- Practical Characteristics:
-  - Extremely parameter-efficient, enabling training on smaller GPUs.
-  - Minimal memory overhead, since only low-rank matrices are trained.
-  - Fast iteration cycles, making it suitable for experimentation.
-  - Supports multiple adapters, allowing one base model to serve many domains.
-
-- Ideal Use Cases:
-  - Instruction-following tasks  
-  - Lightweight domain adaptation  
-  - Scenarios requiring rapid prototyping or memory-constrained deployment  
-  - Multi-adapter or multi-tenant workflows  
+      ┌──────────────┐        ┌──────────────────┐        ┌──────────────────────┐
+      │    LoRA      │  --->  │     Spectrum     │  --->  │   Full Fine-Tuning   │
+      │ (Adapters)   │        │ (Selective FT)   │        │   (All Parameters)   │
+      └──────────────┘        └──────────────────┘        └──────────────────────┘
 
 
-##### Spectrum Training (Selective Parameter Fine-Tuning)
-
-Spectrum Training **selectively unfreezes** specific parts of the model—such as attention blocks, MLP modules, embeddings, or normalization layers—based on configurable patterns. It provides a controlled middle ground between LoRA and full end-to-end training.
-
-- Theoretical Basis:
-  - Different tasks rely on different anatomical components of the model; unfreezing only the most relevant submodules allows targeted representational shifts.
-  - Selective adaptation captures most of the benefit of full fine-tuning without redundant updates to unrelated layers.
-
-- Practical Characteristics:
-  - Higher capacity than LoRA, enabling deeper task specialization.
-  - Lower computational cost than full fine-tuning because only a subset of parameters is updated.
-  - Fine-grained flexibility, useful for ablation studies or principled adaptation strategies.
-
-- Ideal Use Cases:
-  - Tasks where LoRA underperforms but full fine-tuning is unnecessary or too expensive  
-  - Domains requiring moderate representational shifts  
-  - Scenarios where experts can identify the most task-relevant layers  
+┌──────────────────────────── LoRA (Low-Rank Adaptation) ────────────────────────────┐
+│ Core idea:                                                                         │
+│   • Insert small low-rank matrices into selected layers; keep base weights frozen. │
+│   • Assumes useful updates live in a low-dimensional subspace.                     │
+│                                                                                    │
+│ Practical profile:                                                                 │
+│   • Parameter-efficient, low memory, runs on smaller GPUs.                         │
+│   • Fast iteration; easy to train many adapters on one base model.                 │
+│                                                                                    │
+│ Best for:                                                                          │
+│   • Instruction-following and lightweight domain adaptation.                       │
+│   • Rapid prototyping, constrained environments, multi-tenant adapter setups.      │
+└────────────────────────────────────────────────────────────────────────────────────┘
 
 
-##### Full Fine-Tuning (End-to-End Parameter Updates)
+┌──────────────────── Spectrum Training (Selective Parameter Fine-Tuning) ───────────────────┐
+│ Core idea:                                                                                 │
+│   • Unfreeze only chosen submodules (attention, MLPs, norms, embeddings, etc.).           │
+│   • Targets “anatomically” relevant components for the task.                              │
+│                                                                                           │
+│ Practical profile:                                                                        │
+│   • More capacity than LoRA (more weights can move).                                      │
+│   • Cheaper than full FT (only a subset of parameters is updated).                        │
+│   • Highly configurable: good for ablations and controlled adaptation strategies.         │
+│                                                                                           │
+│ Best for:                                                                                 │
+│   • Cases where LoRA underperforms but full FT is overkill.                               │
+│   • Moderate domain shift and tasks needing deeper specialization of specific layers.     │
+└────────────────────────────────────────────────────────────────────────────────────────────┘
 
-Full fine-tuning trains **all** parameters of the LLM, allowing the model to completely reorganize internal representations. This provides maximum expressive power at the cost of high computational and memory requirements.
 
-- Theoretical Basis:
-  - End-to-end training enables the model to align all layers to new distributions, making it suitable for domains that diverge significantly from pre-training corpora.
-  - Full adaptation is sometimes necessary when the task requires deep architectural-level changes in reasoning pathways or language style.
-
-- Practical Characteristics:
-  - Highest performance potential, especially for specialized or heavily domain-shifted tasks.
-  - Significant resource requirements, including high-end multi-GPU or distributed training setups.
-  - Ideal for mission-critical workloads with strict accuracy requirements.
-
-- Ideal Use Cases:
-  - Biomedical, legal, scientific, or financial domains with unique linguistic structure  
-  - Complex reasoning applications requiring deep model re-alignment  
-  - Workloads with sufficient GPU capacity where peak performance is essential  
+┌──────────────────────── Full Fine-Tuning (End-to-End) ────────────────────────────┐
+│ Core idea:                                                                       │
+│   • Update all model parameters; the entire network can realign to the new data. │
+│   • Enables large representational and behavioral shifts.                        │
+│                                                                                  │
+│ Practical profile:                                                               │
+│   • Highest performance ceiling, especially for heavy domain shifts.             │
+│   • Most expensive: requires substantial GPU memory and training time.           │
+│                                                                                  │
+│ Best for:                                                                        │
+│   • Specialized domains (biomedical, legal, scientific, financial, etc.).        │
+│   • Complex reasoning workloads where maximum accuracy is critical.              │
+│   • Setups with ample compute budget and strong reliability requirements.        │
+└───────────────────────────────────────────────────────────────────────────────────┘
+```
 
 #### Comparing the Three SFT Approaches
 
