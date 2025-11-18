@@ -2,7 +2,7 @@
 
 <!-- TOC -->
 
-- [Amazon SageMaker AI - OpenSource OSS Foundation Model Fine-tuning Recipes](#amazon-sagemaker-ai---opensource-oss-foundation-model-fine-tuning-recipes)
+- [Amazon SageMaker AI - OpenSource OSS Foundation Model Fine-tuning Recipes ⚙️](#amazon-sagemaker-ai---opensource-oss-foundation-model-fine-tuning-recipes-)
     - [Overview](#overview)
     - [Key Features](#key-features)
     - [Model Customization on Amazon SageMaker AI](#model-customization-on-amazon-sagemaker-ai)
