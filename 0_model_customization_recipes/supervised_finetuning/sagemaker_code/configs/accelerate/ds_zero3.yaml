@@ -1,0 +1,16 @@
+compute_environment: LOCAL_MACHINE
+distributed_type: DEEPSPEED
+rdzv_backend: static
+mixed_precision: bf16
+same_network: true
+debug: false
+downcast_bf16: 'no'
+main_training_function: main
+use_cpu: false
+deepspeed_config:
+  deepspeed_multinode_launcher: standard
+  zero_stage: 3
+  zero3_init_flag: true
+  zero3_save_16bit_model: true
+  offload_optimizer_device: none
+  offload_param_device: none
