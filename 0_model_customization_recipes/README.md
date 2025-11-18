@@ -1,4 +1,4 @@
-# Amazon SageMaker AI - OpenSource (OSS) Foundation Model Fine-tuning Recipes
+# Amazon SageMaker AI - OpenSource (OSS) Foundation Model Fine-tuning Recipes ⚙️
 
 <!-- TOC -->
 
