@@ -24,7 +24,7 @@
     "amazon-textract-idp-cdk-constructs": "^0.0.37",
     "aws-cdk-lib": "^2.190.0",
     "cdk-nag": "^2.27.104",
-    "cognito-at-edge": "^1.5.0",
+    "cognito-at-edge": "^1.5.3",
     "constructs": "^10.0.0",
     "source-map-support": "^0.5.21"
   }
