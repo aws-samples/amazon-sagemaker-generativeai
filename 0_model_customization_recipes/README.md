@@ -58,56 +58,132 @@ SFT methods vary in how many parameters they update and how much representationa
 
 #### Quick Start
 
-1. Select a model-notebook (ex: [finetune--meta-llama--Llama-3.2-3B-Instruct.ipynb](supervised_finetuning/finetune--meta-llama--Llama-3.2-3B-Instruct.ipynb)) and recipe from the [Available Models and Recipes](#available-models-and-recipes) table.
+Get started with fine-tuning in 5 steps:
 
-2. Create your dataset in compatible `messages` format. You can bring your own dataset or leverage existing open source data to go through fine-tuning an OpenSource LLM
+**Step 1: Choose Your Model and Training Strategy**
 
-3. Kick off a Model Training/Fine-tuning job on Amazon SageMaker AI (Single-Node or Multi-Node),
+Browse the [Available Models and Recipes](#available-models-and-recipes) table and select:
+- A model that fits your use case (text, vision, audio, or reasoning models)
+- A training strategy based on your resources:
+  - **QLoRA (PeFT)**: Most memory-efficient, fastest iteration, great for prototyping
+  - **Spectrum**: Balanced approach, better performance than QLoRA
+  - **Full Fine-tuning**: Maximum performance, requires more compute
+
+Example: For a 3B parameter model, you might choose [Llama-3.2-3B-Instruct](supervised_finetuning/finetune--meta-llama--Llama-3.2-3B-Instruct.ipynb) with QLoRA strategy.
+
+**Step 2: Prepare Your Dataset**
+
+Your dataset must be in the `messages` format (conversational structure). You have two options:
+
+Option A - Use your own dataset:
+```json
+{"messages": [{"role": "user", "content": "What is AI?"}, {"role": "assistant", "content": "AI stands for..."}]}
+{"messages": [{"role": "user", "content": "Explain ML"}, {"role": "assistant", "content": "Machine Learning is..."}]}
 ```
+
+Option B - Use public datasets for experimentation:
+- HuggingFace datasets (e.g., `HuggingFaceH4/ultrachat_200k`)
+- Pre-formatted instruction datasets
+
+Save your dataset as a JSONL file or reference a HuggingFace dataset ID in your recipe configuration.
+
+**Step 3: Launch Your Fine-tuning Job**
+
+Open the notebook corresponding to your chosen model and configure the training job:
+
+```python
+# Configure training arguments
 args = [
     "--config",
     "hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-peft-qlora.yaml",
-    # "--run-eval" # enable this for small models to run eval + tune
+    # "--run-eval"  # Optional: Enable for end-to-end training + evaluation
 ]
-...
+
+# Set up source code and training script
 source_code = SourceCode(
     source_dir="./sagemaker_code",
     command=f"bash sm_accelerate_train.sh {' '.join(args)}",
 )
 
+# Configure compute resources
 compute_configs = Compute(
-    instance_type="ml.g6e.2xlarge",
-    instance_count=1, # 2 for multi node
-    keep_alive_period_in_seconds=1800,
+    instance_type="ml.g6e.2xlarge",      # See Instance Reference Guide below
+    instance_count=1,                     # Use 2+ for multi-node training
+    keep_alive_period_in_seconds=1800,   # Warm pool for faster iterations
     volume_size_in_gb=300
 )
 
-...
-
+# Create and launch the training job
 model_trainer = ModelTrainer(
     training_image=pytorch_image_uri,
     source_code=source_code,
     base_job_name=base_job_name,
     compute=compute_configs,
     stopping_condition=StoppingCondition(max_runtime_in_seconds=18000),
-    output_data_config=OutputDataConfig(
-        s3_output_path=output_path,
-    ),
+    output_data_config=OutputDataConfig(s3_output_path=output_path),
     checkpoint_config=CheckpointConfig(
-        s3_uri=os.path.join(
-            output_path,
-            dataset_name.replace('/', '--').replace('.', '-'), 
-            job_name,
-            "checkpoints"
-        ), 
+        s3_uri=os.path.join(output_path, dataset_name, job_name, "checkpoints"),
         local_path="/opt/ml/checkpoints"
     ),
     role=role,
     environment=training_env
 )
+
+# Start training
+model_trainer.fit()
 ```
 
-4. Deploy Fine-tuned Model as a SageMaker Endpoint for inference
+Training modes:
+- **Single-node**: Set `instance_count=1` for models up to 14B parameters
+- **Multi-node**: Set `instance_count=2+` for larger models or faster training
+
+**Step 4: (Optional) Run Evaluation**
+
+Enable built-in evaluation by adding the `--run-eval` flag to your training arguments. This will:
+
+1. Run vLLM-powered batch inference on your test dataset
+2. Compute evaluation metrics automatically
+3. Log results to MLflow for tracking
+
+Available evaluation metrics:
+- **Text similarity**: ROUGE-1, ROUGE-2, ROUGE-L, BLEU, BERTScore
+- **LLM-as-Judge** (requires judge model): Answer similarity, correctness, relevance, faithfulness, toxicity
+
+The evaluation runs within the same training job, producing deploy-ready models with quality metrics.
+
+**Step 5: Deploy Your Fine-tuned Model**
+
+Once training completes, deploy your model as a SageMaker endpoint using the [deployment notebook](supervised_finetuning/deploy-model-sagemaker-inference.ipynb):
+
+```python
+# The notebook will guide you through:
+# 1. Extracting the fine-tuned model from S3
+# 2. Creating an endpoint configuration with vLLM
+# 3. Deploying the model for real-time inference
+# 4. Testing your deployed endpoint
+
+# Example inference call
+response = sagemaker_runtime.invoke_endpoint(
+    EndpointName=endpoint_name,
+    ContentType="application/json",
+    Body=json.dumps({
+        'messages': [{"role": "user", "content": "Your prompt here"}],
+        'temperature': 0.7,
+        'max_tokens': 512
+    })
+)
+```
+
+**Quick Reference: Training Time Estimates**
+
+| Model Size | Strategy | Instance Type | Approx. Time (1 epoch, 10K samples) |
+|------------|----------|---------------|-------------------------------------|
+| 1-4B | QLoRA | ml.g5.2xlarge | 2-4 hours |
+| 7-14B | QLoRA | ml.g6e.2xlarge | 4-8 hours |
+| 17-32B | QLoRA | ml.p4de.24xlarge | 6-12 hours |
+| 70B+ | QLoRA | ml.p5e.48xlarge | 12-24 hours |
+
+**Need Help?** Check the [Troubleshooting](#troubleshooting) section or [Instance Reference Guide](#quick-instance-reference-guide) below.
 
 
 #### Available Models and Recipes
