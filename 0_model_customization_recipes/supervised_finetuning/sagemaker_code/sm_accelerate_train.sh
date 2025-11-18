@@ -321,6 +321,9 @@ run_inference() {
 # Evaluation (robust output_dir join)
 ############################################
 run_evaluation() {
+    # unset MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING if it was set in the first place
+    export MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING=false
+    log_info "unset MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING irrespective of initial configuration"
     cd "$EVAL_HARNESS_DIR"
     poetry install
     local outdir
