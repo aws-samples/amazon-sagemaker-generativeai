@@ -5,7 +5,7 @@ botocore==1.29.27
 html2text 
 jinja2
 faiss-cpu==1.7.4
-pypdf==3.8.1
+pypdf==6.4.0
 transformers==4.50.0
 anthropic
 sentence_transformers==2.2.2
