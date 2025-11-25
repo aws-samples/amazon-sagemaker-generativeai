@@ -1,0 +1,16 @@
+pyyaml~=6.0
+click~=8.0
+pydantic>=2.1.0,<3.0
+jsonpath-ng>=1.6.1,<2.0
+mlflow>=3.3.2
+sagemaker-mlflow>=0.1.1
+bert-score>=0.3.13
+evaluate>=0.4.5
+torch>=2.8.0
+transformers>=4.56.1
+textstat>=0.7.10
+nltk>=3.9.1
+rouge-score>=0.1.2
+pandas>=2.3.2
+tiktoken>=0.11.0
+openai>=1.108.0

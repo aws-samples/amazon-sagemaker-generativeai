@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "sama-rl-model-builder-fixed": {
+      "command": "python",
+      "args": ["/home/sagemaker-user/RL/RL-CookBook/GRPO+RLVR/sama_rl_agents/model_builder_fixed.py"],
+      "cwd": "sama_rl_agents",
+      "description": "SAMA RL Model Builder (Fixed) - Create GRPO training configurations using natural language"
+    }
+  }
+}

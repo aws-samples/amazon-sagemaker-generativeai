@@ -1,0 +1,66 @@
+model:
+  name: "Qwen/Qwen2-1.5B-Instruct"
+  trust_remote_code: true
+
+data:
+  dataset_name: "Anthropic/hh-rlhf"
+  train_split: "train[:5000]"
+  test_split: "test[:100]"
+
+training:
+  max_steps: 1200
+  learning_rate: 3e-5
+  per_device_train_batch_size: 2
+  per_device_eval_batch_size: 1
+  gradient_accumulation_steps: 4
+  warmup_steps: 120
+  weight_decay: 0.005
+  
+  # Memory optimization for 1.5B model
+  fp16: true
+  gradient_checkpointing: true
+  dataloader_num_workers: 0
+  remove_unused_columns: false
+  
+  # Evaluation and logging
+  eval_strategy: "steps"
+  eval_steps: 150
+  logging_steps: 25
+  save_strategy: "steps"
+  save_steps: 300
+  do_eval: true
+
+grpo:
+  num_generations: 2
+  max_completion_length: 1024
+  max_prompt_length: 512
+  
+  # Conservative generation for helpfulness
+  temperature: 0.6
+  top_p: 0.9
+  top_k: 40
+  repetition_penalty: 1.1
+  do_sample: true
+  
+  # GRPO-specific for preference learning
+  beta: 0.15
+  label_smoothing: 0.1
+
+reward:
+  target_length: 600
+  reward_type: "helpfulness_focused"
+
+wandb:
+  project: "qwen2-helpfulness-training"
+  run_name: "qwen2-1.5b-helpful-assistant"
+  tags: ["qwen2", "grpo", "helpfulness", "1.5b", "assistant"]
+  
+output:
+  dir: "/opt/ml/model"
+  save_total_limit: 2
+
+sagemaker:
+  instance_type: "ml.g4dn.4xlarge"
+  instance_count: 1
+  max_run: 5400
+  keep_alive_period: 2700
