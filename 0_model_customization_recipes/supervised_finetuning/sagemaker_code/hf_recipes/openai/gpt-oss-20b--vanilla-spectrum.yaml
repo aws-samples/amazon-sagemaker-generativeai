@@ -34,7 +34,7 @@ warmup_ratio: 0.1
 
 # Logging arguments
 logging_strategy: steps
-logging_steps: 1
+logging_steps: 2
 report_to:
 - mlflow
 run_name: gpt-oss-20b-spectrum-open-r1--OpenR1-Math-220k-withthinking

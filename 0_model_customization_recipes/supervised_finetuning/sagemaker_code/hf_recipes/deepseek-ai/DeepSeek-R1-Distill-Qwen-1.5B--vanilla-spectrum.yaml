@@ -33,7 +33,7 @@ warmup_ratio: 0.1
 
 # Logging arguments
 logging_strategy: steps
-logging_steps: 1
+logging_steps: 2
 report_to:
 - mlflow
 run_name: DeepSeek-R1-Distill-Qwen-1.5B-spectrum-AI-MO--NuminaMath-CoT

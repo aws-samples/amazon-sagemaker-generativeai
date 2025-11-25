@@ -27,7 +27,7 @@ warmup_ratio: 0.1
 
 # Logging arguments
 logging_strategy: steps
-logging_steps: 1
+logging_steps: 2
 report_to:
 - mlflow
 run_name: Phi-3-mini-128k-instruct-full-Josephgflowers--Finance-Instruct-500k
