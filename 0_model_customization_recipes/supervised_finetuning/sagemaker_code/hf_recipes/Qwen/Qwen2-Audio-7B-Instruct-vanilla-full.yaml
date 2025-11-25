@@ -31,7 +31,7 @@ remove_unused_columns: false
 
 # Logging arguments
 logging_strategy: steps
-logging_steps: 1
+logging_steps: 2
 report_to:
 - mlflow
 run_name: Qwen2-Audio-7B-Instruct-full-mesolitica--AudioSet-Audio-Instructions

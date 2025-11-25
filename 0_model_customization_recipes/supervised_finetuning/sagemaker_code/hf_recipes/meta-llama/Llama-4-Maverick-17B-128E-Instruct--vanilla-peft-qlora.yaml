@@ -17,9 +17,9 @@ packing: false
 # LoRA arguments
 use_peft: true
 load_in_4bit: true
-lora_target_modules: "all-linear"
-lora_modules_to_save: ["lm_head", "embed_tokens"]
-lora_r: 4
+lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+# lora_modules_to_save: ["lm_head", "embed_tokens"]
+lora_r: 8
 lora_alpha: 16
 
 # Modality type
