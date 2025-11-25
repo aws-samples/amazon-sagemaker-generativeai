@@ -1,0 +1,83 @@
+unfrozen_parameters:
+- ^lm_head.weight$
+- ^model.embed_tokens.weight$
+# input_layernorm layers
+- model.layers.0.input_layernorm
+- model.layers.1.input_layernorm
+- model.layers.2.input_layernorm
+- model.layers.3.input_layernorm
+- model.layers.4.input_layernorm
+- model.layers.5.input_layernorm
+- model.layers.6.input_layernorm
+- model.layers.7.input_layernorm
+- model.layers.8.input_layernorm
+- model.layers.9.input_layernorm
+# lm_head layers
+# mlp.router layers
+- model.layers.3.mlp.router
+- model.layers.1.mlp.router
+- model.layers.0.mlp.router
+- model.layers.2.mlp.router
+- model.layers.4.mlp.router
+- model.layers.5.mlp.router
+- model.layers.6.mlp.router
+- model.layers.7.mlp.router
+- model.layers.8.mlp.router
+- model.layers.9.mlp.router
+# model.embed_tokens layers
+# model.norm layers
+# post_attention_layernorm layers
+- model.layers.0.post_attention_layernorm
+- model.layers.1.post_attention_layernorm
+- model.layers.2.post_attention_layernorm
+- model.layers.3.post_attention_layernorm
+- model.layers.4.post_attention_layernorm
+- model.layers.5.post_attention_layernorm
+- model.layers.6.post_attention_layernorm
+- model.layers.7.post_attention_layernorm
+- model.layers.8.post_attention_layernorm
+- model.layers.9.post_attention_layernorm
+# self_attn.k_proj layers
+- model.layers.2.self_attn.k_proj
+- model.layers.3.self_attn.k_proj
+- model.layers.1.self_attn.k_proj
+- model.layers.0.self_attn.k_proj
+- model.layers.4.self_attn.k_proj
+- model.layers.5.self_attn.k_proj
+- model.layers.6.self_attn.k_proj
+- model.layers.7.self_attn.k_proj
+- model.layers.8.self_attn.k_proj
+- model.layers.9.self_attn.k_proj
+# self_attn.o_proj layers
+- model.layers.0.self_attn.o_proj
+- model.layers.1.self_attn.o_proj
+- model.layers.2.self_attn.o_proj
+- model.layers.3.self_attn.o_proj
+- model.layers.4.self_attn.o_proj
+- model.layers.5.self_attn.o_proj
+- model.layers.6.self_attn.o_proj
+- model.layers.7.self_attn.o_proj
+- model.layers.8.self_attn.o_proj
+- model.layers.9.self_attn.o_proj
+# self_attn.q_proj layers
+- model.layers.2.self_attn.q_proj
+- model.layers.3.self_attn.q_proj
+- model.layers.1.self_attn.q_proj
+- model.layers.0.self_attn.q_proj
+- model.layers.4.self_attn.q_proj
+- model.layers.5.self_attn.q_proj
+- model.layers.6.self_attn.q_proj
+- model.layers.7.self_attn.q_proj
+- model.layers.8.self_attn.q_proj
+- model.layers.9.self_attn.q_proj
+# self_attn.v_proj layers
+- model.layers.3.self_attn.v_proj
+- model.layers.2.self_attn.v_proj
+- model.layers.0.self_attn.v_proj
+- model.layers.1.self_attn.v_proj
+- model.layers.4.self_attn.v_proj
+- model.layers.5.self_attn.v_proj
+- model.layers.6.self_attn.v_proj
+- model.layers.7.self_attn.v_proj
+- model.layers.8.self_attn.v_proj
+- model.layers.9.self_attn.v_proj

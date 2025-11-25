@@ -8,6 +8,76 @@ New to Generative AI on SageMaker? Start here:
 
 - **[Getting Started Guide](1._getting_started/)** - Essential setup, foundational concepts, and first steps
 
+## ⚙️ Model Customization Recipes
+
+**Production-ready fine-tuning recipes for 20+ foundation models** - A comprehensive collection of OSS training recipes optimized for Amazon SageMaker AI. [**→ Full Documentation**](0_model_customization_recipes/README.md)
+
+### 🎯 What's Included
+
+- **20+ Pre-configured Models**: Llama, Qwen, DeepSeek, Gemma, Phi, GPT-OSS, and more
+- **3 Training Strategies**: QLoRA (memory-efficient), Spectrum (balanced), Full Fine-tuning (maximum performance)
+- **Automated Recipe Generator**: Interactive CLI tool to create custom training configurations
+- **Instance Sizing Guide**: Decision trees and recommendations for optimal GPU selection (A10G → H200)
+- **Multi-Modal Support**: Text, vision, and audio models with specialized processors
+- **End-to-End Pipeline**: Training, evaluation, adapter merging, and deployment automation
+- **Training Time Estimates**: Reference tables for cost and time planning
+
+### 🚀 Quick Start Example
+
+**Step 1: Craft a Recipe**
+
+```bash
+# Generate a custom recipe interactively
+python3 sft_recipe_generator.py
+
+# Or use the quick mode
+python3 sft_recipe_generator.py --easy
+>> hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-peft-qlora.yaml
+```
+
+**Option 2: SageMaker Training Jobs**
+
+```python
+# Configure training arguments
+args = [
+    "--config",
+    "hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-peft-qlora.yaml",
+    # "--run-eval"  # Optional: Enable evaluation
+]
+
+# Set up source code and training script
+source_code = SourceCode(
+    source_dir="./sagemaker_code",
+    command=f"bash sm_accelerate_train.sh {' '.join(args)}",
+)
+
+# Configure compute resources
+compute_configs = Compute(
+    instance_type="ml.g6e.2xlarge",      # See Instance Reference Guide
+    instance_count=1,                     # Use 2+ for multi-node training
+    keep_alive_period_in_seconds=1800,   # Warm pool for faster iterations
+    volume_size_in_gb=300
+)
+
+# Create and launch the training job
+model_trainer = ModelTrainer(
+    training_image=pytorch_image_uri,
+    source_code=source_code,
+    base_job_name=base_job_name,
+    compute=compute_configs,
+    # ... additional configuration
+    role=role,
+    environment=training_env
+)
+
+# Start training
+model_trainer.fit()
+```
+
+**[→ Explore All Recipes](0_model_customization_recipes/)** | **[→ View Available Models](0_model_customization_recipes/README.md#available-models-and-recipes)** | **[→ Instance Guide](0_model_customization_recipes/README.md#quick-instance-reference-guide)**
+
+---
+
 ## 🤖 Models
 
 This repository supports a comprehensive range of foundation models with various training methodologies. The table below shows model compatibility with different fine-tuning techniques, training frameworks, and deployment options.
