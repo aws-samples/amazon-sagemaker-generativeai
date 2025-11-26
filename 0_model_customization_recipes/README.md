@@ -8,6 +8,7 @@
     - [Model Customization on Amazon SageMaker AI](#model-customization-on-amazon-sagemaker-ai)
         - [Supervised Fine-Tuning SFT](#supervised-fine-tuning-sft)
             - [Quick Start](#quick-start)
+            - [Quick Start: Demo Video](#quick-start-demo-video)
             - [Available Models and Recipes](#available-models-and-recipes)
             - [Quick Instance Reference Guide](#quick-instance-reference-guide)
             - [Supervised Fine-tuning strategy: Deep Dive](#supervised-fine-tuning-strategy-deep-dive)
@@ -179,7 +180,10 @@ response = sagemaker_runtime.invoke_endpoint(
 
 Watch this demo video 👇🏼
 
-![Fine-Tuning Demo](https://aws-ml-blog.s3.us-east-1.amazonaws.com/artifacts/genai-builder-workshop/sagemaker/Model-Customization-OSS-Recipes-Fine-Tuning-Demo.mp4)
+<video src="https://aws-ml-blog.s3.us-east-1.amazonaws.com/artifacts/genai-builder-workshop/sagemaker/Model-Customization-OSS-Recipes-Fine-Tuning-Demo.mp4" controls width="600">
+  Your browser does not support the video tag.
+</video>
+
 
 **Quick Reference: Training Time Estimates**
 
