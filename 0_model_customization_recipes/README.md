@@ -8,6 +8,7 @@
     - [Model Customization on Amazon SageMaker AI](#model-customization-on-amazon-sagemaker-ai)
         - [Supervised Fine-Tuning SFT](#supervised-fine-tuning-sft)
             - [Quick Start](#quick-start)
+            - [Quick Start: Demo Video](#quick-start-demo-video)
             - [Available Models and Recipes](#available-models-and-recipes)
             - [Quick Instance Reference Guide](#quick-instance-reference-guide)
             - [Supervised Fine-tuning strategy: Deep Dive](#supervised-fine-tuning-strategy-deep-dive)
@@ -174,6 +175,14 @@ response = sagemaker_runtime.invoke_endpoint(
     })
 )
 ```
+
+#### Quick Start: Demo Video
+
+Watch this demo video 👇🏼
+
+[![Watch the finetuning demo](./supervised_finetuning/media/video-thumbnail.png)](https://aws-ml-blog.s3.us-east-1.amazonaws.com/artifacts/genai-builder-workshop/sagemaker/Model-Customization-OSS-Recipes-Fine-Tuning-Demo.mp4)
+
+
 
 **Quick Reference: Training Time Estimates**
 
@@ -371,6 +380,10 @@ Pro Tips:
 ```
 
 #### Comparing the Three SFT Approaches
+
+> [!TIP]
+> Below image shows a **sample** run that highlights the differences between the 3 techniques on loss curves
+> ![Loss Curves](./supervised_finetuning/media/loss-values-across-techniques.png)
 
 | Method | Trainable Parameters | Compute Cost | Adaptation Depth | Strengths |
 |--------|----------------------|--------------|------------------|-----------|
