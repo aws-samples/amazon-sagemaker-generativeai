@@ -180,9 +180,8 @@ response = sagemaker_runtime.invoke_endpoint(
 
 Watch this demo video 👇🏼
 
-<video src="https://aws-ml-blog.s3.us-east-1.amazonaws.com/artifacts/genai-builder-workshop/sagemaker/Model-Customization-OSS-Recipes-Fine-Tuning-Demo.mp4" controls width="600">
-  Your browser does not support the video tag.
-</video>
+[![Watch the finetuning demo](./supervised_finetuning/media/video-thumbnail.png)](https://aws-ml-blog.s3.us-east-1.amazonaws.com/artifacts/genai-builder-workshop/sagemaker/Model-Customization-OSS-Recipes-Fine-Tuning-Demo.mp4)
+
 
 
 **Quick Reference: Training Time Estimates**
