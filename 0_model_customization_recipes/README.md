@@ -175,6 +175,12 @@ response = sagemaker_runtime.invoke_endpoint(
 )
 ```
 
+#### Quick Start: Demo Video
+
+Watch this demo video 👇🏼
+
+![Fine-Tuning Demo](https://aws-ml-blog.s3.us-east-1.amazonaws.com/artifacts/genai-builder-workshop/sagemaker/Model-Customization-OSS-Recipes-Fine-Tuning-Demo.mp4)
+
 **Quick Reference: Training Time Estimates**
 
 | Model Size | Strategy | Instance Type | Approx. Time (1 epoch, 10K samples) |
