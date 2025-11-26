@@ -381,6 +381,10 @@ Pro Tips:
 
 #### Comparing the Three SFT Approaches
 
+> [!TIP]
+> Below image shows a **sample** run that highlights the differences between the 3 techniques on loss curves
+> ![Loss Curves](./supervised_finetuning/media/loss-values-across-techniques.png)
+
 | Method | Trainable Parameters | Compute Cost | Adaptation Depth | Strengths |
 |--------|----------------------|--------------|------------------|-----------|
 | **LoRA** | Very Low | Very Low | Moderate | Adapter-based flexibility, fast training, minimal memory |
