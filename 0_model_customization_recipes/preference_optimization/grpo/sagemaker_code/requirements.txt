@@ -165,7 +165,7 @@ trl==0.14.0
 typing-extensions==4.15.0
 typing-inspection==0.4.1
 tzdata==2025.2
-urllib3==2.5.0
+urllib3==2.6.0
 uvicorn==0.35.0
 uvloop==0.21.0
 virtualenv==20.34.0
