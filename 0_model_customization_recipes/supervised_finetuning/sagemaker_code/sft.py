@@ -56,6 +56,14 @@ except ImportError:
     print("[WARN] Qwen3VLForConditionalGeneration not found in transformers. Make sure you have the latest version.")
     pass
 
+# FLOPS meter for EU AI Act compliance (optional)
+try:
+    from utils.flops_meter import FlopsMeterCallback, TokenCountingSFTTrainer
+    FLOPS_METER_AVAILABLE = True
+except ImportError:
+    FLOPS_METER_AVAILABLE = False
+    print("[WARN] FLOPS meter not available. Install flops_meter utilities to enable EU AI Act compliance features.")
+
 
 # here's a list of models that needs its own import from transformers
 EXCEPTION_MODEL_LIST = [
@@ -264,6 +272,9 @@ class ScriptArguments:
 
     use_liger: bool = False
     """Whether to use LigerKernel over AutoClass for loading model."""
+
+    compute_flops: bool = False
+    """Whether to compute FLOPS during training for EU AI Act compliance (experimental)."""
 
     # Evaluation (shared for train/inference) 
     run_evaluation: bool = True
@@ -767,6 +778,33 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
     model = load_model(model_args, training_args, script_args, model_kwargs)
     model = configure_model_for_training(model, script_args)
 
+    # === FLOPs meter callback (optional, for EU AI Act compliance) ===
+    flops_cb = None
+    if script_args.compute_flops:
+        if not FLOPS_METER_AVAILABLE:
+            logger.warning("FLOPS computation requested but flops_meter module not available. Skipping.")
+        else:
+            logger.info("🔬 FLOPS computation enabled (EU AI Act compliance)")
+            # Count params before PEFT wrapping
+            n_total = sum(p.numel() for p in model.parameters())
+            n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+            
+            pretrain_flops_env = os.getenv("PRETRAIN_FLOPS")
+            pretrain_flops = float(pretrain_flops_env) if pretrain_flops_env else None
+            flops_cb = FlopsMeterCallback(
+                pad_token_id=(
+                    tokenizer_or_processor.tokenizer.pad_token_id
+                    if hasattr(tokenizer_or_processor, "tokenizer")
+                    else tokenizer_or_processor.pad_token_id
+                ),
+                pretrain_flops=pretrain_flops,
+                sample_nvml=os.getenv("FLOPS_METER_NVML", "1") == "1",
+                n_total=n_total,
+                n_trainable=n_trainable,
+                model_name=model_args.model_name_or_path,
+                num_epochs=training_args.num_train_epochs,
+            )
+
     def collate_fn_images_qwen(examples):
         proc = tokenizer_or_processor
         cleaned_msgs_per_sample = []
@@ -952,16 +990,29 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
     else:
         raise AssertionError(f"current modality {script_args.modality_type} is unsupported - choose `image`, `video`, `audio` or `text`!")
 
-    # Initialize trainer
-    trainer = SFTTrainer(
-        model=model,
-        args=training_args,
-        data_collator=collator_fn,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,  # Add eval dataset
-        processing_class=tokenizer_or_processor,
-        peft_config=peft_config,
-    )
+    # Initialize trainer - use TokenCountingSFTTrainer if FLOPS computation is enabled
+    if script_args.compute_flops and FLOPS_METER_AVAILABLE and flops_cb is not None:
+        logger.info("Using TokenCountingSFTTrainer for FLOPS calculation")
+        trainer = TokenCountingSFTTrainer(
+            model=model,
+            args=training_args,
+            data_collator=collator_fn,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            processing_class=tokenizer_or_processor,
+            peft_config=peft_config,
+            callbacks=[flops_cb],
+        )
+    else:
+        trainer = SFTTrainer(
+            model=model,
+            args=training_args,
+            data_collator=collator_fn,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            processing_class=tokenizer_or_processor,
+            peft_config=peft_config,
+        )
     
     # Print trainable parameters for PEFT
     if trainer.accelerator.is_main_process and peft_config:
