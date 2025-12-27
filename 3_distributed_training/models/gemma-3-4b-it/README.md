@@ -1,4 +1,4 @@
-# Fine-tune Google Gemma-3 4B with DeepSpeed ZeRO-3 on Amazon SageMaker
+# Fine-tune Google Gemma-3 4B with DeepSpeed ZeRO-3 on Amazon SageMaker AI
 
 This example demonstrates how to fine-tune [Google Gemma-3 4B Instruct](https://huggingface.co/google/gemma-3-4b-it) on Amazon SageMaker AI using DeepSpeed ZeRO-3 distributed training strategy.
 
