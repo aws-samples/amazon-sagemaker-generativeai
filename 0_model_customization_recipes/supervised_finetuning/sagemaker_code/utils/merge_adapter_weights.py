@@ -31,8 +31,10 @@ from huggingface_hub import HfApi
 def save_model(model_path_or_id, save_dir, save_tokenizer=True):
   model = AutoPeftModelForCausalLM.from_pretrained(
       model_path_or_id,
-      low_cpu_mem_usage=True,
-      torch_dtype=torch.float16,
+        low_cpu_mem_usage=True,
+        torch_dtype=torch.float16,
+        device_map="auto",
+        trust_remote_code=True, 
   )  
   # Merge LoRA and base model and save
   model = model.merge_and_unload()        
