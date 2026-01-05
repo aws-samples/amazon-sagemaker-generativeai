@@ -6,6 +6,7 @@ torch_dtype: bfloat16
 attn_implementation: flash_attention_2
 bf16: true
 tf32: true
+model_download_location: /opt/ml/input/model
 output_dir: /opt/ml/model/Qwen2.5-0.5B-RL-VR-GRPO
 
 # Dataset arguments
@@ -25,7 +26,7 @@ lora_r: 16
 lora_alpha: 16
 
 # Training arguments
-num_train_epochs: 2
+num_train_epochs: 4
 per_device_train_batch_size: 64
 gradient_accumulation_steps: 2
 gradient_checkpointing: true
