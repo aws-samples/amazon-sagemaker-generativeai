@@ -32,6 +32,8 @@ Small language models (SLMs) on small instances vs. large LLMs:
 - **For high-volume use cases (>10K/day)**, self-hosted models win dramatically
 - **For low-volume (<5K/day)**, Bedrock models may be more cost-effective
 
+*Note*: The cost figures above are based on internal benchmarking and testing under representative workloads. Actual execution costs may vary depending on factors such as model configuration, input size, traffic patterns, regional pricing, and infrastructure utilization. These numbers should be treated as indicative estimates rather than guaranteed or fixed pricing.
+
 ### 3. **No Data Leakage** 🔐
 Critical for security and compliance:
 - **Cannot regurgitate training data**: The model can only outputs class indices (0 or 1)
@@ -126,6 +128,8 @@ Each notebook:
 - **Model Training**: ~\$1.50-\$2.00 (60-75 min on `ml.g5.xlarge`)
 - **Model Deployment**: ~\$1.41/hour (`ml.g5.xlarge` endpoint)
 - **Total for full workflow**: ~\$4-6
+
+*Note*: The cost figures above are based on internal benchmarking and testing under representative workloads. Actual execution costs may vary depending on factors such as model configuration, input size, traffic patterns, regional pricing, and infrastructure utilization. These numbers should be treated as indicative estimates rather than guaranteed or fixed pricing.
 
 ## Use Cases
 
