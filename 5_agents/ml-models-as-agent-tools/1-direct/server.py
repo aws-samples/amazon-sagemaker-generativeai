@@ -14,7 +14,6 @@ async def generate_prediction_with_sagemaker(test_sample: list):
         Returns:
             predictions: an array of predictions
     """ 
-    print(os.environ)
     endpoint_name = os.environ["SAGEMAKER_ENDPOINT_NAME"]
     boto_session = boto3.session.Session(
         aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
