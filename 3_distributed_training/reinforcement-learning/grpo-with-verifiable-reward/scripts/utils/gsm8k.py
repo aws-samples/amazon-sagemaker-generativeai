@@ -6,7 +6,7 @@ from .exemplars import EXAMPLARS
 from datasets import load_dataset
 
 class GSM8K:
-    def __init__(self, split, include_answer=True, include_reasoning=True, few_shot=False, num_shots=8, seed=None, cot=False, template="qa"):
+    def __init__(self, split, include_answer=True, include_reasoning=True, few_shot=False, num_shots=8, seed=None, cot=False):
         self.split = split
         self.include_answer = include_answer
         self.include_reasoning = include_reasoning
