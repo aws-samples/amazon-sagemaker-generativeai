@@ -11,6 +11,7 @@ from distutils.util import strtobool
 import logging
 import os
 from typing import Optional
+import mlflow
 
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 import torch
@@ -79,7 +80,9 @@ def dpo_function(
     #########################
     logger.info(f"Model parameters {model_args}")
     logger.info(f"Training/evaluation parameters {training_args}")
-
+    if 'mlflow' in training_args.report_to:
+        logger.info("Initializing MLflow")
+        mlflow_enabled = True
     ###############
     # Load datasets
     ###############
@@ -95,6 +98,15 @@ def dpo_function(
     logger.info(
         f'Loaded dataset with {len(train_dataset)} samples and the following features: {train_dataset.features}'
     )
+    if mlflow_enabled:
+        logger.info(f"MLflow tracking under: {os.environ.get("MLFLOW_TRACKING_URI",None)}")
+        mlflow.start_run(run_name=os.environ.get("MLFLOW_EXPERIMENT_NAME", None))
+        train_dataset_mlflow = mlflow.data.from_pandas(train_dataset.to_pandas(), name="train_dataset")
+        mlflow.log_input(train_dataset_mlflow, context="train")
+
+        # if test_dataset is not None:
+        #     test_dataset_mlflow = mlflow.data.from_pandas(test_dataset.to_pandas(), name="test_dataset")
+        #     mlflow.log_input(test_dataset_mlflow, context="test")
 
     ################
     # Load tokenizer
@@ -213,7 +225,12 @@ def main():
 
     # Set seed for reproducibility
     set_seed(training_args.seed)
-
+    # if 'mlflow' in training_args.report_to:
+    #     logger.info("Initializing MLflow")
+    #     mlflow.enable_system_metrics_logging()
+    #     mlflow.autolog()
+    #     mlflow.set_tracking_uri(os.environ.get("MLFLOW_TRACKING_URI",None))
+    #     mlflow.set_experiment(os.environ.get("MLFLOW_EXPERIMENT_NAME", None))
     # Run the main training loop
     dpo_function(model_args, script_args, training_args)
 

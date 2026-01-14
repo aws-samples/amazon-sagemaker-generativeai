@@ -15,3 +15,5 @@ huggingface_hub
 vllm
 hf_transfer
 protobuf==5.28.3
+mlflow
+sagemaker-mlflow==0.1.0
