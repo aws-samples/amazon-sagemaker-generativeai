@@ -1,5 +1,5 @@
 # gsm8k.py
-
+# citation: https://github.com/Mohammadjafari80/GSM8K-RLVR/blob/main/gsm8k.py
 import random
 import json
 from .exemplars import EXAMPLARS
