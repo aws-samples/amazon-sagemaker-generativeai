@@ -13,6 +13,7 @@ pip install yq
 export MODEL_ID_OR_LOCATION=$(yq -r ".model_name_or_path" $training_recipe)
 export MODEL_DOWNLOAD_LOCATION=$(yq -r ".model_download_location" $training_recipe)
 export DATASET_LOCAL_LOCATION=$(yq -r ".dataset_local_location" $training_recipe)
+export MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING=true
 
 if [ -n "${HF_token}" ]; then
     huggingface-cli login --token ${HF_token}
