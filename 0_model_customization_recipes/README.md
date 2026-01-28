@@ -610,7 +610,7 @@ These preference optimization techniques are essential for creating models that 
 | meta-llama/Llama-3.2-3B-Instruct | Countdown Game | GRPO | Full | ✅ [Recipe](preference_optimization/grpo/grpo-recipe/sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--oreo-grpo.yaml) | 📓 [Notebook](preference_optimization/grpo/grpo--meta-llama--Llama-3.2-3B-Instruct.ipynb) | Reward-based reasoning optimization |
 | | | | | | | |
 | **🛠️ Tool Calling & Function Execution** | | | | | | |
-| Qwen/Qwen3-0.6B | Financial Tools | GRPO + RLVR | Full | ✅ [Recipe](preference_optimization/grpo_rlvr/sagemaker_code/hf_recipes/Qwen/Qwen3-0.6B--grpo.yaml) | 📓 [Notebook](preference_optimization/grpo_rlvr/finetune-tool-call-grpo-rlvr--Qwen--Qwen3-0.6B.ipynb) | Custom reward function for tool accuracy |
+| Qwen/Qwen3-0.6B | Financial Tools | GRPO + RLVR | Full | ✅ [Recipe](preference_optimization/grpo_rlvr/sagemaker_code/hf_recipes/Qwen/Qwen3-0.6B--grpo.yaml) | 📓 [Notebook](preference_optimization/grpo_rlvr/finetune-tool-call--Qwen--Qwen3-0.6B.ipynb) | Custom reward function for tool accuracy |
 | Qwen/Qwen3-1.7B | Financial Tools | GRPO + RLVR | Full | ✅ [Recipe](preference_optimization/grpo_rlvr/sagemaker_code/hf_recipes/Qwen/Qwen3-1.7B--grpo.yaml) | 📓 [Notebook](preference_optimization/grpo_rlvr/finetune-tool-call--Qwen--Qwen3-1.7B.ipynb) | Custom reward function for tool accuracy |
 
 #### Use Case Descriptions
