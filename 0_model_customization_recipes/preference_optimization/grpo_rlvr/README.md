@@ -169,7 +169,7 @@ def accuracy_reward(completions: List[List[Dict]], answer: List[str], **kwargs) 
 ### Reward Design Tips
 
 - **Sparse rewards** (0.0 or 1.0): Simple but can be slow to learn
-- **Shaped rewards** (0.0 to 1.0): Provide intermediate feedback
+- **Dense rewards** (0.0 to 1.0): Provide intermediate feedback
   - Partial credit for correct tool selection
   - Partial credit for correct argument types
   - Full credit for correct final answer
@@ -366,7 +366,7 @@ The `GRPOTrainer` (in `grpo_trainer_v2.py`):
 ## Tips
 
 1. **Start simple**: Begin with 2-3 tools and exact-match rewards
-2. **Iterate on rewards**: Experiment with shaped rewards for faster learning
+2. **Iterate on rewards**: Experiment with dense rewards for faster learning
 3. **Validate tools**: Test your tool functions independently before training
 4. **Monitor rewards**: Watch mean reward per batch to track learning
 5. **Use clear docstrings**: The model sees your function docstrings as tool descriptions
@@ -383,7 +383,7 @@ The `GRPOTrainer` (in `grpo_trainer_v2.py`):
 
 **Low rewards throughout training**
 - Check that expected answers match tool output format exactly
-- Try shaped rewards with partial credit
+- Try dense rewards with partial credit
 - Verify tools are being called (check logs)
 
 **Model not calling tools**
