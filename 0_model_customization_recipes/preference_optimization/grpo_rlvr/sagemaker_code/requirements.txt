@@ -9,7 +9,7 @@ hf-transfer==0.1.8
 hf_xet
 liger-kernel==0.6.1
 lm-eval[api]==0.4.9
-kernels>=0.9.0
+kernels==0.12.1
 mlflow
 Pillow
 safetensors>=0.6.2
