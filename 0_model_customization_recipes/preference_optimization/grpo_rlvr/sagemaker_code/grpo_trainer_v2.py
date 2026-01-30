@@ -158,11 +158,6 @@ class ScriptArguments:
         metadata={"help": "Path to tokenizer. If None, uses model tokenizer."}
     )
 
-    max_grpo_prompt_length: int = field(
-        default=512,
-        metadata={"help": "Maximum prompt length for generation."}
-    )
-
     max_grpo_completion_length: int = field(
         default=512,
         metadata={"help": "Maximum completion length for generation."}
@@ -603,7 +598,6 @@ def train_function(
         save_steps=training_args.save_steps,
         save_strategy=training_args.save_strategy,
         save_total_limit=training_args.save_total_limit,
-        # max_prompt_length=script_args.max_grpo_prompt_length,
         max_completion_length=script_args.max_grpo_completion_length,
         seed=training_args.seed,
         gradient_checkpointing=training_args.gradient_checkpointing,
