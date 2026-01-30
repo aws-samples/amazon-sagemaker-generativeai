@@ -8,7 +8,7 @@ This script supports:
 - Checkpoint resumption and model saving for deployment
 
 Usage:
-    python grpo_trainer.py --config recipes/Qwen/Qwen3-0.6B--grpo.yaml
+    python3 grpo_trainer.py --config recipes/Qwen/Qwen3-0.6B--grpo.yaml
 """
 
 import importlib
@@ -33,10 +33,6 @@ from transformers.trainer_utils import get_last_checkpoint
 from trl import GRPOTrainer, GRPOConfig, TrlParser, ModelConfig
 
 
-# =============================================================================
-# LOGGING CONFIGURATION
-# =============================================================================
-
 def setup_logging() -> logging.Logger:
     """Set up logging configuration for the training script."""
     logging.basicConfig(
@@ -49,10 +45,6 @@ def setup_logging() -> logging.Logger:
 
 logger = setup_logging()
 
-
-# =============================================================================
-# FUNCTION INSPECTION UTILITIES
-# =============================================================================
 
 def print_function_details(func: Callable, label: str = "Function") -> None:
     """
@@ -133,10 +125,6 @@ def print_loaded_functions(
     logger.info("=" * 70)
 
 
-# =============================================================================
-# SCRIPT ARGUMENTS
-# =============================================================================
-
 @dataclass
 class ScriptArguments:
     """Custom arguments for GRPO training scripts."""
@@ -180,10 +168,6 @@ class ScriptArguments:
         metadata={"help": "Maximum completion length for generation."}
     )
 
-
-# =============================================================================
-# TOOL FUNCTION LOADING
-# =============================================================================
 
 def load_tool_functions_from_file(file_path: str) -> List[Callable]:
     """
@@ -261,10 +245,6 @@ def load_tool_functions(module_path: str) -> List[Callable]:
         "Please define TOOL_FUNCTIONS = [func1, func2, ...] in your module."
     )
 
-
-# =============================================================================
-# REWARD FUNCTIONS
-# =============================================================================
 
 def accuracy_reward(completions: List[List[Dict]], answer: List[str], **kwargs) -> List[float]:
     """
@@ -354,10 +334,6 @@ def load_reward_function_from_file(file_path: str) -> Callable:
     return reward_func
 
 
-# =============================================================================
-# DATASET LOADING
-# =============================================================================
-
 def load_training_dataset(script_args: ScriptArguments) -> Dataset:
     """
     Load training dataset based on script arguments.
@@ -388,10 +364,6 @@ def load_training_dataset(script_args: ScriptArguments) -> Dataset:
         logger.error(f"Failed to load dataset: {e}")
         raise
 
-
-# =============================================================================
-# TOKENIZER SETUP
-# =============================================================================
 
 def setup_tokenizer(
     script_args: ScriptArguments,
@@ -427,10 +399,6 @@ def setup_tokenizer(
 
     return tokenizer
 
-
-# =============================================================================
-# MODEL LOADING
-# =============================================================================
 
 def create_model_kwargs(
     model_args: ModelConfig,
@@ -490,10 +458,6 @@ def load_model(
     return model
 
 
-# =============================================================================
-# CHECKPOINT HANDLING
-# =============================================================================
-
 def get_checkpoint_path(training_args: GRPOConfig) -> Optional[str]:
     """
     Get the path to the last checkpoint if it exists.
@@ -511,10 +475,6 @@ def get_checkpoint_path(training_args: GRPOConfig) -> Optional[str]:
         return checkpoint
     return None
 
-
-# =============================================================================
-# MODEL SAVING
-# =============================================================================
 
 def get_model_save_directory(model_name: str) -> str:
     """
@@ -570,10 +530,6 @@ def save_model(
 
     return final_model_dir
 
-
-# =============================================================================
-# TRAINING FUNCTION
-# =============================================================================
 
 def train_function(
     model_args: ModelConfig,
@@ -707,10 +663,6 @@ def train_function(
     logger.info(f"Training completed successfully in {training_duration}")
     logger.info("=" * 50)
 
-
-# =============================================================================
-# MAIN ENTRY POINT
-# =============================================================================
 
 def main() -> None:
     """
