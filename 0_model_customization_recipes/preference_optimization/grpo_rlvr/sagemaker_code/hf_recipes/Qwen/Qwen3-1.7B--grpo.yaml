@@ -1,0 +1,27 @@
+model_name_or_path: Qwen/Qwen3-1.7B
+model_revision: main
+dtype: bfloat16
+attn_implementation: kernels-community/flash-attn2
+trust_remote_code: true
+output_dir: /opt/ml/checkpoints/Qwen/Qwen3-1.7B/grpo-rlvr/
+
+dataset_id_or_path: /opt/ml/input/data/training/grpo_financial_train.jsonl
+
+# Generation settings
+num_generations: 8
+max_grpo_completion_length: 512
+learning_rate: 1.0e-6
+lr_scheduler_type: "constant"
+warmup_ratio: 0.1
+num_train_epochs: 15
+per_device_train_batch_size: 2
+gradient_accumulation_steps: 4
+gradient_checkpointing: true
+save_strategy: "steps"
+save_steps: 25
+save_total_limit: 10
+logging_steps: 1
+report_to:
+  - "mlflow"
+seed: 42
+
