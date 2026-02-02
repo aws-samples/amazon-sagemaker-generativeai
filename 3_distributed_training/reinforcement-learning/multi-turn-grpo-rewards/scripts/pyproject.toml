@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "verifiers"
+version = "0.1.0"
+description = "Verifiers for reinforcement learning with LLMs"
+authors = [
+  { name = "Siliang Zeng", email = "zeng0176@umn.edu" }
+]
+license = { text = "MIT" }
+requires-python = ">=3.11"
+
+dependencies = [
+  "torch==2.5.1",
+  "transformers==4.49.0",
+  "deepspeed",
+  "accelerate",
+  "peft",
+  "wandb",
+  "rich",
+  "duckduckgo-search",
+  "liger-kernel",
+  "vllm",
+  "brave-search",
+  "pyserini",
+  "trl @ git+https://github.com/huggingface/trl.git@fc4dae256d924dfbb906af9c2e817bc6fb7b590b"
+]
+
+[tool.setuptools]
+package-dir = { "" = "." }
+packages = ["verifiers"]

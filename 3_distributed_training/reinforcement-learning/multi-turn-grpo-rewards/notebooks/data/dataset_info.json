@@ -1,0 +1,15 @@
+{
+  "name": "trivia_qa",
+  "config": "rc",
+  "source": "mandarjoshi/trivia_qa",
+  "split": "train",
+  "num_examples": 1000,
+  "features": [
+    "question",
+    "question_id",
+    "question_source",
+    "entity_pages",
+    "search_results",
+    "answer"
+  ]
+}
