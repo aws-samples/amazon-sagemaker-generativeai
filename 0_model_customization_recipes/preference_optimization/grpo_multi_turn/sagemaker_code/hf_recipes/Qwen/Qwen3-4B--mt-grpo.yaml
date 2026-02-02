@@ -1,0 +1,34 @@
+model_name_or_path: Qwen/Qwen3-4B
+model_revision: main
+torch_dtype: bfloat16
+attn_implementation: kernels-community/vllm-flash-attn3
+trust_remote_code: true
+output_dir: /opt/ml/output/Qwen/Qwen3-4B/mt-grpo/
+dataset_name: triviaqa
+
+
+max_prompt_length: 512
+max_completion_length: 512
+
+num_generations: 7
+max_env_steps: 5 
+turn_advantage_coef: 1.0
+learning_rate: 1.0e-6
+lr_scheduler_type: constant
+warmup_ratio: 0.1
+num_train_epochs: 10
+max_steps: 500
+per_device_train_batch_size: 2
+gradient_accumulation_steps: 2
+gradient_checkpointing: true
+beta: 0.01
+num_iterations: 2
+save_strategy: steps
+save_steps: 50
+save_total_limit: 3
+logging_steps: 1
+report_to:
+  - mlflow
+seed: 42
+vllm_server_host: "0.0.0.0"
+vllm_server_port: 8000
