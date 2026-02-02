@@ -49,6 +49,8 @@ This repository provides a comprehensive framework for model customization on Am
 
 - **🔄 End-to-End Automation**: Post-training pipeline automatically merges PEFT adapters with base models, runs vLLM-powered batch inference, and executes comprehensive evaluation harnesses—all within the same training job. Deploy-ready models with zero manual intervention.
 
+- **📊 EU AI Act Compliance (Experimental)**: Optional FLOPS (Floating Point Operations) calculation during training to support EU AI Act requirements. Enable with `compute_flops: true` in your recipe configuration to track computational resources used during model fine-tuning.
+
 ## Model Customization on Amazon SageMaker AI
 
 ![SageMaker Recipe Flow](supervised_finetuning/media/recipe-flow.png)
@@ -541,6 +543,62 @@ Below is a breakdown of the core sections and how they should be customized.
 
 
 See Appendix for detailed information on parameters and descriptions.
+
+##### FLOPS Calculation for EU AI Act Compliance (Experimental)
+
+The framework includes optional FLOPS (Floating Point Operations) measurement capabilities to support EU AI Act transparency and documentation requirements. This feature tracks computational resources used during fine-tuning.
+
+**Enabling FLOPS Calculation:**
+
+Add the following to your recipe YAML file:
+
+```yaml
+# EU AI Act Compliance (Optional)
+compute_flops: true
+```
+
+**Environment Variables:**
+
+- `PRETRAIN_FLOPS`: (Optional) Pretraining FLOPS value for comparison threshold calculations
+- `FLOPS_METER_NVML`: Set to "1" (default) to enable hardware-based FLOPS sampling via NVML
+- `FLOPS_METER_OUT`: Custom output path for FLOPS metrics JSON file
+
+**Output:**
+
+When enabled, the training job generates a `flops_meter.json` file containing:
+- Architectural FLOPS (analytical calculation based on model operations)
+- Hardware FLOPS (measured from GPU utilization)
+- Token processing statistics
+- Training duration and resource utilization
+- Comparison against pretraining thresholds (if provided)
+
+**Example Output:**
+
+```json
+{
+  "Flops_architecture": "1.45e+13",
+  "Flops_hardware": "1.52e+15",
+  "Flops_original": "8.70e+22",
+  "N_total": 1585294704,
+  "N_trainable": 680094720,
+  "threshold_type": "default_3.3e22",
+  "threshold_value": "3.30e+22",
+  "tokens_processed": 2150,
+}
+```
+
+**Example Recipe Configuration:**
+
+```yaml
+model_name_or_path: meta-llama/Llama-3.2-3B-Instruct
+dataset_id_or_path: your-dataset.jsonl
+use_peft: true
+compute_flops: true  # Enable FLOPS calculation
+
+# ... rest of your configuration
+```
+
+**Note:** This is an experimental feature designed for European Union customers who need to document computational resources for regulatory compliance. It adds minimal overhead to training and can be safely disabled for non-EU deployments.
 
 ##### Generating a Spectrum Configuration File
 
