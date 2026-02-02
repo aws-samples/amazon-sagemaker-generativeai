@@ -19,7 +19,10 @@
                 - [Example: Minimal Template for a New Recipe](#example-minimal-template-for-a-new-recipe)
                 - [Generating a Spectrum Configuration File](#generating-a-spectrum-configuration-file)
             - [Troubleshooting](#troubleshooting)
-        - [WIP Preference Optimization](#wip-preference-optimization)
+        - [Preference Optimization](#preference-optimization)
+            - [Available Preference Optimization Recipes](#available-preference-optimization-recipes)
+            - [Use Case Descriptions](#use-case-descriptions)
+            - [Key Features](#key-features)
     - [Running Locally on an EC2/Self-Managed Instance](#running-locally-on-an-ec2self-managed-instance)
     - [License](#license)
     - [Support](#support)
@@ -643,26 +646,48 @@ python spectrum.py --model-name <insert local or HF repo here> --top-percent <to
 - Validate output directory permissions and paths
   
 
-### (WIP) Preference Optimization
+### Preference Optimization
 
-Preference Optimization represents the next frontier in model alignment, focusing on training models to generate outputs that align with human preferences and values. Unlike supervised fine-tuning which learns from demonstrations, preference optimization learns from comparative feedback, making models more helpful, harmless, and honest.
+Preference Optimization represents the next frontier in model alignment, focusing on training models to generate outputs that align with human preferences, values, and task-specific objectives. Unlike supervised fine-tuning which learns from demonstrations, preference optimization learns from comparative feedback and reward signals, making models more helpful, harmless, and capable of complex behaviors like tool calling and reasoning.
 
 **Direct Preference Optimization (DPO)** revolutionizes the traditional RLHF pipeline by directly optimizing the model on preference data without requiring a separate reward model. This approach simplifies the training process while maintaining effectiveness, making it more stable and computationally efficient. DPO works by directly optimizing the policy to increase the likelihood of preferred responses while decreasing the likelihood of rejected ones, using a reference model to prevent over-optimization.
 
-**Group Relative Policy Optimization (GRPO)** extends preference optimization to handle group-based preferences and multi-objective alignment. This approach is particularly valuable when dealing with diverse user groups or when optimizing for multiple, potentially conflicting objectives simultaneously. GRPO enables more nuanced preference learning that can adapt to different contexts and user populations.
+**Group Relative Policy Optimization (GRPO)** extends preference optimization to handle group-based preferences and multi-objective alignment. This approach is particularly valuable when dealing with diverse user groups or when optimizing for multiple, potentially conflicting objectives simultaneously. GRPO enables more nuanced preference learning that can adapt to different contexts and user populations. When combined with custom reward functions, GRPO can optimize models for specialized capabilities like tool calling, mathematical reasoning, or domain-specific tasks.
 
-These preference optimization techniques are essential for creating models that not only perform well on benchmarks but also generate outputs that users find genuinely helpful and aligned with their values and expectations.
+**Reinforcement Learning with Verifiable Rewards (RLVR)** provides a framework for training models on tasks with verifiable correctness criteria. By combining GRPO with custom reward functions that evaluate task-specific success (e.g., correct tool invocation, accurate calculations, valid API calls), RLVR enables models to learn complex behaviors through trial and error with immediate feedback.
 
-| Model | DPO | GRPO | Notes |
-|-------|-----|------|-------|
-| | | | |
-| **🔮 Qwen (Alibaba)** | | | |
-| Qwen/Qwen2.5-3B-Instruct| | ✅ [GRPO](preference_optimization/grpo/grpo-recipe/sagemaker_code/hf_recipes/qwen/Qwen-2.5-3B-Instruct--oreo-grpo.yaml)| Countdown game reward function |
-| | | | |
-| **🦙 Meta (Llama)** | | | | | | | |
-| meta-llama/Llama-3.2-3B-Instruct | | ✅ [GRPO](preference_optimization/grpo/grpo-recipe/sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--oreo-grpo.yaml) | Countdown game reward function |
-| | | | |
-| **🚧 More Models Coming Soon** | ⏳ | ⏳ | Preference optimization recipes in development |
+These preference optimization techniques are essential for creating models that not only perform well on benchmarks but also generate outputs that users find genuinely helpful and aligned with their values and task requirements.
+
+#### Available Preference Optimization Recipes
+
+| Model | Use Case | Method | Training Strategy | Recipe | Notebook | Notes |
+|-------|----------|--------|-------------------|--------|----------|-------|
+| | | | | | | |
+| **🎮 Game-Based Reasoning** | | | | | | |
+| Qwen/Qwen2.5-3B-Instruct | Countdown Game | GRPO | Full | ✅ [Recipe](preference_optimization/grpo/grpo-recipe/sagemaker_code/hf_recipes/qwen/Qwen-2.5-3B-Instruct--oreo-grpo.yaml) | 📓 [Notebook](preference_optimization/grpo/grpo--qwen--Qwen-2.5-3B-Instruct.ipynb) | Reward-based reasoning optimization |
+| meta-llama/Llama-3.2-3B-Instruct | Countdown Game | GRPO | Full | ✅ [Recipe](preference_optimization/grpo/grpo-recipe/sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--oreo-grpo.yaml) | 📓 [Notebook](preference_optimization/grpo/grpo--meta-llama--Llama-3.2-3B-Instruct.ipynb) | Reward-based reasoning optimization |
+| | | | | | | |
+| **🛠️ Tool Calling & Function Execution** | | | | | | |
+| Qwen/Qwen3-0.6B | Financial Tools | GRPO + RLVR | Full | ✅ [Recipe](preference_optimization/grpo_rlvr/sagemaker_code/hf_recipes/Qwen/Qwen3-0.6B--grpo.yaml) | 📓 [Notebook](preference_optimization/grpo_rlvr/finetune-tool-call--Qwen--Qwen3-0.6B.ipynb) | Custom reward function for tool accuracy |
+| Qwen/Qwen3-1.7B | Financial Tools | GRPO + RLVR | Full | ✅ [Recipe](preference_optimization/grpo_rlvr/sagemaker_code/hf_recipes/Qwen/Qwen3-1.7B--grpo.yaml) | 📓 [Notebook](preference_optimization/grpo_rlvr/finetune-tool-call--Qwen--Qwen3-1.7B.ipynb) | Custom reward function for tool accuracy |
+
+#### Use Case Descriptions
+
+**Game-Based Reasoning**: Train models to solve complex reasoning tasks through reward-based optimization. The countdown game example demonstrates how GRPO can teach models to follow rules, plan ahead, and optimize for specific objectives.
+
+**Tool Calling & Function Execution**: Fine-tune models to accurately invoke tools and APIs with correct parameters. The financial tools example shows how GRPO+RLVR can optimize models for precise function calling, parameter extraction, and error handling in domain-specific applications.
+
+**General Alignment** (Coming Soon): Standard preference optimization for making models more helpful, harmless, and honest through human feedback data.
+
+**Multi-Objective Optimization** (Coming Soon): Train models to balance multiple objectives simultaneously, such as accuracy, safety, and efficiency.
+
+#### Key Features
+
+- **Custom Reward Functions**: Define task-specific reward signals for specialized behaviors
+- **Verifiable Correctness**: RLVR framework validates outputs against ground truth
+- **Full Fine-tuning Support**: Update all model parameters for maximum adaptation
+- **Production-Ready**: Built on TRL (Transformers Reinforcement Learning) library
+- **Extensible**: Easy to add new reward functions and use cases
 
 
 ## Running Locally on an EC2/Self-Managed Instance
