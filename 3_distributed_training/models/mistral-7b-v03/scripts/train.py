@@ -175,13 +175,24 @@ class ModelConfigBuilder:
 
     def build_model_kwargs(self) -> Dict[str, Any]:
         """Build complete model loading arguments."""
-        model_kwargs = {
-            "attn_implementation": self.script_args.attn_implementation,
-            "torch_dtype": self.torch_dtype,
-            "use_cache": not self.training_args.gradient_checkpointing,
-            "trust_remote_code": True,
-            "cache_dir": "/tmp/.cache",
-        }
+        if (
+            self.script_args.attn_implementation is not None
+            and self.script_args.attn_implementation != ""
+        ):
+            model_kwargs = {
+                "attn_implementation": self.script_args.attn_implementation,
+                "dtype": self.torch_dtype,
+                "use_cache": not self.training_args.gradient_checkpointing,
+                "trust_remote_code": True,
+                "cache_dir": "/tmp/.cache",
+            }
+        else:
+            model_kwargs = {
+                "dtype": self.torch_dtype,
+                "use_cache": not self.training_args.gradient_checkpointing,
+                "trust_remote_code": True,
+                "cache_dir": "/tmp/.cache",
+            }
 
         # Set low_cpu_mem_usage based on DeepSpeed usage
         if not self.use_deepspeed:
@@ -493,22 +504,43 @@ def calculate_optimal_max_length(
     script_args: ScriptArguments,
     sample_size: int = 1000,
     percentile: float = 0.95,
+    max_absolute_length: int = 32768,  # Hard cap to prevent extreme outliers
 ) -> int:
     """Calculate optimal max_length by tokenizing a sample of the dataset."""
     sample_indices = torch.randperm(len(dataset))[: min(sample_size, len(dataset))]
     sample_data = dataset.select(sample_indices)
 
     token_lengths = []
+    outliers_removed = 0
+
     for sample in sample_data:
-        tokens = tokenizer(sample[script_args.text_field], add_special_tokens=True)[
-            "input_ids"
-        ]
-        token_lengths.append(len(tokens))
+        text = sample[script_args.text_field]
+
+        # Skip extremely long samples that cause NaN
+        if len(text) > 100000:  # Character-level filter
+            outliers_removed += 1
+            continue
+
+        tokens = tokenizer(text, add_special_tokens=True)["input_ids"]
+        token_len = len(tokens)
+
+        # Cap at max_absolute_length
+        if token_len > max_absolute_length:
+            outliers_removed += 1
+            continue
+
+        token_lengths.append(token_len)
+
+    if not token_lengths:
+        logger.warning("No valid samples found, using default max_length=2048")
+        return 2048
 
     avg_length = sum(token_lengths) / len(token_lengths)
     max_length = int(sorted(token_lengths)[int(percentile * len(token_lengths))])
 
-    logger.info(f"Analyzed {len(token_lengths)} samples")
+    logger.info(
+        f"Analyzed {len(token_lengths)} samples ({outliers_removed} outliers removed)"
+    )
     logger.info(f"Average token length: {avg_length:.1f}")
     logger.info(f"{percentile*100}th percentile token length: {max_length}")
 
@@ -522,7 +554,25 @@ def prepare_dataset(
     test_ds: Optional[Dataset] = None,
 ):
     """Prepare the dataset for training with optimal tokenization."""
+
     if script_args.apply_truncation:
+        # Filter extreme outliers before calculating max_length
+        logger.info(f"Original training samples: {len(train_ds)}")
+        lengths = [len(x[script_args.text_field]) for x in train_ds]
+        threshold = sorted(lengths)[int(0.995 * len(lengths))]
+        logger.info(f"Filtering samples > {threshold} characters (99.5th percentile)")
+        train_ds = train_ds.filter(
+            lambda x: len(x[script_args.text_field]) <= threshold
+        )
+        logger.info(f"Filtered training samples: {len(train_ds)}")
+
+        if test_ds is not None:
+            logger.info(f"Original test samples: {len(test_ds)}")
+            test_ds = test_ds.filter(
+                lambda x: len(x[script_args.text_field]) <= threshold
+            )
+            logger.info(f"Filtered test samples: {len(test_ds)}")
+
         if script_args.max_length is None:
             max_length = calculate_optimal_max_length(tokenizer, train_ds, script_args)
         else:
