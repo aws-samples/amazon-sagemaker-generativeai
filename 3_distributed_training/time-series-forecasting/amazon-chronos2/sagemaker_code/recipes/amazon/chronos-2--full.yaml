@@ -1,0 +1,28 @@
+# Chronos-2 Full Fine-Tuning Recipe
+# Model arguments
+model_name_or_path: amazon/chronos-2
+device_map: cuda
+
+# Dataset arguments
+dataset_path: /opt/ml/input/data/training/
+dataset_file: train.jsonl
+validation_split: 0.1
+
+# Training arguments
+prediction_length: 24
+context_length: null  # Uses model default (8192)
+finetune_mode: full
+learning_rate: 1.0e-5
+num_steps: 5000
+batch_size: 32
+min_past: null  # Defaults to prediction_length
+seed: 42
+
+# Output arguments
+output_dir: /opt/ml/checkpoints/amazon/chronos-2/full-finetuning/
+finetuned_ckpt_name: chronos-2-full-ckpt
+
+# MLflow arguments
+mlflow_experiment_name: chronos2-finetuning
+run_name: chronos-2-full-finetune
+logging_steps: 100
