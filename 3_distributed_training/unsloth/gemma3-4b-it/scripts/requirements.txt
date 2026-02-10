@@ -1,5 +1,5 @@
 --extra-index-url https://download.pytorch.org/whl/cu128
-torch==2.7.0
+torch==2.7.1+cu128
 torchvision==0.22.0
 torchaudio==2.7.0
 unsloth==2025.5.4
