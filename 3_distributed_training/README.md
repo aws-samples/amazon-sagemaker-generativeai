@@ -1,38 +1,81 @@
 # Distributed Training on Amazon SageMaker
 
-This directory contains examples of distributed training implementations for Large Language Models (LLMs) on Amazon SageMaker. Each example demonstrates different approaches and frameworks for efficient distributed training.
+This directory contains examples of distributed training implementations on Amazon SageMaker. Examples are organized by training technique, model, or domain.
+
+## Repository Structure
+
+```
+3_distributed_training/
+├── models/                          # LLM fine-tuning examples by model
+├── reinforcement-learning/          # RL techniques (GRPO, DPO)
+├── diffusers/                       # Image generation fine-tuning
+├── spectrum_finetuning/             # Spectrum selective layer freezing
+├── unsloth/                         # Unsloth fine-tuning
+├── time-series-forecasting/         # Time series models
+└── distributed_training_sm_unified_studio/  # SageMaker Unified Studio
+```
+
+## Contributing
+
+When adding a new example, place it in the appropriate folder:
+
+- **Model-specific LLM fine-tuning** → `models/<model-name>/`
+- **RL technique** → `reinforcement-learning/<algorithm>/<framework>/`
+- **Framework/technique callout** → top-level folder (e.g. `unsloth/`, `spectrum_finetuning/`)
+- **Domain-specific** (images, time series, etc.) → dedicated folder (e.g. `diffusers/`, `time-series-forecasting/`)
+
+Each example should include:
+
+- A `README.md` with prerequisites, setup instructions, and description
+- A notebook (`.ipynb`) or launch script as the main entry point
+- Any required scripts, Dockerfiles, or configuration files
 
 ## Examples
 
-### 1. SageMaker Unified Studio
+### 1. LLM Fine-Tuning by Model
 
-- [Distributed Training in SageMaker Studio](distributed_training_sm_unified_studio/README.md) - Example showing how to use SageMaker's distributed training capabilities directly from SageMaker Unified Studio.
+Examples demonstrating distributed fine-tuning with different parallelism strategies (DDP, FSDP, DeepSpeed).
 
-### 2. Fully-Sharded Data Parallel (FSDP)
+| Model                       | Techniques                | Link                                                                      |
+| --------------------------- | ------------------------- | ------------------------------------------------------------------------- |
+| DeepSeek-R1-Distill-Qwen-7B | veRL + Ray GRPO           | [models/deepseek-r1-distill-qwen-7b](models/deepseek-r1-distill-qwen-7b/) |
+| Gemma-3-4B-IT               | DeepSpeed Zero3           | [models/gemma-3-4b-it](models/gemma-3-4b-it/)                             |
+| Meta-Llama-3.1-8B           | SFT                       | [models/meta-llama-3.1-8b](models/meta-llama-3.1-8b/)                     |
+| Mistral-7B-v0.3             | DDP, FSDP, DeepSpeed      | [models/mistral-7b-v03](models/mistral-7b-v03/)                           |
+| OpenAI GPT-OSS              | FSDP, DeepSpeed, HyperPod | [models/openai--gpt-oss](models/openai--gpt-oss/)                         |
+| Qwen3-0.6B                  | DDP, FSDP                 | [models/qwen3-0.6b](models/qwen3-0.6b/)                                   |
 
-- [FSDP](fsdp/README.md) - Examples showing how to use Hugging Face FSDP distributed training capabilities with SageMaker Training Job
+### 2. Reinforcement Learning
 
-### 3. Reinforcement Learning
+#### GRPO (Generalized Reinforcement Policy Optimization)
 
-#### Direct Preference Optimization (DPO)
+| Framework | Description                                | Link                                                                        |
+| --------- | ------------------------------------------ | --------------------------------------------------------------------------- |
+| TRL       | Accelerate and Torchrun with FSDP          | [reinforcement-learning/grpo/trl](reinforcement-learning/grpo/trl/)         |
+| Unsloth   | Efficient training with 4-bit quantization | [reinforcement-learning/grpo/unsloth](reinforcement-learning/grpo/unsloth/) |
+| veRL      | Single-node and multi-node (Ray) setups    | [reinforcement-learning/grpo/veRL](reinforcement-learning/grpo/veRL/)       |
 
-- [DPO with TRL](reinforcement-learning/dpo/trl/README.md) - Implementation of Direct Preference Optimization using Hugging Face's TRL library.
+#### DPO (Direct Preference Optimization)
 
-#### Generative Reward Penalized Optimization (GRPO)
+- [DPO with TRL](reinforcement-learning/dpo/trl/) - DPO using Hugging Face's TRL library.
 
-- [GRPO with TRL](reinforcement-learning/grpo/trl/README.md) - Implementation of GRPO using Hugging Face's TRL library with different distributed training approaches:
-  - Accelerate-based implementation for simplified distributed training
-  - Torchrun-based implementation with FSDP support
-- [GRPO with Unsloth](reinforcement-learning/grpo/unsloth/README.md) - GRPO implementation using the Unsloth framework for efficient training with 4-bit quantization.
-- [GRPO with veRL](reinforcement-learning/grpo/veRL/README.md) - Advanced GRPO implementation using the veRL framework with support for:
-  - Ray-based distribution
-  - Megatron model parallelism
-  - FSDP (Fully Sharded Data Parallel)
-  - Multiple reward functions
+### 3. Diffusers
 
-### 4. Unsloth Fine-tuning Examples
+- [FLUX.1-dev DreamBooth LoRA](diffusers/flux.1-dev/) - Fine-tune FLUX.1-dev with DreamBooth LoRA using Hugging Face Diffusers.
 
-- [Instruction Fine-tuning Example 1](unsloth/instruct-fine-tuning-example-1/README.md) - Example of instruction fine-tuning using Unsloth.
-- [Instruction Fine-tuning Example 2](unsloth/instruct-fine-tuning-example-2/README.md) - Additional example demonstrating Unsloth's capabilities for instruction fine-tuning.
+### 4. Spectrum Fine-Tuning
 
-Each example includes detailed documentation and instructions for setting up and running distributed training jobs on Amazon SageMaker.
+- [Spectrum Fine-Tuning](spectrum_finetuning/) - Selective layer freezing based on Signal-to-Noise Ratio analysis. Example with Qwen3-8B.
+
+### 5. Unsloth Fine-Tuning
+
+- [Qwen2.5-7B-Instruct](unsloth/qwen2.5-7b-instruct/) - Instruction fine-tuning with custom Docker container.
+- [Gemma3-4B-IT](unsloth/gemma3-4b-it/) - Instruction fine-tuning with uv-based setup.
+
+### 6. Time Series Forecasting
+
+- [Amazon Chronos 2](time-series-forecasting/amazon-chronos2/) - Deploy and fine-tune Amazon Chronos 2 for time series forecasting.
+
+### 7. SageMaker Unified Studio
+
+- [Distributed Training in Unified Studio](distributed_training_sm_unified_studio/) - Distributed training from SageMaker Unified Studio.
