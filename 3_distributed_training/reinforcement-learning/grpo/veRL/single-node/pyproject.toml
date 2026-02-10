@@ -45,6 +45,6 @@ dependencies = [
     "transformers[hf-xet]>=4.51.0",
     "uvicorn>=0.34.2",
     "verl>=0.3.0.post1",
-    "vllm==0.8.3",
+    "vllm==0.14.1",
     "wandb>=0.19.11",
 ]
