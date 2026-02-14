@@ -15,7 +15,7 @@ Pillow
 safetensors>=0.6.2
 sagemaker==2.251.1
 sagemaker-mlflow==0.1.0
-sentencepiece==0.2.0
+sentencepiece==0.2.1
 tokenizers>=0.21.4
 triton
 tensorboard
