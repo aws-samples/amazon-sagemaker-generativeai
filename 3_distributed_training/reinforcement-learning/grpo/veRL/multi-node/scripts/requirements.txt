@@ -1,0 +1,7 @@
+mlflow
+sagemaker-mlflow==0.1.0
+scikit-learn==1.6.1
+transformers[hf_xet]==4.47.1
+trl==0.17.0
+psutil
+py7zr
