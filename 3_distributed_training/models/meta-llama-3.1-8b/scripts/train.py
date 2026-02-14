@@ -12,6 +12,9 @@ from peft import (
     LoraConfig,
     get_peft_model,
 )
+import subprocess
+import sys
+import textwrap
 import torch
 import torch.distributed as dist
 from transformers import (
@@ -181,14 +184,14 @@ class ModelConfigBuilder:
         ):
             model_kwargs = {
                 "attn_implementation": self.script_args.attn_implementation,
-                "dtype": self.torch_dtype,
+                "torch_dtype": self.torch_dtype,
                 "use_cache": not self.training_args.gradient_checkpointing,
                 "trust_remote_code": True,
                 "cache_dir": "/tmp/.cache",
             }
         else:
             model_kwargs = {
-                "dtype": self.torch_dtype,
+                "torch_dtype": self.torch_dtype,
                 "use_cache": not self.training_args.gradient_checkpointing,
                 "trust_remote_code": True,
                 "cache_dir": "/tmp/.cache",
@@ -422,58 +425,146 @@ def setup_trainer(
     )
 
 
+def _merge_adapter_in_process(
+    temp_dir: str, final_output_dir: str
+) -> AutoModelForCausalLM:
+    """Merge LoRA adapter in the current process (for FSDP/DDP)."""
+    with gpu_memory_manager():
+        model = AutoPeftModelForCausalLM.from_pretrained(
+            temp_dir,
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+            trust_remote_code=True,
+        )
+        model = model.merge_and_unload()
+        model.save_pretrained(
+            final_output_dir, safe_serialization=True, max_shard_size="2GB"
+        )
+        return model
+
+
+def _merge_adapter_via_subprocess(temp_dir: str, final_output_dir: str) -> None:
+    """Merge LoRA adapter in a clean subprocess to avoid DeepSpeed env conflicts."""
+    merge_script = textwrap.dedent(
+        f"""\
+        import torch
+        from peft import AutoPeftModelForCausalLM
+
+        print("Loading adapter for merging...")
+        model = AutoPeftModelForCausalLM.from_pretrained(
+            "{temp_dir}",
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+            trust_remote_code=True,
+        )
+
+        print("Merging LoRA weights...")
+        model = model.merge_and_unload()
+
+        print("Saving merged model...")
+        model.save_pretrained(
+            "{final_output_dir}",
+            safe_serialization=True,
+            max_shard_size="2GB",
+        )
+
+        print("Merge complete!")
+    """
+    )
+
+    clean_env = {
+        k: v
+        for k, v in os.environ.items()
+        if "DEEPSPEED" not in k and "ACCELERATE" not in k
+    }
+
+    result = subprocess.run(
+        [sys.executable, "-c", merge_script],
+        env=clean_env,
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        logger.error(f"Merge subprocess failed: {result.stderr}")
+        raise RuntimeError(f"Merge failed: {result.stderr}")
+
+    logger.info(f"Merge subprocess output: {result.stdout}")
+
+
+def _detect_distributed_strategy(trainer: Trainer) -> Tuple[bool, bool]:
+    """Detect whether DeepSpeed or FSDP is active."""
+    use_deepspeed = (
+        hasattr(trainer.accelerator.state, "deepspeed_plugin")
+        and trainer.accelerator.state.deepspeed_plugin is not None
+    )
+    use_fsdp = trainer.is_fsdp_enabled
+    return use_deepspeed, use_fsdp
+
+
 def save_model(
     trainer: Trainer,
     model: AutoModelForCausalLM,
     tokenizer: AutoTokenizer,
     script_args: ScriptArguments,
-    training_args: TrainingArguments,
     accelerator: Accelerator,
     mlflow_enabled: bool,
     final_output_dir: str,
 ) -> None:
-    """Save the trained model."""
-    if trainer.is_fsdp_enabled:
+    """Save the trained model with proper DeepSpeed ZeRO-3 handling and online merging."""
+    logger.info("STARTING MODEL SAVE PROCESS")
+
+    accelerator.wait_for_everyone()
+
+    use_deepspeed, use_fsdp = _detect_distributed_strategy(trainer)
+    logger.info(f"Distributed strategy - DeepSpeed: {use_deepspeed}, FSDP: {use_fsdp}")
+
+    if use_fsdp:
         trainer.accelerator.state.fsdp_plugin.set_state_dict_type("FULL_STATE_DICT")
 
     if script_args.use_peft and script_args.merge_weights:
-        temp_dir = "/tmp/model"
-        trainer.model.save_pretrained(temp_dir, safe_serialization=False)
+        temp_dir = "/tmp/adapter_temp"
+        os.makedirs(temp_dir, exist_ok=True)
 
-        if accelerator.is_main_process:
-            # Use context manager for proper cleanup
-            with gpu_memory_manager():
-                # Clean up trainer and model before loading merged model
-                del model, trainer
+        if use_deepspeed:
+            # Trainer.save_model handles ZeRO-3 state dict gathering
+            trainer.save_model(temp_dir)
+            accelerator.wait_for_everyone()
 
-                # Load and merge model
-                model = AutoPeftModelForCausalLM.from_pretrained(
-                    temp_dir,
-                    torch_dtype=torch.float16,
-                    low_cpu_mem_usage=True,
-                    trust_remote_code=True,
-                )
-                model = model.merge_and_unload()
-
-                # Save merged model to final output directory
-                model.save_pretrained(
-                    final_output_dir, safe_serialization=True, max_shard_size="2GB"
-                )
-
-                # Save tokenizer and register merged model
+            if accelerator.is_main_process:
+                torch.cuda.empty_cache()
+                _merge_adapter_via_subprocess(temp_dir, final_output_dir)
                 tokenizer.save_pretrained(final_output_dir)
-
                 if mlflow_enabled:
-                    register_model_in_mlflow(model, tokenizer, script_args)
+                    logger.info(
+                        "Skipping MLflow registration (model merged in subprocess)"
+                    )
+        else:
+            trainer.model.save_pretrained(temp_dir, safe_serialization=False)
+            accelerator.wait_for_everyone()
+
+            if accelerator.is_main_process:
+                del model, trainer
+                merged_model = _merge_adapter_in_process(temp_dir, final_output_dir)
+                tokenizer.save_pretrained(final_output_dir)
+                if mlflow_enabled:
+                    register_model_in_mlflow(merged_model, tokenizer, script_args)
+
+        accelerator.wait_for_everyone()
+
     else:
-        # Save final model to final output directory
-        trainer.model.save_pretrained(final_output_dir, safe_serialization=True)
+        # Covers both PEFT without merge and non-PEFT models
+        trainer.save_model(final_output_dir)
+        accelerator.wait_for_everyone()
 
         if accelerator.is_main_process:
             tokenizer.save_pretrained(final_output_dir)
-
             if mlflow_enabled:
                 register_model_in_mlflow(trainer.model, tokenizer, script_args)
+
+        accelerator.wait_for_everyone()
+
+    logger.info("MODEL SAVE PROCESS COMPLETED SUCCESSFULLY")
 
 
 def register_model_in_mlflow(
@@ -712,7 +803,6 @@ def train(script_args, training_args, train_ds, test_ds):
         model,
         tokenizer,
         script_args,
-        training_args,
         trainer.accelerator,
         mlflow_enabled,
         original_output_dir,
