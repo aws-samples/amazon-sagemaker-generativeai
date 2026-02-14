@@ -12,6 +12,9 @@ from peft import (
     LoraConfig,
     get_peft_model,
 )
+import subprocess
+import sys
+import textwrap
 import torch
 import torch.distributed as dist
 from transformers import (
@@ -19,6 +22,7 @@ from transformers import (
     AutoProcessor,
     AutoTokenizer,
     BitsAndBytesConfig,
+    EarlyStoppingCallback,
     Mxfp4Config,
     Trainer,
     TrainingArguments,
@@ -54,6 +58,9 @@ class ScriptArguments:
     checkpoint_dir: str = field(default=None, metadata={"help": "Checkpoint directory"})
     use_checkpoints: bool = field(
         default=False, metadata={"help": "Whether to use checkpointing"}
+    )
+    early_stopping: bool = field(
+        default=False, metadata={"help": "Whether to use early stopping"}
     )
     load_in_4bit: bool = field(
         default=True, metadata={"help": "Load model in 4-bit quantization"}
@@ -172,12 +179,22 @@ class ModelConfigBuilder:
 
     def build_model_kwargs(self) -> Dict[str, Any]:
         """Build complete model loading arguments."""
-        model_kwargs = {
-            "attn_implementation": self.script_args.attn_implementation,
-            "torch_dtype": self.torch_dtype,
-            "trust_remote_code": True,
-            "cache_dir": "/tmp/.cache",
-        }
+        if (
+            self.script_args.attn_implementation is not None
+            and self.script_args.attn_implementation != ""
+        ):
+            model_kwargs = {
+                "attn_implementation": self.script_args.attn_implementation,
+                "torch_dtype": self.torch_dtype,
+                "trust_remote_code": True,
+                "cache_dir": "/tmp/.cache",
+            }
+        else:
+            model_kwargs = {
+                "torch_dtype": self.torch_dtype,
+                "trust_remote_code": True,
+                "cache_dir": "/tmp/.cache",
+            }
 
         # Set low_cpu_mem_usage based on DeepSpeed usage
         if not self.use_deepspeed:
@@ -354,10 +371,7 @@ def load_tokenizer(script_args: ScriptArguments) -> AutoTokenizer:
 
 
 def load_processor(script_args: ScriptArguments):
-    """Load processor (for multimodal models like Gemma-3).
-    
-    Returns None if the model doesn't have a processor.
-    """
+    """Load processor for multimodal models. Returns None if unavailable."""
     try:
         processor = AutoProcessor.from_pretrained(script_args.model_id)
         logger.info(f"Loaded processor for {script_args.model_id}")
@@ -421,201 +435,158 @@ def setup_trainer(
     )
 
 
+def _merge_adapter_in_process(
+    temp_dir: str, final_output_dir: str
+) -> AutoModelForCausalLM:
+    """Merge LoRA adapter in the current process (for FSDP/DDP)."""
+    with gpu_memory_manager():
+        model = AutoPeftModelForCausalLM.from_pretrained(
+            temp_dir,
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+            trust_remote_code=True,
+        )
+        model = model.merge_and_unload()
+        model.save_pretrained(
+            final_output_dir, safe_serialization=True, max_shard_size="2GB"
+        )
+        return model
+
+
+def _merge_adapter_via_subprocess(temp_dir: str, final_output_dir: str) -> None:
+    """Merge LoRA adapter in a clean subprocess to avoid DeepSpeed env conflicts."""
+    merge_script = textwrap.dedent(
+        f"""\
+        import torch
+        from peft import AutoPeftModelForCausalLM
+
+        print("Loading adapter for merging...")
+        model = AutoPeftModelForCausalLM.from_pretrained(
+            "{temp_dir}",
+            torch_dtype=torch.float16,
+            low_cpu_mem_usage=True,
+            trust_remote_code=True,
+        )
+
+        print("Merging LoRA weights...")
+        model = model.merge_and_unload()
+
+        print("Saving merged model...")
+        model.save_pretrained(
+            "{final_output_dir}",
+            safe_serialization=True,
+            max_shard_size="2GB",
+        )
+
+        print("Merge complete!")
+    """
+    )
+
+    clean_env = {
+        k: v
+        for k, v in os.environ.items()
+        if "DEEPSPEED" not in k and "ACCELERATE" not in k
+    }
+
+    result = subprocess.run(
+        [sys.executable, "-c", merge_script],
+        env=clean_env,
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        logger.error(f"Merge subprocess failed: {result.stderr}")
+        raise RuntimeError(f"Merge failed: {result.stderr}")
+
+    logger.info(f"Merge subprocess output: {result.stdout}")
+
+
+def _detect_distributed_strategy(trainer: Trainer) -> Tuple[bool, bool]:
+    """Detect whether DeepSpeed or FSDP is active."""
+    use_deepspeed = (
+        hasattr(trainer.accelerator.state, "deepspeed_plugin")
+        and trainer.accelerator.state.deepspeed_plugin is not None
+    )
+    use_fsdp = trainer.is_fsdp_enabled
+    return use_deepspeed, use_fsdp
+
+
+def _save_artifacts_on_main(
+    tokenizer: AutoTokenizer,
+    processor,
+    final_output_dir: str,
+) -> None:
+    """Save tokenizer and processor to the output directory."""
+    tokenizer.save_pretrained(final_output_dir)
+    if processor is not None:
+        processor.save_pretrained(final_output_dir)
+
+
 def save_model(
     trainer: Trainer,
     model: AutoModelForCausalLM,
     tokenizer: AutoTokenizer,
     processor,
     script_args: ScriptArguments,
-    training_args: TrainingArguments,
     accelerator: Accelerator,
     mlflow_enabled: bool,
     final_output_dir: str,
 ) -> None:
     """Save the trained model with proper DeepSpeed ZeRO-3 handling and online merging."""
-    logger.info("=" * 60)
     logger.info("STARTING MODEL SAVE PROCESS")
-    logger.info("=" * 60)
-    
-    # =========================================================================
-    # Synchronize ALL processes BEFORE any save operations
-    # =========================================================================
-    logger.info("Step 1: Synchronizing all processes before save...")
+
     accelerator.wait_for_everyone()
-    logger.info("All processes synchronized successfully")
-    
-    # Detect distributed strategy
-    use_deepspeed = (
-        hasattr(trainer.accelerator.state, 'deepspeed_plugin') and 
-        trainer.accelerator.state.deepspeed_plugin is not None
-    )
-    use_fsdp = trainer.is_fsdp_enabled
-    
+
+    use_deepspeed, use_fsdp = _detect_distributed_strategy(trainer)
     logger.info(f"Distributed strategy - DeepSpeed: {use_deepspeed}, FSDP: {use_fsdp}")
-    logger.info(f"PEFT enabled: {script_args.use_peft}, Merge weights: {script_args.merge_weights}")
-    
+
     if use_fsdp:
         trainer.accelerator.state.fsdp_plugin.set_state_dict_type("FULL_STATE_DICT")
 
-    # =========================================================================
-    # PEFT + Merge Weights Path
-    # =========================================================================
     if script_args.use_peft and script_args.merge_weights:
         temp_dir = "/tmp/adapter_temp"
         os.makedirs(temp_dir, exist_ok=True)
-        
+
         if use_deepspeed:
-            # =================================================================
-            # DeepSpeed ZeRO-3 + PEFT + Merge: Use Trainer's save_model which
-            # handles DeepSpeed ZeRO-3 state dict gathering properly
-            # =================================================================
-            logger.info("Step 2: DeepSpeed ZeRO-3 detected - using Trainer save_model")
-            
-            # Use Trainer's save_model which handles DeepSpeed ZeRO-3 properly
-            # This internally uses the correct DeepSpeed APIs for gathering sharded weights
-            logger.info("Step 3: Saving adapter using Trainer (handles ZeRO-3 gathering)...")
+            # Trainer.save_model handles ZeRO-3 state dict gathering
             trainer.save_model(temp_dir)
-            
-            # Synchronize after save
-            logger.info("Step 4: Synchronizing after adapter save...")
             accelerator.wait_for_everyone()
-            logger.info("Adapter save complete on all ranks")
-            
-            # =================================================================
-            # Only main process loads and merges
-            # Other processes wait at the barrier below
-            # =================================================================
+
             if accelerator.is_main_process:
-                logger.info("Step 5: Main process - Loading adapter for merging...")
-                
-                try:
-                    # Clear GPU memory before loading for merge
-                    torch.cuda.empty_cache()
-                    
-                    # =========================================================
-                    # DeepSpeed ZeRO-3 sets env vars that prevent
-                    # using device_map. We must run merge in a subprocess
-                    # with a clean environment.
-                    # =========================================================
-                    logger.info("Step 6: Running merge in subprocess (to avoid DeepSpeed env conflicts)...")
-                    
-                    merge_script = f'''
-import torch
-from peft import AutoPeftModelForCausalLM
-
-print("Loading adapter for merging...")
-model = AutoPeftModelForCausalLM.from_pretrained(
-    "{temp_dir}",
-    torch_dtype=torch.float16,
-    low_cpu_mem_usage=True,
-    trust_remote_code=True,
-)
-
-print("Merging LoRA weights...")
-model = model.merge_and_unload()
-
-print("Saving merged model...")
-model.save_pretrained(
-    "{final_output_dir}",
-    safe_serialization=True,
-    max_shard_size="2GB",
-)
-
-print("Merge complete!")
-'''
-                    
-                    import subprocess
-                    import sys
-                    
-                    # Create a clean environment without DeepSpeed variables
-                    clean_env = os.environ.copy()
-                    deepspeed_vars = [k for k in clean_env.keys() if 'DEEPSPEED' in k or 'ACCELERATE' in k]
-                    for var in deepspeed_vars:
-                        del clean_env[var]
-                    
-                    # Run merge in subprocess
-                    result = subprocess.run(
-                        [sys.executable, "-c", merge_script],
-                        env=clean_env,
-                        capture_output=True,
-                        text=True,
+                torch.cuda.empty_cache()
+                _merge_adapter_via_subprocess(temp_dir, final_output_dir)
+                _save_artifacts_on_main(tokenizer, processor, final_output_dir)
+                if mlflow_enabled:
+                    logger.info(
+                        "Skipping MLflow registration (model merged in subprocess)"
                     )
-                    
-                    if result.returncode != 0:
-                        logger.error(f"Merge subprocess failed: {result.stderr}")
-                        raise RuntimeError(f"Merge failed: {result.stderr}")
-                    
-                    logger.info(f"Merge subprocess output: {result.stdout}")
-                    logger.info("Step 7: Merge complete")
-                    
-                    # Save tokenizer and processor
-                    tokenizer.save_pretrained(final_output_dir)
-                    if processor is not None:
-                        processor.save_pretrained(final_output_dir)
-                    logger.info("Tokenizer and processor saved")
-                    
-                    # Note: MLflow registration skipped for subprocess merge
-                    # as we don't have the model object here
-                    if mlflow_enabled:
-                        logger.info("Skipping MLflow registration (model merged in subprocess)")
-                    
-                    logger.info("Main process: Save and merge complete")
-                    
-                except Exception as e:
-                    logger.error(f"Error during save/merge on main process: {e}")
-                    raise
-            else:
-                logger.info(f"Rank {accelerator.process_index}: Waiting for main process to complete merge...")
-            
-            # =================================================================
-            # All processes must wait here until main process finishes
-            # =================================================================
-            logger.info("Step 9: Final synchronization...")
+        else:
+            trainer.model.save_pretrained(temp_dir, safe_serialization=False)
             accelerator.wait_for_everyone()
-            logger.info("All processes completed save_model")
-            
-    
-    # =========================================================================
-    # PEFT without merge (save adapter only)
-    # =========================================================================
-    elif script_args.use_peft and not script_args.merge_weights:
-        logger.info("Step 2: Saving adapter only (no merge)...")
-        
-        # Use Trainer's save_model which handles DeepSpeed ZeRO-3 properly
-        trainer.save_model(final_output_dir)
+
+            if accelerator.is_main_process:
+                del model, trainer
+                merged_model = _merge_adapter_in_process(temp_dir, final_output_dir)
+                _save_artifacts_on_main(tokenizer, processor, final_output_dir)
+                if mlflow_enabled:
+                    register_model_in_mlflow(merged_model, tokenizer, script_args)
+
         accelerator.wait_for_everyone()
-        
-        if accelerator.is_main_process:
-            tokenizer.save_pretrained(final_output_dir)
-            if processor is not None:
-                processor.save_pretrained(final_output_dir)
-            
-            if mlflow_enabled:
-                register_model_in_mlflow(trainer.model, tokenizer, script_args)
-        
-        accelerator.wait_for_everyone()
-    
-    # =========================================================================
-    # Non-PEFT model
-    # =========================================================================
+
     else:
-        logger.info("Step 2: Saving non-PEFT model...")
+        # Covers both PEFT without merge and non-PEFT models
         trainer.save_model(final_output_dir)
         accelerator.wait_for_everyone()
-        
+
         if accelerator.is_main_process:
-            tokenizer.save_pretrained(final_output_dir)
-            if processor is not None:
-                processor.save_pretrained(final_output_dir)
-            
+            _save_artifacts_on_main(tokenizer, processor, final_output_dir)
             if mlflow_enabled:
                 register_model_in_mlflow(trainer.model, tokenizer, script_args)
-        
+
         accelerator.wait_for_everyone()
-    
-    logger.info("=" * 60)
+
     logger.info("MODEL SAVE PROCESS COMPLETED SUCCESSFULLY")
-    logger.info("=" * 60)
 
 
 def register_model_in_mlflow(
@@ -646,22 +617,43 @@ def calculate_optimal_max_length(
     script_args: ScriptArguments,
     sample_size: int = 1000,
     percentile: float = 0.95,
+    max_absolute_length: int = 32768,  # Hard cap to prevent extreme outliers
 ) -> int:
     """Calculate optimal max_length by tokenizing a sample of the dataset."""
     sample_indices = torch.randperm(len(dataset))[: min(sample_size, len(dataset))]
     sample_data = dataset.select(sample_indices)
 
     token_lengths = []
+    outliers_removed = 0
+
     for sample in sample_data:
-        tokens = tokenizer(sample[script_args.text_field], add_special_tokens=True)[
-            "input_ids"
-        ]
-        token_lengths.append(len(tokens))
+        text = sample[script_args.text_field]
+
+        # Skip extremely long samples that cause NaN
+        if len(text) > 100000:  # Character-level filter
+            outliers_removed += 1
+            continue
+
+        tokens = tokenizer(text, add_special_tokens=True)["input_ids"]
+        token_len = len(tokens)
+
+        # Cap at max_absolute_length
+        if token_len > max_absolute_length:
+            outliers_removed += 1
+            continue
+
+        token_lengths.append(token_len)
+
+    if not token_lengths:
+        logger.warning("No valid samples found, using default max_length=2048")
+        return 2048
 
     avg_length = sum(token_lengths) / len(token_lengths)
     max_length = int(sorted(token_lengths)[int(percentile * len(token_lengths))])
 
-    logger.info(f"Analyzed {len(token_lengths)} samples")
+    logger.info(
+        f"Analyzed {len(token_lengths)} samples ({outliers_removed} outliers removed)"
+    )
     logger.info(f"Average token length: {avg_length:.1f}")
     logger.info(f"{percentile*100}th percentile token length: {max_length}")
 
@@ -675,7 +667,25 @@ def prepare_dataset(
     test_ds: Optional[Dataset] = None,
 ):
     """Prepare the dataset for training with optimal tokenization."""
+
     if script_args.apply_truncation:
+        # Filter extreme outliers before calculating max_length
+        logger.info(f"Original training samples: {len(train_ds)}")
+        lengths = [len(x[script_args.text_field]) for x in train_ds]
+        threshold = sorted(lengths)[int(0.995 * len(lengths))]
+        logger.info(f"Filtering samples > {threshold} characters (99.5th percentile)")
+        train_ds = train_ds.filter(
+            lambda x: len(x[script_args.text_field]) <= threshold
+        )
+        logger.info(f"Filtered training samples: {len(train_ds)}")
+
+        if test_ds is not None:
+            logger.info(f"Original test samples: {len(test_ds)}")
+            test_ds = test_ds.filter(
+                lambda x: len(x[script_args.text_field]) <= threshold
+            )
+            logger.info(f"Filtered test samples: {len(test_ds)}")
+
         if script_args.max_length is None:
             max_length = calculate_optimal_max_length(tokenizer, train_ds, script_args)
         else:
@@ -750,6 +760,14 @@ def train(script_args, training_args, train_ds, test_ds):
         model = apply_lora_config(model, script_args)
 
     callbacks = setup_wandb(script_args)
+    if script_args.early_stopping:
+        if callbacks is None:
+            callbacks = []
+        callbacks.append(EarlyStoppingCallback(early_stopping_patience=3))
+
+        training_args.load_best_model_at_end = True
+        training_args.metric_for_best_model = "eval_loss"
+        training_args.greater_is_better = False
     trainer = setup_trainer(
         model, tokenizer, train_ds, config_builder, test_ds, callbacks
     )
@@ -809,7 +827,6 @@ def train(script_args, training_args, train_ds, test_ds):
         tokenizer,
         processor,
         script_args,
-        training_args,
         trainer.accelerator,
         mlflow_enabled,
         original_output_dir,
