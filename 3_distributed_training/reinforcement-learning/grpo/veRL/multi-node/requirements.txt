@@ -1,0 +1,4 @@
+boto3
+datasets==3.5.1
+sagemaker==2.250.0
+scikit-learn==1.6.1
