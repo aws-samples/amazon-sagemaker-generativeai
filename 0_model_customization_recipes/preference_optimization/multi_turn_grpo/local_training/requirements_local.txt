@@ -1,0 +1,20 @@
+# Local P5 Training Requirements (based on working SageMaker setup)
+transformers==4.57.1
+peft==0.17.0
+accelerate==1.11.0
+bitsandbytes==0.46.1
+datasets==4.0.0
+deepspeed==0.17.5
+liger-kernel==0.6.1
+safetensors>=0.6.2
+sentencepiece==0.2.0
+tokenizers>=0.21.4
+trl==0.21.0
+tensorboard
+psutil
+vllm==0.10.1
+pyserini
+kernels  # Install latest version for Qwen3 support
+mlflow   # Required for training callbacks
+wandb    # Required for wandb logging
+# Java will be installed via apt-get for Pyserini
