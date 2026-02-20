@@ -1,6 +1,6 @@
 from accelerate import Accelerator
 from dataclasses import dataclass, field
-from datasets import Dataset, load_dataset
+from datasets import Dataset, DatasetDict, load_dataset, load_from_disk
 import datetime
 from huggingface_hub import snapshot_download
 import logging
@@ -668,6 +668,14 @@ def prepare_dataset(
 ):
     """Prepare the dataset for training with optimal tokenization."""
 
+    # Skip tokenization if dataset is already pre-tokenized (e.g., CPT workflows)
+    if "input_ids" in train_ds.column_names:
+        logger.info(
+            "Dataset already contains 'input_ids' - skipping tokenization "
+            f"(columns: {train_ds.column_names})"
+        )
+        return train_ds, test_ds
+
     if script_args.apply_truncation:
         # Filter extreme outliers before calculating max_length
         logger.info(f"Original training samples: {len(train_ds)}")
@@ -834,41 +842,62 @@ def train(script_args, training_args, train_ds, test_ds):
     trainer.accelerator.wait_for_everyone()
 
 
+def _is_hf_dataset_dir(path: str) -> bool:
+    """Check if path is a HuggingFace dataset directory (Arrow format)."""
+    return os.path.isdir(path) and os.path.exists(
+        os.path.join(path, "dataset_info.json")
+    )
+
+
+def _load_dataset_auto(path: str) -> Dataset:
+    """Load a dataset from path, automatically detecting format (JSON, JSONL, or Arrow)."""
+    if path.endswith(".jsonl") or path.endswith(".json"):
+        return load_dataset("json", data_files=path, split="train")
+    if path.endswith(".arrow"):
+        logger.info(f"Loading Arrow file from {path}")
+        return load_dataset("arrow", data_files=path, split="train")
+    if _is_hf_dataset_dir(path):
+        logger.info(f"Detected HuggingFace Arrow dataset format at {path}")
+        ds = load_from_disk(path)
+        if isinstance(ds, DatasetDict):
+            split = "train" if "train" in ds else list(ds.keys())[0]
+            logger.info(f"DatasetDict detected, using split '{split}'")
+            ds = ds[split]
+        return ds
+    # Fallback: look for JSON/JSONL files in directory
+    import glob as _glob
+
+    json_files = sorted(
+        _glob.glob(os.path.join(path, "*.json"))
+        + _glob.glob(os.path.join(path, "*.jsonl"))
+    )
+    if json_files:
+        logger.info(f"Found JSON file(s) in directory: {json_files}")
+        return load_dataset("json", data_files=json_files, split="train")
+    raise FileNotFoundError(
+        f"No supported dataset files found in '{path}'. "
+        "Expected .json, .jsonl, .arrow files or a HuggingFace dataset directory."
+    )
+
+
 def load_datasets(script_args: ScriptArguments) -> Tuple[Dataset, Optional[Dataset]]:
     """Load training and test datasets."""
     try:
         logger.info(f"Loading training dataset from {script_args.train_dataset_path}")
-
-        if script_args.train_dataset_path.endswith(
-            ".jsonl"
-        ) or script_args.train_dataset_path.endswith(".json"):
-            train_ds = load_dataset(
-                "json", data_files=script_args.train_dataset_path, split="train"
-            )
-        else:
-            train_ds = load_dataset(
-                "json",
-                data_files=os.path.join(script_args.train_dataset_path, "dataset.json"),
-                split="train",
-            )
+        train_ds = _load_dataset_auto(script_args.train_dataset_path)
+        logger.info(
+            f"Training dataset loaded: {len(train_ds)} samples, "
+            f"columns: {train_ds.column_names}"
+        )
 
         test_ds = None
         if script_args.val_dataset_path:
             logger.info(f"Loading test dataset from {script_args.val_dataset_path}")
-            if script_args.val_dataset_path.endswith(
-                ".jsonl"
-            ) or script_args.val_dataset_path.endswith(".json"):
-                test_ds = load_dataset(
-                    "json", data_files=script_args.val_dataset_path, split="train"
-                )
-            else:
-                test_ds = load_dataset(
-                    "json",
-                    data_files=os.path.join(
-                        script_args.val_dataset_path, "dataset.json"
-                    ),
-                    split="train",
-                )
+            test_ds = _load_dataset_auto(script_args.val_dataset_path)
+            logger.info(
+                f"Test dataset loaded: {len(test_ds)} samples, "
+                f"columns: {test_ds.column_names}"
+            )
 
         return train_ds, test_ds
     except Exception as e:
