@@ -109,7 +109,7 @@ pandas==2.3.2
 parso==0.8.5
 partial-json-parser==0.2.1.1.post6
 pexpect==4.9.0
-pillow==11.3.0
+pillow==12.1.1
 platformdirs==4.4.0
 prometheus-client==0.22.1
 prometheus-fastapi-instrumentator==7.1.0
