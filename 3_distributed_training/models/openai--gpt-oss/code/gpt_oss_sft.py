@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from datasets import Dataset, DatasetDict, load_dataset, load_from_disk
 import datetime
 from huggingface_hub import snapshot_download
+import json
 import logging
 import mlflow
 from mlflow.models import infer_signature
@@ -83,6 +84,21 @@ class ScriptArguments:
     )
     model_id: str = field(
         default=None, metadata={"help": "Model ID to use for SFT training"}
+    )
+    dataset_format: str = field(
+        default="auto",
+        metadata={
+            "help": (
+                "Dataset format: 'auto' (detect from columns), 'text' (pre-rendered text column), "
+                "'messages' (conversational format - applies chat template), 'pretokenized' (input_ids column)"
+            )
+        },
+    )
+    messages_field: str = field(
+        default="messages",
+        metadata={
+            "help": "Name of the messages field for conversational datasets (e.g., 'messages', 'conversation')"
+        },
     )
     text_field: str = field(
         default="text",
@@ -589,13 +605,83 @@ def register_model_in_mlflow(
         raise
 
 
+def detect_dataset_format(dataset: Dataset, script_args: ScriptArguments) -> str:
+    """Detect dataset format from column names.
+
+    Returns one of: 'pretokenized', 'messages', 'text'.
+    """
+    if script_args.dataset_format != "auto":
+        fmt = script_args.dataset_format
+        logger.info(f"Using explicitly configured dataset format: {fmt}")
+        return fmt
+
+    columns = dataset.column_names
+
+    if "input_ids" in columns:
+        logger.info(
+            "Auto-detected dataset format: pretokenized (input_ids column found)"
+        )
+        return "pretokenized"
+
+    if script_args.messages_field in columns:
+        logger.info(
+            f"Auto-detected dataset format: messages "
+            f"('{script_args.messages_field}' column found)"
+        )
+        return "messages"
+
+    if script_args.text_field in columns:
+        logger.info(
+            f"Auto-detected dataset format: text "
+            f"('{script_args.text_field}' column found)"
+        )
+        return "text"
+
+    raise ValueError(
+        f"Cannot detect dataset format. Dataset columns: {columns}. "
+        f"Expected one of: 'input_ids' (pretokenized), "
+        f"'{script_args.messages_field}' (conversational messages), "
+        f"or '{script_args.text_field}' (pre-rendered text). "
+        f"Use --dataset_format to specify explicitly, or "
+        f"--messages_field / --text_field to match your column names."
+    )
+
+
+def _tokenize_sample_for_length(
+    sample: dict,
+    tokenizer: AutoTokenizer,
+    dataset_format: str,
+    script_args: ScriptArguments,
+) -> Optional[int]:
+    """Tokenize a single sample and return its token length, or None to skip."""
+    if dataset_format == "messages":
+        messages = sample[script_args.messages_field]
+        if isinstance(messages, str):
+            messages = json.loads(messages)
+        kwargs = {}
+        if "tools" in sample and sample["tools"]:
+            tools = sample["tools"]
+            if isinstance(tools, str):
+                tools = json.loads(tools)
+            kwargs["tools"] = tools
+        tokens = tokenizer.apply_chat_template(messages, tokenize=True, **kwargs)
+        return len(tokens)
+    else:
+        text = sample[script_args.text_field]
+        if len(text) > 100000:
+            return None
+        tokens = tokenizer(text, add_special_tokens=True)["input_ids"]
+        return len(tokens)
+
+
 def calculate_optimal_max_length(
     tokenizer: AutoTokenizer,
     dataset: Dataset,
     script_args: ScriptArguments,
+    dataset_format: str,
     sample_size: int = 1000,
     percentile: float = 0.95,
-    max_absolute_length: int = 32768,  # Hard cap to prevent extreme outliers
+    max_absolute_length: int = 32768,
 ) -> int:
     """Calculate optimal max_length by tokenizing a sample of the dataset."""
     sample_indices = torch.randperm(len(dataset))[: min(sample_size, len(dataset))]
@@ -605,18 +691,11 @@ def calculate_optimal_max_length(
     outliers_removed = 0
 
     for sample in sample_data:
-        text = sample[script_args.text_field]
+        token_len = _tokenize_sample_for_length(
+            sample, tokenizer, dataset_format, script_args
+        )
 
-        # Skip extremely long samples that cause NaN
-        if len(text) > 100000:  # Character-level filter
-            outliers_removed += 1
-            continue
-
-        tokens = tokenizer(text, add_special_tokens=True)["input_ids"]
-        token_len = len(tokens)
-
-        # Cap at max_absolute_length
-        if token_len > max_absolute_length:
+        if token_len is None or token_len > max_absolute_length:
             outliers_removed += 1
             continue
 
@@ -638,24 +717,86 @@ def calculate_optimal_max_length(
     return max_length
 
 
+def _tokenize_text_dataset(
+    tokenizer: AutoTokenizer,
+    dataset: Dataset,
+    script_args: ScriptArguments,
+    max_length: Optional[int],
+) -> Dataset:
+    """Tokenize a text-column dataset."""
+    return dataset.map(
+        lambda sample: tokenizer(
+            sample[script_args.text_field],
+            padding=False,
+            truncation=script_args.apply_truncation,
+            max_length=max_length if script_args.apply_truncation else None,
+        ),
+        remove_columns=list(dataset.features),
+        batched=True,
+        batch_size=1000,
+    )
+
+
+def _tokenize_messages_dataset(
+    tokenizer: AutoTokenizer,
+    dataset: Dataset,
+    script_args: ScriptArguments,
+    max_length: Optional[int],
+) -> Dataset:
+    """Tokenize a conversational messages dataset using apply_chat_template."""
+    has_tools = "tools" in dataset.column_names
+
+    def tokenize_conversation(sample):
+        messages = sample[script_args.messages_field]
+        if isinstance(messages, str):
+            messages = json.loads(messages)
+
+        kwargs = {}
+        if has_tools and sample["tools"]:
+            tools = sample["tools"]
+            if isinstance(tools, str):
+                tools = json.loads(tools)
+            kwargs["tools"] = tools
+
+        token_ids = tokenizer.apply_chat_template(messages, tokenize=True, **kwargs)
+
+        if script_args.apply_truncation and max_length is not None:
+            token_ids = token_ids[:max_length]
+
+        return {"input_ids": token_ids, "attention_mask": [1] * len(token_ids)}
+
+    return dataset.map(
+        tokenize_conversation,
+        remove_columns=list(dataset.features),
+    )
+
+
 def prepare_dataset(
     tokenizer: AutoTokenizer,
     script_args: ScriptArguments,
     train_ds: Dataset,
     test_ds: Optional[Dataset] = None,
 ):
-    """Prepare the dataset for training with optimal tokenization."""
+    """Prepare the dataset for training with optimal tokenization.
 
-    # Skip tokenization if dataset is already pre-tokenized (e.g., CPT workflows)
-    if "input_ids" in train_ds.column_names:
+    Supports three dataset formats (auto-detected or explicitly set via --dataset_format):
+      - 'pretokenized': Dataset already has 'input_ids' column, skip tokenization.
+      - 'text': Dataset has a text column (default 'text'), tokenize directly.
+      - 'messages': Dataset has a messages column (default 'messages') with
+        conversational format (list of message dicts). Uses apply_chat_template
+        to render and tokenize. Optionally supports a 'tools' column (JSON string).
+    """
+    dataset_format = detect_dataset_format(train_ds, script_args)
+
+    if dataset_format == "pretokenized":
         logger.info(
             "Dataset already contains 'input_ids' - skipping tokenization "
             f"(columns: {train_ds.column_names})"
         )
         return train_ds, test_ds
 
-    if script_args.apply_truncation:
-        # Filter extreme outliers before calculating max_length
+    if script_args.apply_truncation and dataset_format == "text":
+        # Character-level outlier filtering only for text format
         logger.info(f"Original training samples: {len(train_ds)}")
         lengths = [len(x[script_args.text_field]) for x in train_ds]
         threshold = sorted(lengths)[int(0.995 * len(lengths))]
@@ -672,8 +813,11 @@ def prepare_dataset(
             )
             logger.info(f"Filtered test samples: {len(test_ds)}")
 
+    if script_args.apply_truncation:
         if script_args.max_length is None:
-            max_length = calculate_optimal_max_length(tokenizer, train_ds, script_args)
+            max_length = calculate_optimal_max_length(
+                tokenizer, train_ds, script_args, dataset_format
+            )
         else:
             max_length = script_args.max_length
     else:
@@ -681,36 +825,31 @@ def prepare_dataset(
 
     logger.info(f"Using max_length: {max_length}")
     logger.info(f"Truncation enabled: {script_args.apply_truncation}")
+    logger.info(f"Dataset format: {dataset_format}")
 
-    lm_train_dataset = train_ds.map(
-        lambda sample: tokenizer(
-            sample[script_args.text_field],
-            padding=False,
-            truncation=script_args.apply_truncation,
-            max_length=max_length if script_args.apply_truncation else None,
-        ),
-        remove_columns=list(train_ds.features),
-        batched=True,
-        batch_size=1000,
-    )
-
-    if test_ds is not None:
-        lm_test_dataset = test_ds.map(
-            lambda sample: tokenizer(
-                sample[script_args.text_field],
-                padding=False,
-                truncation=script_args.apply_truncation,
-                max_length=max_length if script_args.apply_truncation else None,
-            ),
-            remove_columns=list(test_ds.features),
-            batched=True,
-            batch_size=1000,
+    if dataset_format == "messages":
+        lm_train_dataset = _tokenize_messages_dataset(
+            tokenizer, train_ds, script_args, max_length
         )
-        logger.info(f"Total number of test samples: {len(lm_test_dataset)}")
+        lm_test_dataset = (
+            _tokenize_messages_dataset(tokenizer, test_ds, script_args, max_length)
+            if test_ds is not None
+            else None
+        )
     else:
-        lm_test_dataset = None
+        lm_train_dataset = _tokenize_text_dataset(
+            tokenizer, train_ds, script_args, max_length
+        )
+        lm_test_dataset = (
+            _tokenize_text_dataset(tokenizer, test_ds, script_args, max_length)
+            if test_ds is not None
+            else None
+        )
 
     logger.info(f"Total number of train samples: {len(lm_train_dataset)}")
+    if lm_test_dataset is not None:
+        logger.info(f"Total number of test samples: {len(lm_test_dataset)}")
+
     return lm_train_dataset, lm_test_dataset
 
 
