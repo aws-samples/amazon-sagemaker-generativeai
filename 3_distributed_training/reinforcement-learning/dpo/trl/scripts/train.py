@@ -11,6 +11,7 @@ import os
 from peft import (
     AutoPeftModelForCausalLM,
     LoraConfig,
+    get_peft_model,
 )
 import subprocess
 import sys
@@ -599,7 +600,10 @@ def calculate_optimal_dpo_lengths(
     sample_size: int = 1000,
     percentile: float = 0.95,
 ) -> Tuple[int, int, int]:
-    """Calculate optimal max_length, max_prompt_length, and max_completion_length for DPO."""
+    """Calculate optimal max_length, max_prompt_length, and max_completion_length for DPO.
+
+    Uses apply_chat_template to get accurate token counts for conversational data.
+    """
     sample_indices = torch.randperm(len(dataset))[: min(sample_size, len(dataset))]
     sample_data = dataset.select(sample_indices)
 
@@ -609,39 +613,30 @@ def calculate_optimal_dpo_lengths(
     total_lengths = []
 
     for sample in sample_data:
-        # Calculate prompt length (user messages)
-        prompt_text = ""
-        if "system" in sample and sample["system"]:
-            prompt_text += sample["system"] + "\n"
-        for msg in sample["chosen"]:
-            if msg["role"] == "user":
-                prompt_text += msg["content"]
+        prompt = sample["prompt"]
+        chosen = sample["chosen"]
+        rejected = sample["rejected"]
+        tools = sample.get("tools")
+        if isinstance(tools, str):
+            tools = json.loads(tools)
 
-        prompt_tokens = tokenizer(prompt_text, add_special_tokens=True)["input_ids"]
-        prompt_lengths.append(len(prompt_tokens))
-
-        # Calculate chosen completion length
-        chosen_text = ""
-        for msg in sample["chosen"]:
-            if msg["role"] == "assistant":
-                chosen_text += msg["content"]
-        chosen_tokens = tokenizer(chosen_text, add_special_tokens=False)["input_ids"]
-        chosen_lengths.append(len(chosen_tokens))
-
-        # Calculate rejected completion length
-        rejected_text = ""
-        for msg in sample["rejected"]:
-            if msg["role"] == "assistant":
-                rejected_text += msg["content"]
-        rejected_tokens = tokenizer(rejected_text, add_special_tokens=False)[
-            "input_ids"
-        ]
-        rejected_lengths.append(len(rejected_tokens))
-
-        # Total length (prompt + max of chosen/rejected)
-        total_lengths.append(
-            len(prompt_tokens) + max(len(chosen_tokens), len(rejected_tokens))
+        prompt_ids = tokenizer.apply_chat_template(
+            prompt,
+            tools=tools,
+            add_generation_prompt=True,
+            tokenize=True,
         )
+        chosen_ids = tokenizer.apply_chat_template(
+            prompt + chosen, tools=tools, tokenize=True
+        )
+        rejected_ids = tokenizer.apply_chat_template(
+            prompt + rejected, tools=tools, tokenize=True
+        )
+
+        prompt_lengths.append(len(prompt_ids))
+        chosen_lengths.append(len(chosen_ids) - len(prompt_ids))
+        rejected_lengths.append(len(rejected_ids) - len(prompt_ids))
+        total_lengths.append(max(len(chosen_ids), len(rejected_ids)))
 
     # Calculate percentiles
     max_prompt_length = int(
@@ -686,16 +681,55 @@ def load_json_file(file_path: str) -> List[Dict]:
     return data
 
 
-def deserialize_and_load(data: List[Dict]) -> Dataset:
-    """Deserialize JSON-encoded fields and create Dataset."""
-    for record in data:
-        if "prompt" in record and isinstance(record["prompt"], str):
-            record["prompt"] = json.loads(record["prompt"])
-        if "chosen" in record and isinstance(record["chosen"], str):
-            record["chosen"] = json.loads(record["chosen"])
-        if "rejected" in record and isinstance(record["rejected"], str):
-            record["rejected"] = json.loads(record["rejected"])
-    return Dataset.from_list(data)
+def deserialize_conversations(dataset: Dataset) -> Dataset:
+    """Deserialize JSON-encoded message fields for DPOTrainer conversational format.
+
+    Parses JSON-serialized prompt/chosen/rejected string fields back into message
+    lists. Merges the system field into prompt as a system message. DPOTrainer
+    then handles apply_chat_template internally.
+
+    Requires consistent message schemas across rows (e.g., tool_calls key always
+    present, arguments as JSON strings) for Arrow compatibility.
+    """
+
+    def process(sample):
+        prompt = (
+            json.loads(sample["prompt"])
+            if isinstance(sample["prompt"], str)
+            else sample["prompt"]
+        )
+        chosen = (
+            json.loads(sample["chosen"])
+            if isinstance(sample["chosen"], str)
+            else sample["chosen"]
+        )
+        rejected = (
+            json.loads(sample["rejected"])
+            if isinstance(sample["rejected"], str)
+            else sample["rejected"]
+        )
+
+        # Prepend system message to prompt if present
+        messages = []
+        if sample.get("system"):
+            messages.append({"role": "system", "content": sample["system"]})
+        messages.extend(prompt)
+
+        result = {
+            "prompt": messages,
+            "chosen": chosen,
+            "rejected": rejected,
+        }
+
+        # Preserve any extra fields (e.g., tools, score_chosen, score_rejected)
+        for key in sample:
+            if key not in ("system", "prompt", "chosen", "rejected"):
+                result[key] = sample[key]
+
+        return result
+
+    columns_to_remove = ["system"] if "system" in dataset.column_names else []
+    return dataset.map(process, remove_columns=columns_to_remove)
 
 
 def _is_hf_dataset_dir(path: str) -> bool:
@@ -737,53 +771,28 @@ def _load_dataset_auto(path: str) -> Dataset:
 
 
 def load_datasets(script_args: ScriptArguments) -> Tuple[Dataset, Optional[Dataset]]:
-    """Load training and test datasets."""
+    """Load training and test datasets.
+
+    When deserialize_messages=True, parses JSON-serialized prompt/chosen/rejected
+    fields back into message lists and merges system messages into prompt.
+    DPOTrainer then handles apply_chat_template internally.
+    """
     try:
         logger.info(f"Loading training dataset from {script_args.train_dataset_path}")
+        train_ds = _load_dataset_auto(script_args.train_dataset_path)
 
         if script_args.deserialize_messages:
-            logger.info("Loading and deserializing JSON-encoded message fields")
-            if _is_hf_dataset_dir(script_args.train_dataset_path):
-                train_ds = _load_dataset_auto(script_args.train_dataset_path)
-                train_ds = deserialize_and_load(train_ds.to_list())
-            else:
-                if script_args.train_dataset_path.endswith(
-                    ".jsonl"
-                ) or script_args.train_dataset_path.endswith(".json"):
-                    train_file = script_args.train_dataset_path
-                else:
-                    train_file = os.path.join(
-                        script_args.train_dataset_path, "dataset.json"
-                    )
-                train_data = load_json_file(train_file)
-                train_ds = deserialize_and_load(train_data)
-        else:
-            train_ds = _load_dataset_auto(script_args.train_dataset_path)
+            logger.info("Deserializing JSON-encoded message fields")
+            train_ds = deserialize_conversations(train_ds)
 
         test_ds = None
         if script_args.val_dataset_path:
             logger.info(f"Loading test dataset from {script_args.val_dataset_path}")
+            test_ds = _load_dataset_auto(script_args.val_dataset_path)
 
             if script_args.deserialize_messages:
-                logger.info(
-                    "Loading and deserializing JSON-encoded message fields for test dataset"
-                )
-                if _is_hf_dataset_dir(script_args.val_dataset_path):
-                    test_ds = _load_dataset_auto(script_args.val_dataset_path)
-                    test_ds = deserialize_and_load(test_ds.to_list())
-                else:
-                    if script_args.val_dataset_path.endswith(
-                        ".jsonl"
-                    ) or script_args.val_dataset_path.endswith(".json"):
-                        val_file = script_args.val_dataset_path
-                    else:
-                        val_file = os.path.join(
-                            script_args.val_dataset_path, "dataset.json"
-                        )
-                    test_data = load_json_file(val_file)
-                    test_ds = deserialize_and_load(test_data)
-            else:
-                test_ds = _load_dataset_auto(script_args.val_dataset_path)
+                logger.info("Deserializing val JSON-encoded message fields")
+                test_ds = deserialize_conversations(test_ds)
 
         return train_ds, test_ds
     except Exception as e:
@@ -835,8 +844,7 @@ def train(script_args, training_args, train_ds, test_ds):
         logger.info(f"Found {len(tools)} tools in dataset")
         training_args.tools = tools
 
-    # Configure PEFT
-    peft_config = None
+    # Apply PEFT before trainer (same as SFT) for FSDP compatibility
     if script_args.use_peft:
         peft_config = LoraConfig(
             r=script_args.lora_r,
@@ -850,6 +858,7 @@ def train(script_args, training_args, train_ds, test_ds):
             bias="none",
             task_type="CAUSAL_LM",
         )
+        model = get_peft_model(model, peft_config)
 
     callbacks = setup_wandb(script_args)
     if script_args.early_stopping:
@@ -875,13 +884,14 @@ def train(script_args, training_args, train_ds, test_ds):
     training_args.report_to = report_to
 
     # Initialize DPO trainer
+    # Note: peft_config is NOT passed here — model is already wrapped with PEFT above.
+    # DPOTrainer auto-detects PeftModel and uses adapter disabling for reference logits.
     trainer = DPOTrainer(
         model=model,
         args=training_args,
         processing_class=tokenizer,
         train_dataset=train_ds,
         eval_dataset=test_ds,
-        peft_config=peft_config,
         callbacks=callbacks,
     )
 
