@@ -13,6 +13,6 @@ hf_transfer
 protobuf==5.28.3
 wandb
 flash-attn==2.7.4.post1
-sagemaker==2.251.1
+sagemaker==3.4.1
 mlflow
 sagemaker-mlflow==0.1.0

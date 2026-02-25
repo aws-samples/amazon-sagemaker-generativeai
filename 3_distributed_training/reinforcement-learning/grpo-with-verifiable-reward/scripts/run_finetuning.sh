@@ -64,8 +64,25 @@ else
 fi
 
 # aws s3 cp $data_location $DATASET_LOCAL_LOCATION
+MASTER_ADDR=$(echo $SM_HOSTS | python -c "import sys, json; print(json.load(sys.stdin)[0])")
+MASTER_PORT=29500
+MACHINE_RANK=$(echo $SM_HOSTS | python -c "import sys, json, os; hosts=json.load(sys.stdin); print(hosts.index(os.environ['SM_CURRENT_HOST']))")
+NUM_MACHINES=$(echo $SM_HOSTS | python -c "import sys, json; print(len(json.load(sys.stdin)))")
+NUM_GPUS=$SM_NUM_GPUS
+TOTAL_GPUS=$(($NUM_GPUS * $NUM_MACHINES))
+# NUM_GPUS=$(nvidia-smi --list-gpus | wc -l)
+echo "MASTER_ADDR: ${MASTER_ADDR}"
+echo "MASTER_PORT: ${MASTER_PORT}"
+echo "MACHINE_RANK: ${MACHINE_RANK}"
+echo "Detected ${NUM_MACHINES} nodes in the cluster"
+echo "Detected ${NUM_GPUS} GPUs on each machine"
+echo "Total GPUs across all machines: ${TOTAL_GPUS}"
 
-NUM_GPUS=$(nvidia-smi --list-gpus | wc -l)
-echo "Detected ${NUM_GPUS} GPUs on the machine"
-
-accelerate launch --config_file $ACCELERATE_CONFIG --num_processes ${NUM_GPUS} run_grpo.py --config $training_recipe
+accelerate launch \
+    --config_file $ACCELERATE_CONFIG  \
+    --num_machines ${NUM_MACHINES} \
+    --num_processes ${TOTAL_GPUS} \
+    --machine_rank ${MACHINE_RANK} \
+    --main_process_ip ${MASTER_ADDR} \
+    --main_process_port ${MASTER_PORT} \
+    run_grpo.py --config $training_recipe
