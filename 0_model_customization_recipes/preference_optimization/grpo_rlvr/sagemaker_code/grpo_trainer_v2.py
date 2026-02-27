@@ -585,24 +585,8 @@ def train_function(
     model_kwargs = create_model_kwargs(model_args, training_args)
     model = load_model(model_args, model_kwargs)
     
-    grpo_training_args = GRPOConfig(
-        output_dir=training_args.output_dir,
-        learning_rate=training_args.learning_rate,
-        lr_scheduler_type=training_args.lr_scheduler_type,
-        warmup_ratio=training_args.warmup_ratio,
-        per_device_train_batch_size=training_args.per_device_train_batch_size,
-        gradient_accumulation_steps=training_args.gradient_accumulation_steps,
-        num_generations=training_args.num_generations,
-        num_train_epochs=training_args.num_train_epochs,
-        logging_steps=training_args.logging_steps,
-        save_steps=training_args.save_steps,
-        save_strategy=training_args.save_strategy,
-        save_total_limit=training_args.save_total_limit,
-        max_completion_length=script_args.max_grpo_completion_length,
-        seed=training_args.seed,
-        gradient_checkpointing=training_args.gradient_checkpointing,
-        report_to=training_args.report_to,
-    )
+    training_args.max_completion_length = script_args.max_grpo_completion_length
+    grpo_training_args = training_args
 
     # Wait for all processes in distributed training
     if hasattr(grpo_training_args, 'distributed_state'):
