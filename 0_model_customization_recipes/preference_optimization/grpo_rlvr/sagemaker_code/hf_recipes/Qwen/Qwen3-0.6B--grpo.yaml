@@ -10,6 +10,7 @@ dataset_id_or_path: /opt/ml/input/data/training/grpo_financial_train.jsonl
 # Generation settings
 num_generations: 8
 max_grpo_completion_length: 1024
+mask_truncated_completions: true
 learning_rate: 5.0e-6
 lr_scheduler_type: "constant"
 warmup_steps: 0
