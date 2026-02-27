@@ -23,6 +23,7 @@ NUM_GPUS=""
 CONFIG_PATH=""
 TOOLS_SCRIPT=""
 REWARD_FN=""
+ZERO_STAGE="2"
 
 # Default tool functions and reward function paths
 DEFAULT_TOOLS_SCRIPT="${SCRIPT_DIR}/tools_funcs/financial_tools_complex.py"
@@ -30,7 +31,6 @@ DEFAULT_REWARD_FN="${SCRIPT_DIR}/rewards/financial_tools_reward.py"
 
 # Repo-local assets (absolute)
 REQUIREMENTS_FILE="${SCRIPT_DIR}/requirements.txt"
-ACCELERATE_CONFIG="${SCRIPT_DIR}/configs/accelerate/ds_zero3.yaml"
 TRAINING_SCRIPT="${SCRIPT_DIR}/grpo_trainer_v2.py"
 
 ############################################
@@ -56,6 +56,8 @@ Options:
   --num_process N         Per-machine process count (usually = GPUs per node)
   --tools_script PATH     Path to custom tool functions script (must export TOOL_FUNCTIONS list)
   --reward_fn PATH        Path to custom reward function script (must export reward_func callable)
+  --zero_stage 2|3        DeepSpeed ZeRO stage (default: 2). Use 2 for GRPO to avoid
+                          generation deadlocks; use 3 only for very large models.
   --help, -h              Show this help message
 
 Examples:
@@ -93,6 +95,7 @@ parse_arguments() {
             --config)        CONFIG_PATH="${2:-}"; shift 2 ;;
             --tools_script)  TOOLS_SCRIPT="${2:-}"; shift 2 ;;
             --reward_fn)     REWARD_FN="${2:-}"; shift 2 ;;
+            --zero_stage)    ZERO_STAGE="${2:-}"; shift 2 ;;
             --help|-h)       show_usage; exit 0 ;;
             *)               log_error "Unknown argument: $1"; show_usage; exit 1 ;;
         esac
@@ -122,9 +125,19 @@ resolve_num_gpus() {
 ############################################
 # Input validation
 ############################################
+resolve_accelerate_config() {
+    case "$ZERO_STAGE" in
+        2) ACCELERATE_CONFIG="${SCRIPT_DIR}/configs/accelerate/ds_zero2.yaml" ;;
+        3) ACCELERATE_CONFIG="${SCRIPT_DIR}/configs/accelerate/ds_zero3.yaml" ;;
+        *) log_error "--zero_stage must be 2 or 3, got: $ZERO_STAGE"; exit 1 ;;
+    esac
+    log_info "Using DeepSpeed ZeRO stage ${ZERO_STAGE}: $(basename "$ACCELERATE_CONFIG")"
+}
+
 validate_inputs() {
     [[ -z "$CONFIG_PATH" ]] && { log_error "--config is required"; show_usage; exit 1; }
 
+    resolve_accelerate_config
     validate_file_exists "$CONFIG_PATH" "Configuration file"
     validate_file_exists "$TRAINING_SCRIPT" "Training script"
     validate_file_exists "$ACCELERATE_CONFIG" "Accelerate configuration"

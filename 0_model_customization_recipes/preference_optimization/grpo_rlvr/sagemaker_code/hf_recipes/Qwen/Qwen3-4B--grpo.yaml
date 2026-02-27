@@ -12,10 +12,10 @@ num_generations: 8
 max_grpo_completion_length: 1024
 learning_rate: 5.0e-6
 lr_scheduler_type: "constant"
-warmup_ratio: 0.0
+warmup_steps: 0
 num_train_epochs: 25
-per_device_train_batch_size: 2
-gradient_accumulation_steps: 4
+per_device_train_batch_size: 4
+gradient_accumulation_steps: 8
 gradient_checkpointing: true
 save_strategy: "steps"
 save_steps: 25
