@@ -17,6 +17,7 @@
                 - [Automate Recipe Generation](#automate-recipe-generation)
                 - [Hand-Crafted Recipe Generation](#hand-crafted-recipe-generation)
                 - [Example: Minimal Template for a New Recipe](#example-minimal-template-for-a-new-recipe)
+                - [FLOPS Calculation for EU AI Act Compliance Experimental](#flops-calculation-for-eu-ai-act-compliance-experimental)
                 - [Generating a Spectrum Configuration File](#generating-a-spectrum-configuration-file)
             - [Troubleshooting](#troubleshooting)
         - [Preference Optimization](#preference-optimization)
@@ -669,8 +670,11 @@ These preference optimization techniques are essential for creating models that 
 | meta-llama/Llama-3.2-3B-Instruct | Countdown Game | GRPO | Full | ✅ [Recipe](preference_optimization/grpo/grpo-recipe/sagemaker_code/hf_recipes/meta-llama/Llama-3.2-3B-Instruct--oreo-grpo.yaml) | 📓 [Notebook](preference_optimization/grpo/grpo--meta-llama--Llama-3.2-3B-Instruct.ipynb) | Reward-based reasoning optimization |
 | | | | | | | |
 | **🛠️ Tool Calling & Function Execution** | | | | | | |
-| Qwen/Qwen3-0.6B | Financial Tools | GRPO + RLVR | Full | ✅ [Recipe](preference_optimization/grpo_rlvr/sagemaker_code/hf_recipes/Qwen/Qwen3-0.6B--grpo.yaml) | 📓 [Notebook](preference_optimization/grpo_rlvr/finetune-tool-call--Qwen--Qwen3-0.6B.ipynb) | Custom reward function for tool accuracy |
-| Qwen/Qwen3-1.7B | Financial Tools | GRPO + RLVR | Full | ✅ [Recipe](preference_optimization/grpo_rlvr/sagemaker_code/hf_recipes/Qwen/Qwen3-1.7B--grpo.yaml) | 📓 [Notebook](preference_optimization/grpo_rlvr/finetune-tool-call--Qwen--Qwen3-1.7B.ipynb) | Custom reward function for tool accuracy |
+| Qwen/Qwen3-0.6B | Financial Tools | GRPO + RLVR | Full | ✅ [Recipe](preference_optimization/grpo_rlvr/sagemaker_code/hf_recipes/Qwen/Qwen3-0.6B--grpo.yaml) | 📓 [Notebook](preference_optimization/grpo_rlvr/finetune-tool-call--Qwen--Qwen3-0.6B-financial.ipynb) | Custom reward function for tool accuracy |
+| Qwen/Qwen3-1.7B | Financial Tools | GRPO + RLVR | Full | ✅ [Recipe](preference_optimization/grpo_rlvr/sagemaker_code/hf_recipes/Qwen/Qwen3-1.7B--grpo.yaml) | 📓 [Notebook](preference_optimization/grpo_rlvr/finetune-tool-call--Qwen--Qwen3-1.7B-financial.ipynb) | Custom reward function for tool accuracy |
+| Qwen/Qwen3-4B | Financial Tools | GRPO + RLVR | Full | ✅ [Recipe](preference_optimization/grpo_rlvr/sagemaker_code/hf_recipes/Qwen/Qwen3-4B--grpo.yaml) | 📓 [Notebook](preference_optimization/grpo_rlvr/finetune-tool-call--Qwen--Qwen3-4B-financial.ipynb) | Custom reward function for tool accuracy |
+| Qwen/Qwen3-1.7B | Healthcare Tools | GRPO + RLVR | Full | ✅ [Recipe](preference_optimization/grpo_rlvr/sagemaker_code/hf_recipes/Qwen/Qwen3-1.7B--grpo.yaml) | 📓 [Notebook](preference_optimization/grpo_rlvr/finetune-tool-call--Qwen--Qwen3-1.7B-healthcare.ipynb) | Custom reward function for tool accuracy |
+| Qwen/Qwen3-4B | Healthcare Tools | GRPO + RLVR | Full | ✅ [Recipe](preference_optimization/grpo_rlvr/sagemaker_code/hf_recipes/Qwen/Qwen3-4B--grpo.yaml) | 📓 [Notebook](preference_optimization/grpo_rlvr/finetune-tool-call--Qwen--Qwen3-4B-healthcare.ipynb) | Custom reward function for tool accuracy |
 
 #### Use Case Descriptions
 
