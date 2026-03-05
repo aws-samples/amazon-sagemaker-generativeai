@@ -26,7 +26,7 @@ def main():
             "NUM_TRAIN_EPOCHS": "3"
         },
         environment={
-            "WANDB_API_KEY": "923d4369fa7415f96348bc3d001e780d1a367e0b",
+            "WANDB_API_KEY": "",
             "WANDB_PROJECT": "grpo-training",
             "WANDB_RUN_NAME": "grpo-run-01",
             "WANDB_CONSOLE": "wrap"
