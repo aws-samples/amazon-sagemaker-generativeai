@@ -2,7 +2,7 @@ import sagemaker
 from sagemaker.estimator import Estimator
 
 def main():
-    role = "arn:aws:iam::811828458885:role/SuryaKariAdmin"
+    role = "IAM ROLE URI"
     session = sagemaker.Session()
 
     training_script = "sagemaker_grpo_training_wb_tracing.py"
@@ -11,7 +11,7 @@ def main():
     s3_script_uri = session.upload_data(training_script, bucket=session.default_bucket(), key_prefix="scriptfolder")
 
     estimator = Estimator(
-        image_uri="811828458885.dkr.ecr.us-east-2.amazonaws.com/unsloth-train-grpo",
+        image_uri="123456789.dkr.ecr.us-east-2.amazonaws.com/unsloth-train-grpo",
         role=role,
         instance_count=1,
         instance_type="ml.g5.16xlarge",
