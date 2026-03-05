@@ -4,7 +4,7 @@ import shutil
 import os
 
 def main():
-    role = "arn:aws:iam::811828458885:role/SuryaKariAdmin"
+    role = ""
     session = sagemaker.Session()
     bucket = session.default_bucket()
 
@@ -25,7 +25,7 @@ def main():
 
     # Estimator config using your custom Docker image
     estimator = Estimator(
-        image_uri="811828458885.dkr.ecr.us-east-2.amazonaws.com/unsloth-train",
+        image_uri="123456789.dkr.ecr.us-east-2.amazonaws.com/unsloth-train",
         role=role,
         instance_count=1,
         instance_type="ml.g5.2xlarge",
