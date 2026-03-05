@@ -6,7 +6,7 @@ Parameters:
     Type: String
     Default: dbadmin
     Description: Username for database admin
-  DBPwd: 
+  DBPwd:
     NoEcho: true
     Description: The database admin account password
     Type: String
@@ -22,13 +22,13 @@ Resources:
       ApplicationName: "NaturalLanguageToSQLApp"
 
   # Elastic Beanstalk Application version
-  EBAppVersion: 
+  EBAppVersion:
     Type: AWS::ElasticBeanstalk::ApplicationVersion
-    Properties: 
+    Properties:
       ApplicationName: !Ref EBApplication
       Description: "v1"
-      SourceBundle: 
-        S3Bucket: "sagemaker-us-east-1-352564752819"
+      SourceBundle:
+        S3Bucket: "sagemaker-us-east-1-123456789"
         S3Key: "lab-5-text2sql-demo/myapp.zip"
 
   # Elastic Beanstalk Security Group
@@ -38,17 +38,17 @@ Resources:
       GroupDescription: "Elastic Beanstalk Security Group"
       VpcId: !Ref DefaultVPC
       SecurityGroupIngress:
-      - CidrIp: 0.0.0.0/0
-        IpProtocol: "-1"
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: "-1"
       SecurityGroupEgress:
-      - IpProtocol: tcp
-        FromPort: 80
-        ToPort: 80 
-        CidrIp: 0.0.0.0/0
-      - IpProtocol: tcp
-        FromPort: 80
-        ToPort: 5432
-        CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 5432
+          CidrIp: 0.0.0.0/0
 
   # Elastic Beanstalk Environment
   EBEnvironment:
@@ -57,11 +57,11 @@ Resources:
       ApplicationName: !Ref EBApplication
       EnvironmentName: "NaturalLanguageToSQLAppEnvironment"
       SolutionStackName: "64bit Amazon Linux 2023 v4.1.0 running Docker"
-      VersionLabel: !Ref EBAppVersion 
+      VersionLabel: !Ref EBAppVersion
       OptionSettings:
         - Namespace: "aws:elasticbeanstalk:environment"
           OptionName: "EnvironmentType"
-          Value: "SingleInstance" 
+          Value: "SingleInstance"
         - Namespace: "aws:autoscaling:launchconfiguration"
           OptionName: "IamInstanceProfile"
           Value: "aws-elasticbeanstalk-ec2-role"
@@ -76,8 +76,7 @@ Resources:
           Value: !Ref Subnet1
         - Namespace: "aws:autoscaling:launchconfiguration"
           OptionName: "SecurityGroups"
-          Value: !Ref EBSecurityGroup 
-
+          Value: !Ref EBSecurityGroup
 
   # Default VPC
   DefaultVPC:
@@ -91,7 +90,7 @@ Resources:
     Properties:
       Tags:
         - Key: Name
-          Value: "InternetGateway for Elastic Beanstalk" 
+          Value: "InternetGateway for Elastic Beanstalk"
   GatewayToInternet:
     Type: "AWS::EC2::VPCGatewayAttachment"
     Properties:
@@ -112,19 +111,18 @@ Resources:
     Type: "AWS::EC2::SubnetRouteTableAssociation"
     Properties:
       SubnetId: !Ref Subnet1
-      RouteTableId: !Ref PublicRouteTable 
+      RouteTableId: !Ref PublicRouteTable
   Subnet2RouteTableAssociation:
     Type: "AWS::EC2::SubnetRouteTableAssociation"
     Properties:
       SubnetId: !Ref Subnet2
       RouteTableId: !Ref PublicRouteTable
-    
 
   # Default Subnets (Assuming 2 public subnets in different availability zones)
   Subnet1:
     Type: "AWS::EC2::Subnet"
     Properties:
-      AvailabilityZone: "us-east-1a" 
+      AvailabilityZone: "us-east-1a"
       VpcId: !Ref DefaultVPC
       CidrBlock: "10.0.0.0/24"
       MapPublicIpOnLaunch: true
@@ -132,7 +130,7 @@ Resources:
   Subnet2:
     Type: "AWS::EC2::Subnet"
     Properties:
-      AvailabilityZone: "us-east-1b" 
+      AvailabilityZone: "us-east-1b"
       VpcId: !Ref DefaultVPC
       CidrBlock: "10.0.1.0/24"
       MapPublicIpOnLaunch: true
@@ -173,7 +171,6 @@ Resources:
       VpcSecurityGroupIds:
         - !GetAtt DBSecurityGroup.GroupId
 
-
   InboundRule:
     Type: "AWS::EC2::SecurityGroupIngress"
     Properties:
@@ -187,4 +184,3 @@ Outputs:
   StreamlitURL:
     Description: "URL for the Natural Language To SQL Application"
     Value: !GetAtt EBEnvironment.EndpointURL
-    

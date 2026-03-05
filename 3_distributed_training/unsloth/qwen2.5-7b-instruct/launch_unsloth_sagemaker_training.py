@@ -3,6 +3,7 @@ from sagemaker.estimator import Estimator
 import shutil
 import os
 
+
 def main():
     role = ""
     session = sagemaker.Session()
@@ -17,8 +18,12 @@ def main():
     shutil.copyfile(original_dataset_file, renamed_dataset)
 
     # Upload script and dataset
-    s3_script_uri = session.upload_data(training_script, bucket=bucket, key_prefix="scripts")
-    s3_dataset_uri = session.upload_data(renamed_dataset, bucket=bucket, key_prefix="datasets")
+    s3_script_uri = session.upload_data(
+        training_script, bucket=bucket, key_prefix="scripts"
+    )
+    s3_dataset_uri = session.upload_data(
+        renamed_dataset, bucket=bucket, key_prefix="datasets"
+    )
 
     print("Uploaded script to:", s3_script_uri)
     print("Uploaded dataset to:", s3_dataset_uri)
@@ -36,12 +41,10 @@ def main():
     )
 
     # Map the S3 dataset to the expected input channel
-    inputs = {
-        "train": s3_dataset_uri,
-        "train_file": s3_dataset_uri
-    }
+    inputs = {"train": s3_dataset_uri, "train_file": s3_dataset_uri}
 
     estimator.fit(inputs)
+
 
 if __name__ == "__main__":
     main()
