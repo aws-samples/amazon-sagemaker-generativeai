@@ -18,10 +18,11 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 #from transformers.utils import is_liger_kernel_available
 from trl import SFTTrainer, TrlParser, ModelConfig, SFTConfig, get_peft_config
-from trl import setup_chat_format
+from trl import clone_chat_template
 from datasets import load_dataset
 from peft import AutoPeftModelForCausalLM
 import mlflow
+import uuid
 
 
 #if is_liger_kernel_available():
@@ -130,8 +131,11 @@ def train_function(
     )
     
     if mlflow_enabled:
+        run_uuid = uuid.uuid4().hex
+        mlflow_run_name = f"{os.environ.get("MLFLOW_EXPERIMENT_NAME", None)}_{run_uuid}"
         logger.info(f"MLflow tracking under: {os.environ.get("MLFLOW_TRACKING_URI",None)}")
-        mlflow.start_run(run_name=os.environ.get("MLFLOW_EXPERIMENT_NAME", None))
+        mlflow.set_experiment(os.environ.get("MLFLOW_EXPERIMENT_NAME", None))
+        mlflow.start_run(run_name=mlflow_run_name)
         train_dataset_mlflow = mlflow.data.from_pandas(train_dataset.to_pandas(), name="train_dataset")
         mlflow.log_input(train_dataset_mlflow, context="train")
 
@@ -158,10 +162,10 @@ def train_function(
         revision=model_args.model_revision,  # What revision from Huggingface to use, defaults to main
         trust_remote_code=model_args.trust_remote_code,  # Whether to trust the remote code, this also you to fine-tune custom architectures
         attn_implementation=model_args.attn_implementation,  # What attention implementation to use, defaults to flash_attention_2
-        torch_dtype=(
-            model_args.torch_dtype
-            if model_args.torch_dtype in ['auto', None]
-            else getattr(torch, model_args.torch_dtype)
+        dtype=(
+            model_args.dtype
+            if model_args.dtype in ['auto', None]
+            else getattr(torch, model_args.dtype)
         ),  # What torch dtype to use, defaults to auto
         # use_cache=(
         #     False if training_args.gradient_checkpointing else True
@@ -182,8 +186,8 @@ def train_function(
             load_in_4bit=True,
             bnb_4bit_use_double_quant=True,
             bnb_4bit_quant_type='nf4',
-            bnb_4bit_compute_dtype=model_kwargs['torch_dtype'],
-            bnb_4bit_quant_storage=model_kwargs['torch_dtype'],
+            bnb_4bit_compute_dtype=model_kwargs['dtype'],
+            bnb_4bit_quant_storage=model_kwargs['dtype'],
         )
         
     if model_args.use_peft:
@@ -205,7 +209,7 @@ def train_function(
     if hasattr(tokenizer, "chat_template") and tokenizer.chat_template is not None:
         tokenizer.chat_template = None  # Reset the chat template
     # # set chat template to OAI chatML, remove if you start from a fine-tuned model
-    model, tokenizer = setup_chat_format(model, tokenizer)
+    model, tokenizer, added_tokens = clone_chat_template(model, tokenizer, script_args.model_download_location)
 
     training_args.distributed_state.wait_for_everyone()  # wait for all processes to load
 
@@ -289,7 +293,7 @@ def train_function(
             # load PEFT model
             model = AutoPeftModelForCausalLM.from_pretrained(
                 tmp_output_dir,
-                torch_dtype=torch.float16,
+                dtype=torch.float16,
                 low_cpu_mem_usage=True,
                 trust_remote_code=True,
             )

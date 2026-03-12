@@ -127,10 +127,10 @@ def dpo_function(
         revision=model_args.model_revision,  # What revision from Huggingface to use, defaults to main
         trust_remote_code=model_args.trust_remote_code,  # Whether to trust the remote code, this also you to fine-tune custom architectures
         attn_implementation=model_args.attn_implementation,  # What attention implementation to use, defaults to flash_attention_2
-        torch_dtype=(
-            model_args.torch_dtype
-            if model_args.torch_dtype in ["auto", None]
-            else getattr(torch, model_args.torch_dtype)
+        dtype=(
+            model_args.dtype
+            if model_args.dtype in ['auto', None]
+            else getattr(torch, model_args.dtype)
         ),  # What torch dtype to use, defaults to auto
         use_cache=False if training_args.gradient_checkpointing else True,  # Whether
         low_cpu_mem_usage=(
@@ -146,8 +146,8 @@ def dpo_function(
             load_in_4bit=True,
             bnb_4bit_use_double_quant=True,
             bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=model_kwargs["torch_dtype"],
-            bnb_4bit_quant_storage=model_kwargs["torch_dtype"],
+            bnb_4bit_compute_dtype=model_kwargs["dtype"],
+            bnb_4bit_quant_storage=model_kwargs["dtype"],
         )
     if model_args.use_peft:
         peft_config = get_peft_config(model_args)
