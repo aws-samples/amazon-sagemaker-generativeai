@@ -452,13 +452,13 @@ def setup_trainer(
 
 
 def _merge_adapter_in_process(
-    temp_dir: str, final_output_dir: str
+    temp_dir: str, final_output_dir: str, torch_dtype: torch.dtype = torch.bfloat16
 ) -> AutoModelForCausalLM:
     """Merge LoRA adapter in the current process (for FSDP/DDP)."""
     with gpu_memory_manager():
         model = AutoPeftModelForCausalLM.from_pretrained(
             temp_dir,
-            torch_dtype=torch.float16,
+            torch_dtype=torch_dtype,
             low_cpu_mem_usage=True,
             trust_remote_code=True,
         )
@@ -469,7 +469,9 @@ def _merge_adapter_in_process(
         return model
 
 
-def _merge_adapter_via_subprocess(temp_dir: str, final_output_dir: str) -> None:
+def _merge_adapter_via_subprocess(
+    temp_dir: str, final_output_dir: str, torch_dtype_str: str = "bfloat16"
+) -> None:
     """Merge LoRA adapter in a clean subprocess to avoid DeepSpeed env conflicts."""
     merge_script = textwrap.dedent(
         f"""\
@@ -479,7 +481,7 @@ def _merge_adapter_via_subprocess(temp_dir: str, final_output_dir: str) -> None:
         print("Loading adapter for merging...")
         model = AutoPeftModelForCausalLM.from_pretrained(
             "{temp_dir}",
-            torch_dtype=torch.float16,
+            torch_dtype=getattr(torch, "{torch_dtype_str}"),
             low_cpu_mem_usage=True,
             trust_remote_code=True,
         )
@@ -571,7 +573,14 @@ def save_model(
 
             if accelerator.is_main_process:
                 torch.cuda.empty_cache()
-                _merge_adapter_via_subprocess(temp_dir, final_output_dir)
+                dtype_str = (
+                    script_args.torch_dtype
+                    if script_args.torch_dtype not in ["auto", None]
+                    else "bfloat16"
+                )
+                _merge_adapter_via_subprocess(
+                    temp_dir, final_output_dir, torch_dtype_str=dtype_str
+                )
                 _save_artifacts_on_main(tokenizer, processor, final_output_dir)
                 if mlflow_enabled:
                     logger.info(
@@ -583,7 +592,14 @@ def save_model(
 
             if accelerator.is_main_process:
                 del model, trainer
-                merged_model = _merge_adapter_in_process(temp_dir, final_output_dir)
+                save_dtype = (
+                    getattr(torch, script_args.torch_dtype)
+                    if script_args.torch_dtype not in ["auto", None]
+                    else torch.bfloat16
+                )
+                merged_model = _merge_adapter_in_process(
+                    temp_dir, final_output_dir, torch_dtype=save_dtype
+                )
                 _save_artifacts_on_main(tokenizer, processor, final_output_dir)
                 if mlflow_enabled:
                     register_model_in_mlflow(merged_model, tokenizer, script_args)
