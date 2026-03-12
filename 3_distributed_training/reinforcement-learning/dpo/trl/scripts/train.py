@@ -181,14 +181,12 @@ class ModelConfigBuilder:
             model_kwargs = {
                 "attn_implementation": self.script_args.attn_implementation,
                 "torch_dtype": self.torch_dtype,
-                "use_cache": not self.training_args.gradient_checkpointing,
                 "trust_remote_code": True,
                 "cache_dir": "/tmp/.cache",
             }
         else:
             model_kwargs = {
                 "torch_dtype": self.torch_dtype,
-                "use_cache": not self.training_args.gradient_checkpointing,
                 "trust_remote_code": True,
                 "cache_dir": "/tmp/.cache",
             }
@@ -273,7 +271,14 @@ def patch_dpo_trainer_dtype(trainer):
     This is a known bug in DPOTrainer where concatenated_forward incorrectly
     casts input_ids to the model's dtype (bfloat16) instead of keeping them as long.
     See: https://github.com/huggingface/trl/issues/2101
+
+    NOTE: This patch is not needed for trl >= 0.29.0, where the bug was fixed upstream
+    and concatenated_forward was removed.
     """
+    if not hasattr(trainer, "concatenated_forward"):
+        logger.info("Skipping DPOTrainer dtype patch (not needed for this TRL version)")
+        return trainer
+
     original_concatenated_forward = trainer.concatenated_forward
 
     def safe_concatenated_forward(model, batch, is_ref_model=False):
@@ -384,6 +389,25 @@ def ensure_uniform_dtype(
     return model
 
 
+def apply_lora_config(
+    model: AutoModelForCausalLM, script_args: ScriptArguments
+) -> AutoModelForCausalLM:
+    """Apply LoRA configuration to the model."""
+    config = LoraConfig(
+        r=script_args.lora_r,
+        lora_alpha=script_args.lora_alpha,
+        target_modules=(
+            "all-linear"
+            if script_args.target_modules is None
+            else script_args.target_modules
+        ),
+        lora_dropout=script_args.lora_dropout,
+        bias="none",
+        task_type="CAUSAL_LM",
+    )
+    return get_peft_model(model, config)
+
+
 def load_model(
     config_builder: ModelConfigBuilder, script_args: ScriptArguments
 ) -> AutoModelForCausalLM:
@@ -431,13 +455,13 @@ def extract_tools_from_dataset(dataset: Dataset) -> Optional[List[Dict]]:
 
 
 def _merge_adapter_in_process(
-    temp_dir: str, final_output_dir: str
+    temp_dir: str, final_output_dir: str, torch_dtype: torch.dtype = torch.bfloat16
 ) -> AutoModelForCausalLM:
     """Merge LoRA adapter in the current process (for FSDP/DDP)."""
     with gpu_memory_manager():
         model = AutoPeftModelForCausalLM.from_pretrained(
             temp_dir,
-            torch_dtype=torch.float16,
+            torch_dtype=torch_dtype,
             low_cpu_mem_usage=True,
             trust_remote_code=True,
         )
@@ -448,7 +472,9 @@ def _merge_adapter_in_process(
         return model
 
 
-def _merge_adapter_via_subprocess(temp_dir: str, final_output_dir: str) -> None:
+def _merge_adapter_via_subprocess(
+    temp_dir: str, final_output_dir: str, torch_dtype_str: str = "bfloat16"
+) -> None:
     """Merge LoRA adapter in a clean subprocess to avoid DeepSpeed env conflicts."""
     merge_script = textwrap.dedent(
         f"""\
@@ -458,7 +484,7 @@ def _merge_adapter_via_subprocess(temp_dir: str, final_output_dir: str) -> None:
         print("Loading adapter for merging...")
         model = AutoPeftModelForCausalLM.from_pretrained(
             "{temp_dir}",
-            torch_dtype=torch.float16,
+            torch_dtype=getattr(torch, "{torch_dtype_str}"),
             low_cpu_mem_usage=True,
             trust_remote_code=True,
         )
@@ -538,7 +564,14 @@ def save_model(
 
             if accelerator.is_main_process:
                 torch.cuda.empty_cache()
-                _merge_adapter_via_subprocess(temp_dir, final_output_dir)
+                dtype_str = (
+                    script_args.torch_dtype
+                    if script_args.torch_dtype not in ["auto", None]
+                    else "bfloat16"
+                )
+                _merge_adapter_via_subprocess(
+                    temp_dir, final_output_dir, torch_dtype_str=dtype_str
+                )
                 tokenizer.save_pretrained(final_output_dir)
                 if mlflow_enabled:
                     logger.info(
@@ -550,7 +583,14 @@ def save_model(
 
             if accelerator.is_main_process:
                 del model, trainer
-                merged_model = _merge_adapter_in_process(temp_dir, final_output_dir)
+                save_dtype = (
+                    getattr(torch, script_args.torch_dtype)
+                    if script_args.torch_dtype not in ["auto", None]
+                    else torch.bfloat16
+                )
+                merged_model = _merge_adapter_in_process(
+                    temp_dir, final_output_dir, torch_dtype=save_dtype
+                )
                 tokenizer.save_pretrained(final_output_dir)
                 if mlflow_enabled:
                     register_model_in_mlflow(merged_model, tokenizer, script_args)
@@ -594,6 +634,11 @@ def register_model_in_mlflow(
         raise
 
 
+def _align_to_multiple(value: int, multiple: int = 64) -> int:
+    """Round up to the next multiple for hardware efficiency."""
+    return ((value + multiple - 1) // multiple) * multiple
+
+
 def calculate_optimal_dpo_lengths(
     tokenizer: AutoTokenizer,
     dataset: Dataset,
@@ -602,7 +647,9 @@ def calculate_optimal_dpo_lengths(
 ) -> Tuple[int, int, int]:
     """Calculate optimal max_length, max_prompt_length, and max_completion_length for DPO.
 
-    Uses apply_chat_template to get accurate token counts for conversational data.
+    Tokenizes samples the same way DPOTrainer does internally (apply_chat_template
+    on prompt + chosen/rejected) to get accurate token counts. Returns percentile-based
+    lengths aligned to multiples of 64 for hardware efficiency.
     """
     sample_indices = torch.randperm(len(dataset))[: min(sample_size, len(dataset))]
     sample_data = dataset.select(sample_indices)
@@ -611,45 +658,85 @@ def calculate_optimal_dpo_lengths(
     chosen_lengths = []
     rejected_lengths = []
     total_lengths = []
+    errors = 0
 
-    for sample in sample_data:
-        prompt = sample["prompt"]
-        chosen = sample["chosen"]
-        rejected = sample["rejected"]
-        tools = sample.get("tools")
-        if isinstance(tools, str):
-            tools = json.loads(tools)
+    for i, sample in enumerate(sample_data):
+        try:
+            prompt = sample["prompt"]
+            chosen = sample["chosen"]
+            rejected = sample["rejected"]
 
-        prompt_ids = tokenizer.apply_chat_template(
-            prompt,
-            tools=tools,
-            add_generation_prompt=True,
-            tokenize=True,
-        )
-        chosen_ids = tokenizer.apply_chat_template(
-            prompt + chosen, tools=tools, tokenize=True
-        )
-        rejected_ids = tokenizer.apply_chat_template(
-            prompt + rejected, tools=tools, tokenize=True
-        )
+            if not isinstance(prompt, list) or not isinstance(chosen, list):
+                errors += 1
+                if errors <= 3:
+                    logger.warning(
+                        f"Sample {i}: expected list fields, got prompt={type(prompt).__name__}, "
+                        f"chosen={type(chosen).__name__}. Skipping."
+                    )
+                continue
 
-        prompt_lengths.append(len(prompt_ids))
-        chosen_lengths.append(len(chosen_ids) - len(prompt_ids))
-        rejected_lengths.append(len(rejected_ids) - len(prompt_ids))
-        total_lengths.append(max(len(chosen_ids), len(rejected_ids)))
+            tools = sample.get("tools")
+            if isinstance(tools, str):
+                tools = json.loads(tools)
 
-    # Calculate percentiles
-    max_prompt_length = int(
-        sorted(prompt_lengths)[int(percentile * len(prompt_lengths))]
+            kwargs = {"tools": tools} if tools else {}
+
+            prompt_ids = tokenizer.apply_chat_template(
+                prompt,
+                add_generation_prompt=True,
+                tokenize=True,
+                **kwargs,
+            )
+            chosen_ids = tokenizer.apply_chat_template(
+                prompt + chosen, tokenize=True, **kwargs
+            )
+            rejected_ids = tokenizer.apply_chat_template(
+                prompt + rejected, tokenize=True, **kwargs
+            )
+
+            p_len = len(prompt_ids)
+            c_len = max(0, len(chosen_ids) - p_len)
+            r_len = max(0, len(rejected_ids) - p_len)
+
+            prompt_lengths.append(p_len)
+            chosen_lengths.append(c_len)
+            rejected_lengths.append(r_len)
+            total_lengths.append(max(len(chosen_ids), len(rejected_ids)))
+
+            if i == 0:
+                logger.info(
+                    f"Sample 0: prompt={p_len}, chosen_completion={c_len}, "
+                    f"rejected_completion={r_len}, "
+                    f"total={max(len(chosen_ids), len(rejected_ids))}"
+                )
+
+        except Exception as e:
+            errors += 1
+            if errors <= 3:
+                logger.warning(f"Length calc error on sample {i}: {e}")
+
+    if not total_lengths:
+        raise ValueError("Could not compute lengths for any samples")
+
+    if errors > 0:
+        logger.warning(f"Skipped {errors}/{len(sample_data)} samples due to errors")
+
+    # Calculate percentiles and align to multiples of 64
+    max_prompt_length = _align_to_multiple(
+        int(sorted(prompt_lengths)[int(percentile * len(prompt_lengths))])
     )
-    max_completion_length = int(
-        sorted(chosen_lengths + rejected_lengths)[
-            int(percentile * len(chosen_lengths + rejected_lengths))
-        ]
+    max_completion_length = _align_to_multiple(
+        int(
+            sorted(chosen_lengths + rejected_lengths)[
+                int(percentile * len(chosen_lengths + rejected_lengths))
+            ]
+        )
     )
-    max_length = int(sorted(total_lengths)[int(percentile * len(total_lengths))])
+    max_length = _align_to_multiple(
+        int(sorted(total_lengths)[int(percentile * len(total_lengths))])
+    )
 
-    logger.info(f"Analyzed {len(sample_data)} samples")
+    logger.info(f"Analyzed {len(total_lengths)} samples ({errors} errors)")
     logger.info(
         f"Average prompt length: {sum(prompt_lengths) / len(prompt_lengths):.1f}"
     )
@@ -832,8 +919,10 @@ def train(script_args, training_args, train_ds, test_ds):
             calculate_optimal_dpo_lengths(tokenizer, train_ds)
         )
         training_args.max_length = max_length
-        training_args.max_prompt_length = max_prompt_length
-        training_args.max_completion_length = max_completion_length
+        if hasattr(training_args, "max_prompt_length"):
+            training_args.max_prompt_length = max_prompt_length
+        if hasattr(training_args, "max_completion_length"):
+            training_args.max_completion_length = max_completion_length
         logger.info(
             f"Set max_length={max_length}, max_prompt_length={max_prompt_length}, max_completion_length={max_completion_length}"
         )
@@ -846,19 +935,7 @@ def train(script_args, training_args, train_ds, test_ds):
 
     # Apply PEFT before trainer (same as SFT) for FSDP compatibility
     if script_args.use_peft:
-        peft_config = LoraConfig(
-            r=script_args.lora_r,
-            lora_alpha=script_args.lora_alpha,
-            target_modules=(
-                "all-linear"
-                if script_args.target_modules is None
-                else script_args.target_modules
-            ),
-            lora_dropout=script_args.lora_dropout,
-            bias="none",
-            task_type="CAUSAL_LM",
-        )
-        model = get_peft_model(model, peft_config)
+        model = apply_lora_config(model, script_args)
 
     callbacks = setup_wandb(script_args)
     if script_args.early_stopping:
@@ -895,7 +972,6 @@ def train(script_args, training_args, train_ds, test_ds):
         callbacks=callbacks,
     )
 
-    # Patch trainer to fix input_ids dtype bug with tool calling
     trainer = patch_dpo_trainer_dtype(trainer)
 
     if trainer.accelerator.is_main_process:
