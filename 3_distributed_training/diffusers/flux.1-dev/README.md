@@ -1,57 +1,60 @@
-# Fine-tune Flux with DreamBooth LoRA Hugging Face Diffusers
+# Fine-tune FLUX.1-dev with DreamBooth LoRA on Amazon SageMaker
 
-Prerequisites:
-- AWS account with SageMaker access
-     - Make sure you have the service quota for a p4de or p5 instance for SageMaker Training Job
+Fine-tune [FLUX.1-dev](https://huggingface.co/black-forest-labs/FLUX.1-dev) with DreamBooth LoRA using Hugging Face Diffusers on Amazon SageMaker.
+
+## Prerequisites
+
+- AWS account with SageMaker access (p4de or p5 instance quota for SageMaker Training Job)
 - Hugging Face account with API token
 - Weights & Biases account with API key
 
-1. git clone this repository
-``` bash
-git clone https://github.com/black-forest-labs/flux-fine-tune.git
-cd flux-fine-tune
+## Project Structure
+
 ```
-2. Install uv and restart your shell
-``` bash
+flux.1-dev/
+├── scripts/
+│   ├── train_dreambooth_lora_flux.py  # DreamBooth LoRA training script
+│   ├── default_config.yaml            # Accelerate configuration
+│   └── script.sh                      # Training launch script
+├── flux-fine-tune-sagemaker.ipynb     # SageMaker training notebook
+├── .env-example                       # Environment variables template
+├── requirements.txt                   # Python dependencies
+├── pyproject.toml                     # Project configuration
+└── README.md                          # This file
+```
+
+## Quick Start
+
+1. Install uv and restart your shell:
+
+```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
-3. Create a virtual environment
-``` bash
+
+2. Create a virtual environment:
+
+```bash
 uv venv --prompt flux --python 3.12
 source .venv/bin/activate
 ```
-4. Install dependencies
-``` bash
+
+3. Install dependencies:
+
+```bash
 uv pip install -r requirements.txt
 ```
-5. Add your hugging face and wandb API keys to the env-example file and rename it to `.env`
 
-5. Run the flux-fine-tune-sagemaker.ipynb notebook in Jupyter Lab or Jupyter Notebook.
+4. Add your Hugging Face and Weights & Biases API keys to `.env-example` and rename it to `.env`
 
+5. Run the `flux-fine-tune-sagemaker.ipynb` notebook to launch the training job on SageMaker.
 
+## Training Configuration
 
-``` bash
-export MODEL_NAME="black-forest-labs/FLUX.1-dev"
-export INSTANCE_DIR="dog"
-export OUTPUT_DIR="trained-flux-lora-081025-0735"
+The training uses Accelerate for distributed training with the following key parameters:
 
-accelerate launch --config_file /home/ubuntu/flux-fine-tune/default_config.yaml train_dreambooth_lora_flux.py \
-  --pretrained_model_name_or_path=$MODEL_NAME  \
-  --instance_data_dir=$INSTANCE_DIR \
-  --output_dir=$OUTPUT_DIR \
-  --mixed_precision="bf16" \
-  --instance_prompt="a photo of sks dog" \
-  --resolution=512 \
-  --train_batch_size=1 \
-  --guidance_scale=1 \
-  --gradient_accumulation_steps=4 \
-  --optimizer="prodigy" \
-  --learning_rate=1. \
-  --report_to="wandb" \
-  --lr_scheduler="constant" \
-  --lr_warmup_steps=0 \
-  --max_train_steps=500 \
-  --validation_prompt="A photo of sks dog in a bucket" \
-  --validation_epochs=25 \
-  --seed="0" > train.log 2>&1 &
-  ```
+- **Model**: black-forest-labs/FLUX.1-dev
+- **Method**: DreamBooth LoRA
+- **Optimizer**: Prodigy
+- **Precision**: bf16
+- **Resolution**: 512
+- **Reporting**: Weights & Biases

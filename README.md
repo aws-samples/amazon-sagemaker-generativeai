@@ -1,6 +1,6 @@
 # Generative AI using Amazon SageMaker
 
-A comprehensive repository showcasing production-ready Generative AI workflows on Amazon SageMaker. This collection provides end-to-end implementations spanning the complete ML lifecycle, from foundational concepts to enterprise-scale deployments, covering model training, fine-tuning, inference optimization, MLOps automation, distributed training, RAG systems, intelligent agents, and real-world industry applications.
+A comprehensive repository showcasing Generative AI workflows on Amazon SageMaker AI. This collection provides end-to-end implementations spanning the complete ML lifecycle, from foundational concepts to enterprise-scale deployments, covering model training, fine-tuning, inference optimization, MLOps automation, distributed training, RAG systems, intelligent agents, and real-world industry applications.
 
 ## 🚀 Quick Start
 
@@ -10,71 +10,28 @@ New to Generative AI on SageMaker? Start here:
 
 ## ⚙️ Model Customization Recipes
 
-**Production-ready fine-tuning recipes for 20+ foundation models** - A comprehensive collection of OSS training recipes optimized for Amazon SageMaker AI. [**→ Full Documentation**](0_model_customization_recipes/README.md)
-
-### 🎯 What's Included
+**Config-driven fine-tuning recipes for 20+ foundation models** — Pick a model, choose a strategy (QLoRA, Spectrum, or Full Fine-tuning), and launch a SageMaker Training Job. The recipe generator handles everything from dataset formatting to adapter merging and evaluation.
 
 - **20+ Pre-configured Models**: Llama, Qwen, DeepSeek, Gemma, Phi, GPT-OSS, and more
 - **3 Training Strategies**: QLoRA (memory-efficient), Spectrum (balanced), Full Fine-tuning (maximum performance)
-- **Automated Recipe Generator**: Interactive CLI tool to create custom training configurations
-- **Instance Sizing Guide**: Decision trees and recommendations for optimal GPU selection (A10G → H200)
-- **Multi-Modal Support**: Text, vision, and audio models with specialized processors
-- **End-to-End Pipeline**: Training, evaluation, adapter merging, and deployment automation
-- **Training Time Estimates**: Reference tables for cost and time planning
+- **End-to-End Automation**: Recipe generator, instance sizing guide, training time estimates, and deployment pipeline
 
-### 🚀 Quick Start Example
+**[→ Get Started](0_model_customization_recipes/README.md)** | **[→ Available Models](0_model_customization_recipes/README.md#available-models-and-recipes)** | **[→ Instance Guide](0_model_customization_recipes/README.md#quick-instance-reference-guide)**
 
-**Step 1: Craft a Recipe**
+---
 
-```bash
-# Generate a custom recipe interactively
-python3 sft_recipe_generator.py
+## 🔬 Model Training & Customization — Deep Dives
 
-# Or use the quick mode
-python3 sft_recipe_generator.py --easy
->> hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-peft-qlora.yaml
-```
+**Hands-on notebooks for specific models, frameworks, and training strategies** — While the Recipes above offer a config-driven approach, the [Distributed Training](3_distributed_training/) folder provides deep-dive implementations where you control every aspect: distributed strategies (DDP, FSDP, DeepSpeed ZeRO-3), reinforcement learning (DPO, GRPO), specialized frameworks (NVIDIA NeMo, veRL, Unsloth), and more.
 
-**Option 2: SageMaker Training Jobs**
+- **Model Fine-Tuning** — SFT with DDP, FSDP, and DeepSpeed ZeRO-3 for Qwen, LLaMA, Mistral, Gemma, and GPT-OSS
+- **Reinforcement Learning** — DPO and GRPO using TRL, Unsloth, veRL, and NVIDIA NeMo RL
+- **NVIDIA NeMo** — NeMo RL (GRPO with Ray and vLLM) and NeMo AutoModel (SFT with FSDP2 and DTensor)
+- **Spectrum Fine-Tuning** — SNR-based selective layer freezing for efficient training
+- **Diffusers** — DreamBooth LoRA fine-tuning for FLUX.1-dev image generation
+- **Efficient Fine-tuning** — Unsloth-powered instruction fine-tuning with 2x-5x speed improvements
 
-```python
-# Configure training arguments
-args = [
-    "--config",
-    "hf_recipes/meta-llama/Llama-3.2-3B-Instruct--vanilla-peft-qlora.yaml",
-    # "--run-eval"  # Optional: Enable evaluation
-]
-
-# Set up source code and training script
-source_code = SourceCode(
-    source_dir="./sagemaker_code",
-    command=f"bash sm_accelerate_train.sh {' '.join(args)}",
-)
-
-# Configure compute resources
-compute_configs = Compute(
-    instance_type="ml.g6e.2xlarge",      # See Instance Reference Guide
-    instance_count=1,                     # Use 2+ for multi-node training
-    keep_alive_period_in_seconds=1800,   # Warm pool for faster iterations
-    volume_size_in_gb=300
-)
-
-# Create and launch the training job
-model_trainer = ModelTrainer(
-    training_image=pytorch_image_uri,
-    source_code=source_code,
-    base_job_name=base_job_name,
-    compute=compute_configs,
-    # ... additional configuration
-    role=role,
-    environment=training_env
-)
-
-# Start training
-model_trainer.fit()
-```
-
-**[→ Explore All Recipes](0_model_customization_recipes/)** | **[→ View Available Models](0_model_customization_recipes/README.md#available-models-and-recipes)** | **[→ Instance Guide](0_model_customization_recipes/README.md#quick-instance-reference-guide)**
+**[→ Explore All Deep Dives](3_distributed_training/)**
 
 ---
 
@@ -84,44 +41,47 @@ This repository supports a comprehensive range of foundation models with various
 
 ### Model Support Matrix
 
-| Models - Size                | Use Case / Strategy                                         | Notebook                                                                                                                                                                                                                 | Service                        | Frameworks & Libs                                                              |
-| ---------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------ |
-| Qwen 3 0.6B                  | Function Calling, Agentic AI (FSDP, SFT, QLoRA)             | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/qwen3-0.6b/model-trainer-fsdp.ipynb)                                                                     | SageMaker AI Training Jobs     | Transformers, Accelerate, SageMaker Model Trainer, MLflow, Weights & Biases    |
-| Qwen 3 0.6B                  | Function Calling, Agentic AI (DDP, SFT, QLoRA)              | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/qwen3-0.6b/model-trainer-ddp.ipynb)                                                                      | SageMaker AI Training Jobs     | Transformers, Accelerate, SageMaker Model Trainer, MLflow, Weights & Biases    |
-| Qwen 3 0.6B                  | Function Calling, Agentic AI (DeepSpeed-ZeRO-3, SFT, QLoRA) | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/qwen3-0.6b/model-trainer-deepspeed-zero3)                                                                | SageMaker AI Training Jobs     | Transformers, Accelerate, SageMaker Model Trainer, MLflow, Weights & Biases    |
-| Qwen 3 0.6B                  | Function Calling, Agentic AI (LoRA, DPO)                    | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/reinforcement-learning/dpo/trl/model-trainer-notebook.ipynb)                                                    | SageMaker AI Training Jobs     | Transformers, Accelerate, SageMaker Model Trainer, MLflow, Weights & Biases    |
-| Arcee-Lite                   | Reasoning (FSDP, QLoRA, GRPO)                               | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/reinforcement-learning/grpo/trl/torchrun/fsdp/model-trainer-notebook.ipynb)                                     | SageMaker AI Training Jobs     | Transformers, Accelerate, SageMaker Model Trainer, MLflow, Weights & Biases    |
-| Qwen 3 0.6B                  | Reasoning (FSDP, SFT, LoRA)                                 | [Notebook](https://github.com/aws-samples/sample-ray-on-amazon-sagemaker-training-jobs/blob/main/examples/ray-torchtrainer/huggingface-heterogeneous/estimator-notebook.ipynb)                                           | SageMaker AI Training Jobs     | Ray, Grafana, Prometheus, Transformers, SageMaker Model Trainer                |
-| Qwen 3 0.6B                  | Reasoning (FSDP, SFT, LoRA)                                 | [Notebook](https://github.com/aws-samples/sample-ray-on-amazon-sagemaker-training-jobs/blob/main/examples/ray-torchtrainer/huggingface/model-trainer-notebook.ipynb)                                                     | SageMaker AI Training Jobs     | Heterogeneous Cluster, Ray, Grafana, Prometheus, SageMaker Estimator           |
-| DeepSeek-R1-Distill-Llama-8B | Reasoning (SFT, QLoRA)                                      | [Notebook](https://github.com/aws-samples/generative-ai-on-amazon-sagemaker/blob/main/workshops/fine-tuning-with-sagemakerai-and-bedrock/task_02_customize_foundation_model/02.01_finetune_deepseekr1.ipynb)             | SageMaker AI Training Jobs     | Transformers, Accelerate, SageMaker Model Trainer, MLflow                      |
-| GTE-Base-En-V1.5             | Embeddings                                                  | [Notebook](https://github.com/aws-samples/generative-ai-on-amazon-sagemaker/blob/main/workshops/building-rag-workflows-with-sagemaker-and-bedrock/03-02_fine-tuning-embedding/01-ft_embedding_with_sagemaker_eval.ipynb) | SageMaker AI Training Jobs     | Sentence Transformers, Accelerate, SageMaker Estimator                         |
-| Qwen 2 0.5B Instruct         | Summarization (GRPO)                                        | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/reinforcement-learning/grpo/trl/accelerate/launch-training-job.ipynb)                                           | SageMaker AI Training Jobs     | Accelerate, Datasets, SageMaker, Transformers, TRL, Weights & Biases           |
-| Gemma 3 4B-It                | Conversations, Reasoning (LoRA)                             | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/unsloth/instruct-fine-tuning-example-2/gemma3-4b-it.ipynb)                                                      | SageMaker AI Training Jobs     | Torch, TorchVision, TorchAudio, Unsloth, Psutil                                |
-| Qwen 2 7B                    | Reasoning (GRPO)                                            | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/reinforcement-learning/grpo/veRL/verl-on-sagemaker.ipynb)                                                       | SageMaker AI Training Jobs     | Verl, Torch, vLLM, FlashAttention                                              |
-| Qwen 3 8B                    | Conversations (Spectrum)                                    | [Notebook](https://github.com/aws-samples/sagemaker-distributed-training-workshop/blob/main/21_spectrum_finetuning/spectrum_training.ipynb)                                                                              | SageMaker AI Training Jobs     | Transformers, Accelerate, SageMaker Model Trainer, MLflow, Weights & Biases    |
-| Meta LLaMA 3.2 3B            | Function Calling, Agentic AI (SFT, LoRA, DPO)               | [Notebook](https://github.com/aws-samples/sagemaker-distributed-training-workshop/blob/main/22_dpo_alignment_trl_sagemaker/run_training_job.ipynb)                                                                       | SageMaker AI Training Jobs     | Accelerate, Datasets, SageMaker, Transformers, TRL, Weights & Biases           |
-| Qwen 2.5 0.5B Instruct       | Reasoning (GRPO)                                            | [Notebook](https://github.com/aws-samples/sagemaker-distributed-training-workshop/blob/main/20_grpo_trl_sagemaker/grpo-test.ipynb)                                                                                       | SageMaker AI Training Jobs     | Accelerate, Datasets, SageMaker, Transformers, TRL                             |
-| LLaMA 3 8B Instruct          | Reasoning, Conversation (SFT, LoRA, QLoRA, KD)              | [Notebook](https://github.com/aws-samples/sagemaker-distributed-training-workshop/blob/main/19_knowledge_distillation/test_gkd_deepseek.ipynb)                                                                           | SageMaker AI Training Jobs     | Accelerate, Datasets, SageMaker, Transformers, TRL, TorchRun, Weights & Biases |
-| LLaMA 3 / LLaMA 2 / Mistral  | Text Generation (FSDP)                                      | [Notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/pytorch/FSDP)                                                                                                               | SageMaker HyperPod (Slurm/EKS) | PyTorch, SMHP Training Operator                                                |
-| GPT on NeMo                  | Text Generation (Spectrum)                                  | [Notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/megatron/nemo)                                                                                                              | SageMaker HyperPod (Slurm/EKS) | NVIDIA NeMo                                                                    |
-| SMoLM 1.7B on Picotron       | Text Generation (FSDP)                                      | [Notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/pytorch/picotron)                                                                                                           | SageMaker HyperPod (Slurm/EKS) | Hugging Face Picotron                                                          |
-| LLaMA 3.1 on TorchTitan      | Text Generation (FSDP, Spectrum)                            | [Notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/pytorch/torchtitan)                                                                                                         | SageMaker HyperPod (Slurm/EKS) | PyTorch, TorchTitan                                                            |
-| Qwen 2.5 72B w/ HF TRL       | Preference Alignment, Reasoning (GRPO)                      | [Notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/pytorch/trl/grpo)                                                                                                           | SageMaker HyperPod (Slurm/EKS) | PyTorch, Hugging Face TRL                                                      |
-| Qwen 2.5 VL                  | Multimodality (SFT, QLoRA)                                  | [Notebook](https://github.com/aws-samples/multi-modal-examples-for-amazon-sagemaker/blob/main/01-video_content_reel_generator-qwen2_vl/04-02_optional_fine_tune_video_inference.ipynb)                                   | SageMaker Training Jobs        | SWIFT                                                                          |
-| Meta LLaMA 3 8B RLHF         | Preference Alignment (FSDP, DPO, QLoRA)                     | [Notebook](https://github.com/aws-samples/sagemaker-studio-foundation-models/blob/main/use-cases/dpo/RLHF-with-Llama3-on-Studio-DPO.ipynb)                                                                               | SageMaker Training Jobs        | Hugging Face TRL                                                               |
-| GPT-OSS 20B                  | Reasoning (Accelerate, DeepSpeed ZeRO-3, SFT, MXFP4, vLLM)  | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/openai--gpt-oss/finetune_gpt_oss_deepspeed_zero3.ipynb)                                                  | SageMaker Training Jobs        | Hugging Face Trainer, MXFP4                                                    |
-| GPT-OSS 20B                  | Reasoning (FSDP, SFT, MXFP4, vLLM)                          | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/openai--gpt-oss/finetune_gpt_oss_fsdp.ipynb)                                                             | SageMaker Training Jobs        | Hugging Face Trainer, MXFP4                                                    |
-| GPT-OSS 20B                  | Reasoning (SMDDP, SFT, MXFP4)                               | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/openai--gpt-oss/finetune_gpt_oss_hyperpod_recipes_eks.ipynb)                                             | SageMaker HyperPods (EKS)      | HyperPod Recipes                                                               |
-| GPT-OSS 20B                  | Reasoning (SMDDP, SFT, MXFP4)                               | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/openai--gpt-oss/finetune_gpt_oss_hyperpod_recipes_tj.ipynb)                                              | SageMaker TrainingJobs         | HyperPod Recipes                                                               |
-| LLaMA 3.1 8B Instruct        | Reasoning (FSDP, SFT, QLoRA)                                | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/meta-llama-3.1-8b/sft_llama_31_8b.ipynb)                                                                 | SageMaker TrainingJobs         | Transformers, TRL, BitsAndBytes, Accelerate, MLflow, PEFT                      |
-| Mistral 7B v0.3 Instruct     | Reasoning (DDP, SFT, QLoRA)                                 | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/mistral-7b-v03/model-trainer-ddp.ipynb)                                                                  | SageMaker TrainingJobs         | Transformers, TRL, BitsAndBytes, Accelerate, MLflow, PEFT                      |
-| Mistral 7B v0.3 Instruct     | Reasoning (FSDP, SFT, QLoRA)                                | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/mistral-7b-v03/model-trainer-fsdp.ipynb)                                                                 | SageMaker TrainingJobs         | Transformers, TRL, BitsAndBytes, Accelerate, MLflow, PEFT                      |
-| Mistral 7B v0.3 Instruct     | Reasoning (Accelerate, DeepSpeed ZeRO-3, SFT, LoRA)         | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/mistral-7b-v03/model-trainer-deepspeed-zero3.ipynb)                                                      | SageMaker TrainingJobs         | Transformers, TRL, BitsAndBytes, Accelerate, MLflow, PEFT                      |
-| DeepSeek R1 Distill Qwen 7B  | Programming (GRPO, Ray)                                     | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/deepseek-r1-distill-qwen-7b/model-trainer-verl-grpo.ipynb)                                               | SageMaker TrainingJobs         | Verl, Ray, TRL, Weights & Biases                                               |
+| Models - Size                | Use Case / Strategy                                        | Notebook                                                                                                                                                                                                                 | Service                        | Frameworks & Libs                                                              |
+| ---------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------ | ------------------------------------------------------------------------------ |
+| Qwen 3 0.6B                  | Function Calling, Agentic AI (FSDP, SFT, QLoRA)            | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/qwen3-0.6b/model-trainer-fsdp.ipynb)                                                                     | SageMaker AI Training Jobs     | Transformers, Accelerate, SageMaker Model Trainer, MLflow, Weights & Biases    |
+| Qwen 3 0.6B                  | Function Calling, Agentic AI (DDP, SFT, QLoRA)             | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/qwen3-0.6b/model-trainer-ddp.ipynb)                                                                      | SageMaker AI Training Jobs     | Transformers, Accelerate, SageMaker Model Trainer, MLflow, Weights & Biases    |
+| Gemma 3 4B-IT                | Reasoning (DeepSpeed ZeRO-3, SFT, LoRA)                    | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/gemma-3-4b-it/model-trainer-deepspeed-zero3.ipynb)                                                       | SageMaker AI Training Jobs     | Transformers, Accelerate, DeepSpeed, SageMaker Model Trainer                   |
+| Qwen 3 0.6B                  | Function Calling, Agentic AI (LoRA, DPO)                   | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/reinforcement-learning/dpo/trl/model-trainer-notebook.ipynb)                                                    | SageMaker AI Training Jobs     | Transformers, Accelerate, SageMaker Model Trainer, MLflow, Weights & Biases    |
+| Arcee-Lite                   | Reasoning (FSDP, QLoRA, GRPO)                              | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/reinforcement-learning/grpo/trl/torchrun/fsdp/model-trainer-notebook.ipynb)                                     | SageMaker AI Training Jobs     | Transformers, Accelerate, SageMaker Model Trainer, MLflow, Weights & Biases    |
+| Qwen 3 0.6B                  | Reasoning (FSDP, SFT, LoRA)                                | [Notebook](https://github.com/aws-samples/sample-ray-on-amazon-sagemaker-training-jobs/blob/main/examples/ray-torchtrainer/huggingface-heterogeneous/estimator-notebook.ipynb)                                           | SageMaker AI Training Jobs     | Ray, Grafana, Prometheus, Transformers, SageMaker Model Trainer                |
+| Qwen 3 0.6B                  | Reasoning (FSDP, SFT, LoRA)                                | [Notebook](https://github.com/aws-samples/sample-ray-on-amazon-sagemaker-training-jobs/blob/main/examples/ray-torchtrainer/huggingface/model-trainer-notebook.ipynb)                                                     | SageMaker AI Training Jobs     | Heterogeneous Cluster, Ray, Grafana, Prometheus, SageMaker Estimator           |
+| DeepSeek-R1-Distill-Llama-8B | Reasoning (SFT, QLoRA)                                     | [Notebook](https://github.com/aws-samples/generative-ai-on-amazon-sagemaker/blob/main/workshops/fine-tuning-with-sagemakerai-and-bedrock/task_02_customize_foundation_model/02.01_finetune_deepseekr1.ipynb)             | SageMaker AI Training Jobs     | Transformers, Accelerate, SageMaker Model Trainer, MLflow                      |
+| GTE-Base-En-V1.5             | Embeddings                                                 | [Notebook](https://github.com/aws-samples/generative-ai-on-amazon-sagemaker/blob/main/workshops/building-rag-workflows-with-sagemaker-and-bedrock/03-02_fine-tuning-embedding/01-ft_embedding_with_sagemaker_eval.ipynb) | SageMaker AI Training Jobs     | Sentence Transformers, Accelerate, SageMaker Estimator                         |
+| Qwen 2 0.5B Instruct         | Summarization (GRPO)                                       | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/reinforcement-learning/grpo/trl/accelerate/launch-training-job.ipynb)                                           | SageMaker AI Training Jobs     | Accelerate, Datasets, SageMaker, Transformers, TRL, Weights & Biases           |
+| Gemma 3 4B-It                | Conversations, Reasoning (LoRA)                            | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/unsloth/gemma3-4b-it/gemma3-4b-it.ipynb)                                                                        | SageMaker AI Training Jobs     | Torch, TorchVision, TorchAudio, Unsloth, Psutil                                |
+| Qwen 2 7B                    | Reasoning (GRPO)                                           | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/reinforcement-learning/grpo/veRL/single-node/verl-on-sagemaker.ipynb)                                           | SageMaker AI Training Jobs     | Verl, Torch, vLLM, FlashAttention                                              |
+| Qwen 3 8B                    | Conversations (Spectrum)                                   | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/spectrum_finetuning/spectrum_training.ipynb)                                                                    | SageMaker AI Training Jobs     | Transformers, Accelerate, SageMaker Model Trainer, Spectrum                    |
+| Meta LLaMA 3.2 3B            | Function Calling, Agentic AI (SFT, LoRA, DPO)              | [Notebook](https://github.com/aws-samples/sagemaker-distributed-training-workshop/blob/main/22_dpo_alignment_trl_sagemaker/run_training_job.ipynb)                                                                       | SageMaker AI Training Jobs     | Accelerate, Datasets, SageMaker, Transformers, TRL, Weights & Biases           |
+| Qwen 2.5 0.5B Instruct       | Reasoning (GRPO)                                           | [Notebook](https://github.com/aws-samples/sagemaker-distributed-training-workshop/blob/main/20_grpo_trl_sagemaker/grpo-test.ipynb)                                                                                       | SageMaker AI Training Jobs     | Accelerate, Datasets, SageMaker, Transformers, TRL                             |
+| LLaMA 3 8B Instruct          | Reasoning, Conversation (SFT, LoRA, QLoRA, KD)             | [Notebook](https://github.com/aws-samples/sagemaker-distributed-training-workshop/blob/main/19_knowledge_distillation/test_gkd_deepseek.ipynb)                                                                           | SageMaker AI Training Jobs     | Accelerate, Datasets, SageMaker, Transformers, TRL, TorchRun, Weights & Biases |
+| LLaMA 3 / LLaMA 2 / Mistral  | Text Generation (FSDP)                                     | [Notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/pytorch/FSDP)                                                                                                               | SageMaker HyperPod (Slurm/EKS) | PyTorch, SMHP Training Operator                                                |
+| GPT on NeMo                  | Text Generation (Spectrum)                                 | [Notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/megatron/nemo)                                                                                                              | SageMaker HyperPod (Slurm/EKS) | NVIDIA NeMo                                                                    |
+| SMoLM 1.7B on Picotron       | Text Generation (FSDP)                                     | [Notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/pytorch/picotron)                                                                                                           | SageMaker HyperPod (Slurm/EKS) | Hugging Face Picotron                                                          |
+| LLaMA 3.1 on TorchTitan      | Text Generation (FSDP, Spectrum)                           | [Notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/pytorch/torchtitan)                                                                                                         | SageMaker HyperPod (Slurm/EKS) | PyTorch, TorchTitan                                                            |
+| Qwen 2.5 72B w/ HF TRL       | Preference Alignment, Reasoning (GRPO)                     | [Notebook](https://github.com/aws-samples/awsome-distributed-training/tree/main/3.test_cases/pytorch/trl/grpo)                                                                                                           | SageMaker HyperPod (Slurm/EKS) | PyTorch, Hugging Face TRL                                                      |
+| Qwen 2.5 VL                  | Multimodality (SFT, QLoRA)                                 | [Notebook](https://github.com/aws-samples/multi-modal-examples-for-amazon-sagemaker/blob/main/01-video_content_reel_generator-qwen2_vl/04-02_optional_fine_tune_video_inference.ipynb)                                   | SageMaker Training Jobs        | SWIFT                                                                          |
+| Meta LLaMA 3 8B RLHF         | Preference Alignment (FSDP, DPO, QLoRA)                    | [Notebook](https://github.com/aws-samples/sagemaker-studio-foundation-models/blob/main/use-cases/dpo/RLHF-with-Llama3-on-Studio-DPO.ipynb)                                                                               | SageMaker Training Jobs        | Hugging Face TRL                                                               |
+| GPT-OSS 20B                  | Reasoning (Accelerate, DeepSpeed ZeRO-3, SFT, MXFP4, vLLM) | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/openai--gpt-oss/finetune_gpt_oss_deepspeed_zero3.ipynb)                                                  | SageMaker Training Jobs        | Hugging Face Trainer, MXFP4                                                    |
+| GPT-OSS 20B                  | Reasoning (FSDP, SFT, MXFP4, vLLM)                         | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/openai--gpt-oss/finetune_gpt_oss_fsdp.ipynb)                                                             | SageMaker Training Jobs        | Hugging Face Trainer, MXFP4                                                    |
+| GPT-OSS 20B                  | Reasoning (SMDDP, SFT, MXFP4)                              | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/openai--gpt-oss/finetune_gpt_oss_hyperpod_recipes_eks.ipynb)                                             | SageMaker HyperPods (EKS)      | HyperPod Recipes                                                               |
+| GPT-OSS 20B                  | Reasoning (SMDDP, SFT, MXFP4)                              | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/openai--gpt-oss/finetune_gpt_oss_hyperpod_recipes_tj.ipynb)                                              | SageMaker TrainingJobs         | HyperPod Recipes                                                               |
+| LLaMA 3.1 8B Instruct        | Reasoning (FSDP, SFT, QLoRA)                               | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/meta-llama-3.1-8b/sft_llama_31_8b.ipynb)                                                                 | SageMaker TrainingJobs         | Transformers, TRL, BitsAndBytes, Accelerate, MLflow, PEFT                      |
+| Mistral 7B v0.3 Instruct     | Reasoning (DDP, SFT, QLoRA)                                | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/mistral-7b-v03/model-trainer-ddp.ipynb)                                                                  | SageMaker TrainingJobs         | Transformers, TRL, BitsAndBytes, Accelerate, MLflow, PEFT                      |
+| Mistral 7B v0.3 Instruct     | Reasoning (FSDP, SFT, QLoRA)                               | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/mistral-7b-v03/model-trainer-fsdp.ipynb)                                                                 | SageMaker TrainingJobs         | Transformers, TRL, BitsAndBytes, Accelerate, MLflow, PEFT                      |
+| Mistral 7B v0.3 Instruct     | Reasoning (Accelerate, DeepSpeed ZeRO-3, SFT, LoRA)        | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/mistral-7b-v03/model-trainer-deepspeed-zero3.ipynb)                                                      | SageMaker TrainingJobs         | Transformers, TRL, BitsAndBytes, Accelerate, MLflow, PEFT                      |
+| DeepSeek R1 Distill Qwen 7B  | Programming (GRPO, Ray)                                    | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/models/deepseek-r1-distill-qwen-7b/model-trainer-verl-grpo.ipynb)                                               | SageMaker TrainingJobs         | Verl, Ray, TRL, Weights & Biases                                               |
+| Qwen 2.5 1.5B Instruct       | Reasoning (GRPO, NeMo RL)                                  | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/nvidia-nemo/nemo-rl/1-grpo-training.ipynb)                                                                      | SageMaker TrainingJobs         | NVIDIA NeMo RL, Ray, vLLM, DTensor, EFA                                        |
+| Mistral 7B v0.1              | Text Generation (SFT, LoRA, FSDP2)                         | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/nvidia-nemo/nemo-automodel/1-llm-fine-tuning.ipynb)                                                             | SageMaker TrainingJobs         | NVIDIA NeMo AutoModel, DTensor, FSDP2                                          |
+| FLUX.1-dev                   | Image Generation (DreamBooth LoRA)                         | [Notebook](https://github.com/aws-samples/amazon-sagemaker-generativeai/blob/main/3_distributed_training/diffusers/flux.1-dev/flux-fine-tune-sagemaker.ipynb)                                                            | SageMaker TrainingJobs         | Hugging Face Diffusers, Accelerate, Prodigy, Weights & Biases                  |
 
 ### Training Infrastructure
 
-- **SageMaker Hyperpod** - High-performance computing clusters for large-scale training
+- **SageMaker HyperPod** - High-performance computing clusters for large-scale training
 - **SageMaker Training Jobs** - Standard managed training infrastructure
 
 ## 📚 Repository Structure
@@ -134,14 +94,9 @@ This repository supports a comprehensive range of foundation models with various
 - **[Inference](2_end_to_end_genai_on_sagemaker/3_inference/)** - Production deployment patterns, real-time and batch inference, auto-scaling configurations, and multi-model endpoints
 - **[MLOps](2_end_to_end_genai_on_sagemaker/4_mlops/)** - Automated CI/CD pipelines using SageMaker Pipelines with integrated preprocessing, training, evaluation, model registration, and batch transform operations
 
-### ⚡ [Distributed Training](3_distributed_training/)
+### ⚡ [Distributed Training — Deep Dives](3_distributed_training/)
 
-**Scalable training implementations for Large Language Models with advanced parallelization strategies**
-
-- **SageMaker Unified Studio** - Native distributed training capabilities with seamless cluster management and resource optimization
-- **FSDP (Fully Sharded Data Parallel)** - Memory-efficient training using Hugging Face FSDP integration for models exceeding single-GPU memory limits
-- **Reinforcement Learning from Human Feedback** - DPO (Direct Preference Optimization) and GRPO implementations using TRL, Unsloth, and veRL frameworks
-- **Efficient Fine-tuning** - Unsloth-powered instruction fine-tuning with 2x-5x speed improvements and reduced memory consumption
+**Hands-on notebooks for specific models, frameworks, and training strategies** — See the [Distributed Training — Deep Dives](#-distributed-training--deep-dives) section above for full details.
 
 ### 🔍 [Retrieval-Augmented Generation (RAG)](4_rag/)
 
@@ -218,6 +173,7 @@ This repository supports a comprehensive range of foundation models with various
 
 - **Unsloth** - 2x-5x faster fine-tuning with reduced memory usage
 - **TRL (Transformer Reinforcement Learning)** - RLHF and preference optimization
+- **NVIDIA NeMo** - NeMo RL and NeMo AutoModel for distributed training with Ray, vLLM, and DTensor
 - **llm-compressor** - Post-training quantization with GPTQ and AWQ
 - **vLLM** - High-throughput inference serving
 

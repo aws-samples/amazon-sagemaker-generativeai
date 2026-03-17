@@ -1,0 +1,62 @@
+# GRPO Algorithm Configuration
+defaults: "grpo_math_1B.yaml"
+
+grpo:
+  num_prompts_per_step: 64
+  num_generations_per_prompt: 32
+  async_grpo:
+    enabled: false
+    max_trajectory_age_steps: 1
+
+policy:
+  model_name: "meta-llama/Llama-3.1-8B-Instruct"
+  tokenizer:
+    name: ${policy.model_name} ## specify if you'd like to use a tokenizer different from the model's default
+  train_global_batch_size: 512
+  train_micro_batch_size: 1
+  generation_batch_size: 32 # Only used when generating using HF backend
+  logprob_batch_size: 2
+  max_total_sequence_length: 4096
+  precision: "bfloat16"
+
+  dtensor_cfg:
+    enabled: True
+
+  optimizer:
+    name: "torch.optim.AdamW"
+    kwargs:
+      lr: 3.0e-7
+      weight_decay: 0.01
+      betas: [0.9, 0.999]
+      eps: 1e-8
+
+  scheduler:
+    - name: "torch.optim.lr_scheduler.LinearLR"
+      kwargs:
+        start_factor: 0.1
+        end_factor: 1.0
+        # The scheduler iteration is per GPRO step and is decoupled with the optimizer step (may be >=1 per GPRO step)
+        total_iters: 13
+    - name: "torch.optim.lr_scheduler.ConstantLR"
+      kwargs:
+        factor: 1.0
+        total_iters: 10000000000
+    - milestones: [13]
+
+  generation:
+    backend: "vllm"
+    max_new_tokens: ${policy.max_total_sequence_length}
+    temperature: 1.0
+    top_p: 1.0
+    top_k: null
+    stop_token_ids: null
+    stop_strings: null
+    vllm_cfg:
+      tensor_parallel_size: 1
+      gpu_memory_utilization: 0.6
+      max_model_len: ${policy.max_total_sequence_length}
+      enforce_eager: False
+
+cluster:
+  gpus_per_node: 8
+  num_nodes: 1
