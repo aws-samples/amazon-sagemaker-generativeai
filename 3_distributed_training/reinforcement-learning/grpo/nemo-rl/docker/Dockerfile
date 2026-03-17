@@ -112,9 +112,9 @@ RUN cd /opt/nemo-rl && \
 
 # Download Prometheus tar.gz (launcher.py expects the archive, not the extracted binary).
 # Set prometheus_path env var so the launcher uses this instead of `ray metrics launch-prometheus`.
-RUN curl -Lo /opt/prometheus.tar.gz \
+RUN curl -Lo /opt/prometheus-3.4.2.linux-amd64.tar.gz \
     https://github.com/prometheus/prometheus/releases/download/v3.4.2/prometheus-3.4.2.linux-amd64.tar.gz
-ENV prometheus_path=/opt/prometheus.tar.gz
+ENV prometheus_path=/opt/prometheus-3.4.2.linux-amd64.tar.gz
 
 # Install Ray Dashboard frontend
 RUN pip install --no-cache-dir "ray[default]==2.49.2"

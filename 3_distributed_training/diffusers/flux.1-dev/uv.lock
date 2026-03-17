@@ -394,7 +394,7 @@ requires-dist = [
     { name = "ipywidgets", specifier = ">=8.1.7" },
     { name = "peft", specifier = ">=0.17.0" },
     { name = "prodigyopt", specifier = ">=1.1.2" },
-    { name = "sagemaker", specifier = ">=2.250.0" },
+    { name = "sagemaker", specifier = ">=2.257.1" },
     { name = "sentencepiece", specifier = ">=0.2.0" },
     { name = "torch", specifier = ">=2.8.0" },
     { name = "torchvision", specifier = ">=0.23.0" },
@@ -1752,7 +1752,7 @@ wheels = [
 
 [[package]]
 name = "sagemaker"
-version = "2.250.0"
+version = "2.257.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
