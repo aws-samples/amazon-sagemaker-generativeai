@@ -38,7 +38,7 @@ ray-sagemaker-training/
 ├── data/                  # Sample datasets
 ├── docker/               # Docker configuration
 ├── images/              # Documentation images
-├── model-trainer-notebook.ipynb  # Example notebook
+├── model-trainer-verl-grpo.ipynb # Example notebook
 └── requirements.txt     # Local development dependencies
 ```
 

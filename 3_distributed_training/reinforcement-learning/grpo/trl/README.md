@@ -7,13 +7,11 @@ This directory provides implementations of Generative Reward Penalized Optimizat
 The repository offers two distinct implementations for GRPO training:
 
 1. **Accelerate-based Implementation** ([accelerate/](accelerate/)): Uses Hugging Face's Accelerate library for distributed training with:
-
    - Basic and advanced implementation options
    - Built-in support for PEFT and external reward models
    - Simplified configuration using YAML files
 
 2. **Torchrun-based Implementation** ([torchrun/](torchrun/)): Uses PyTorch's distributed training with:
-
    1. [FSDP](torchrun/fsdp/)
       - FSDP (Fully Sharded Data Parallel) support
       - Comprehensive monitoring and experiment tracking
@@ -51,27 +49,26 @@ The repository offers two distinct implementations for GRPO training:
 
 ```
 .
-├── accelerate/                     # Accelerate-based implementation
+├── accelerate/                        # Accelerate-based implementation
 │   ├── scripts/
-│   │   ├── default_config.yaml    # Accelerate configuration
-│   │   ├── grpo.py               # Basic implementation
-│   │   ├── grpo_advanced.py      # Advanced implementation
-│   │   └── requirements.txt      # Dependencies
-│   └── launch-training-job.ipynb  # SageMaker launcher
-└── torchrun/                      # Torchrun-based implementation
-│   ├── fsdp/
-|   |   ├── scripts/
-|   |   │   ├── utils/
-|   |   │   │   └── reward_functions.py # Reward implementations
-|   |   │   ├── train.py              # Training script
-|   |   │   └── requirements.txt      # Dependencies
-|   |   └── model-trainer-notebook.ipynb # Example notebook
+│   │   ├── default_config.yaml        # Accelerate configuration
+│   │   ├── grpo.py                    # Basic implementation
+│   │   ├── grpo_advanced.py           # Advanced implementation
+│   │   └── requirements.txt           # Dependencies
+│   └── launch-training-job.ipynb      # SageMaker launcher
+└── torchrun/                          # Torchrun-based implementation
+    └── fsdp/
+        ├── scripts/
+        │   ├── utils/
+        │   │   └── reward_functions.py # Reward implementations
+        │   ├── train.py               # Training script
+        │   └── requirements.txt       # Dependencies
+        └── model-trainer-notebook.ipynb # Example notebook
 ```
 
 ## Getting Started
 
 1. Choose the implementation that best suits your needs:
-
    - Use `accelerate/` for a simpler setup with built-in distributed training
    - Use `torchrun/` for advanced features and comprehensive monitoring
 

@@ -20,8 +20,8 @@ trl/
 ├── scripts/
 │   ├── requirements.txt           # Python dependencies
 │   └── train.py                  # Main training script
-├── args.yaml                     # Training configuration
-└── model-trainer-notebook.ipynb  # Example notebook
+├── model-trainer-notebook.ipynb  # Example notebook
+└── README.md                    # This file
 ```
 
 ## Prerequisites

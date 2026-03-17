@@ -8,6 +8,7 @@ This directory contains examples of distributed training implementations on Amaz
 3_distributed_training/
 ├── models/                          # LLM fine-tuning examples by model
 ├── reinforcement-learning/          # RL techniques (GRPO, DPO)
+├── nvidia-nemo/                     # NVIDIA NeMo (NeMo RL, NeMo AutoModel)
 ├── diffusers/                       # Image generation fine-tuning
 ├── spectrum_finetuning/             # Spectrum selective layer freezing
 ├── unsloth/                         # Unsloth fine-tuning
@@ -52,6 +53,7 @@ Examples demonstrating distributed fine-tuning with different parallelism strate
 | Framework | Description                                | Link                                                                        |
 | --------- | ------------------------------------------ | --------------------------------------------------------------------------- |
 | TRL       | Accelerate and Torchrun with FSDP          | [reinforcement-learning/grpo/trl](reinforcement-learning/grpo/trl/)         |
+| NeMo RL   | NVIDIA NeMo RL with Ray and vLLM           | [reinforcement-learning/grpo/nemo-rl](reinforcement-learning/grpo/nemo-rl/) |
 | Unsloth   | Efficient training with 4-bit quantization | [reinforcement-learning/grpo/unsloth](reinforcement-learning/grpo/unsloth/) |
 | veRL      | Single-node and multi-node (Ray) setups    | [reinforcement-learning/grpo/veRL](reinforcement-learning/grpo/veRL/)       |
 
@@ -63,19 +65,24 @@ Examples demonstrating distributed fine-tuning with different parallelism strate
 
 - [FLUX.1-dev DreamBooth LoRA](diffusers/flux.1-dev/) - Fine-tune FLUX.1-dev with DreamBooth LoRA using Hugging Face Diffusers.
 
-### 4. Spectrum Fine-Tuning
+### 4. NVIDIA NeMo
+
+- [NeMo RL - GRPO Training](nvidia-nemo/nemo-rl/) - GRPO with NeMo RL v0.5.0, Ray, and vLLM on SageMaker.
+- [NeMo AutoModel - LLM Fine-Tuning](nvidia-nemo/nemo-automodel/) - SFT with NeMo AutoModel (FSDP2, DTensor) on SageMaker.
+
+### 5. Spectrum Fine-Tuning
 
 - [Spectrum Fine-Tuning](spectrum_finetuning/) - Selective layer freezing based on Signal-to-Noise Ratio analysis. Example with Qwen3-8B.
 
-### 5. Unsloth Fine-Tuning
+### 6. Unsloth Fine-Tuning
 
 - [Qwen2.5-7B-Instruct](unsloth/qwen2.5-7b-instruct/) - Instruction fine-tuning with custom Docker container.
 - [Gemma3-4B-IT](unsloth/gemma3-4b-it/) - Instruction fine-tuning with uv-based setup.
 
-### 6. Time Series Forecasting
+### 7. Time Series Forecasting
 
 - [Amazon Chronos 2](time-series-forecasting/amazon-chronos2/) - Deploy and fine-tune Amazon Chronos 2 for time series forecasting.
 
-### 7. SageMaker Unified Studio
+### 8. SageMaker Unified Studio
 
 - [Distributed Training in Unified Studio](distributed_training_sm_unified_studio/) - Distributed training from SageMaker Unified Studio.

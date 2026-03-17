@@ -8,10 +8,12 @@ This project provides a SageMaker-compatible setup for running **GRPO-based rein
 
 ## 📦 Contents
 
-- `sagemaker_grpo_trainer.py`: Main training script using `GRPOTrainer` from `trl` and `FastLanguageModel` from Unsloth.
+- `sagemaker_grpo_training_wb_tracing.py`: Main training script using `GRPOTrainer` from `trl` and `FastLanguageModel` from Unsloth, with Weights & Biases tracing.
 - `entrypoint.sh`: Entrypoint for SageMaker container execution.
-- `launch_unsloth_sagemaker_training.py`: Script to upload code to S3 and launch a SageMaker training job.
+- `launch_unsloth_GRPO_sagemaker_training.py`: Script to upload code to S3 and launch a SageMaker training job.
 - `Dockerfile`: Docker environment with `unsloth`, `transformers`, and `rouge`.
+- `requirements.txt`: Python dependencies for the training script.
+- `estimator_requirements.txt`: SageMaker estimator dependencies.
 
 ---
 

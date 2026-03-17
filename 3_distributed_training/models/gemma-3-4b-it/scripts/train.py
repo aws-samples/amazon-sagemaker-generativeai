@@ -1,8 +1,10 @@
 from accelerate import Accelerator
+import base64
 from dataclasses import dataclass, field
 from datasets import Dataset, DatasetDict, load_dataset, load_from_disk
 import datetime
 from huggingface_hub import snapshot_download
+import io
 import json
 import logging
 import mlflow
@@ -13,6 +15,7 @@ from peft import (
     LoraConfig,
     get_peft_model,
 )
+from PIL import Image
 import subprocess
 import sys
 import textwrap
@@ -29,6 +32,14 @@ from transformers import (
     TrainingArguments,
     set_seed,
 )
+
+try:
+    from transformers import AutoModelForImageTextToText
+except ImportError:
+    try:
+        from transformers import AutoModelForVision2Seq as AutoModelForImageTextToText
+    except ImportError:
+        AutoModelForImageTextToText = None
 from trl import TrlParser
 import transformers
 from transformers.trainer_utils import get_last_checkpoint
@@ -83,6 +94,17 @@ class ScriptArguments:
     mlflow_experiment_name: Optional[str] = field(
         default=None, metadata={"help": "MLflow experiment name"}
     )
+    modality_type: str = field(
+        default="text",
+        metadata={
+            "help": (
+                "Input modality: 'text' (text-only, default), "
+                "'image' (image+text multi-modal). "
+                "When set to 'image', the script uses a vision-aware data collator "
+                "and loads the model with AutoModelForVision2Seq."
+            )
+        },
+    )
     model_id: str = field(
         default=None, metadata={"help": "Model ID to use for SFT training"}
     )
@@ -133,6 +155,25 @@ class ScriptArguments:
     torch_dtype: Optional[str] = field(
         default="auto",
         metadata={"help": "Torch dtype (auto, bfloat16, float16, float32)"},
+    )
+    patch_peft_fsdp_auto_wrap_policy: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Patch PEFT's FSDP auto-wrap policy for architectures PEFT doesn't "
+                "recognize (e.g. Qwen3.5). FSDP + LoRA only."
+            )
+        },
+    )
+    cast_parameters_to_uniform_dtype: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Cast all model parameters to uniform dtype. Required for models "
+                "with mixed float32/bfloat16 parameters (e.g. Qwen3.5 inv_freq). "
+                "Needed for both FSDP and DeepSpeed."
+            )
+        },
     )
 
 
@@ -351,16 +392,27 @@ def setup_wandb(script_args: ScriptArguments) -> None:
         return None
 
 
-def load_model(
-    config_builder: ModelConfigBuilder, script_args: ScriptArguments
-) -> AutoModelForCausalLM:
-    """Load model using centralized configuration."""
+def load_model(config_builder: ModelConfigBuilder, script_args: ScriptArguments):
+    """Load model using centralized configuration.
+
+    When modality_type is 'image', loads with AutoModelForImageTextToText.
+    Otherwise loads with AutoModelForCausalLM.
+    """
     model_kwargs = config_builder.build_model_kwargs()
 
     try:
-        model = AutoModelForCausalLM.from_pretrained(
-            script_args.model_id, **model_kwargs
-        )
+        if (
+            script_args.modality_type == "image"
+            and AutoModelForImageTextToText is not None
+        ):
+            model = AutoModelForImageTextToText.from_pretrained(
+                script_args.model_id, **model_kwargs
+            )
+            logger.info(f"Loaded model with {AutoModelForImageTextToText.__name__}")
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                script_args.model_id, **model_kwargs
+            )
 
         # Apply gradient checkpointing configuration
         if config_builder.training_args.gradient_checkpointing:
@@ -397,11 +449,177 @@ def load_processor(script_args: ScriptArguments):
         return None
 
 
-def apply_lora_config(
-    model: AutoModelForCausalLM, script_args: ScriptArguments
-) -> AutoModelForCausalLM:
-    """Apply LoRA configuration to the model."""
-    config = LoraConfig(
+def process_vision_info(messages: List[Dict]) -> List[Image.Image]:
+    """Extract images from message content blocks.
+
+    Supports:
+    - base64 data URIs: {"type": "image_url", "image_url": {"url": "data:image/...;base64,..."}}
+    - Local file paths: {"type": "image_url", "image_url": {"url": "file:///path/to/image.png"}}
+    - Plain image type markers: {"type": "image"} (image data must come from dataset column)
+    """
+    images = []
+    for msg in messages:
+        content = msg.get("content", [])
+        if not isinstance(content, list):
+            continue
+        for element in content:
+            if not isinstance(element, dict):
+                continue
+            if element.get("type") == "image_url":
+                url = (element.get("image_url") or {}).get("url", "")
+                if url.startswith("data:image"):
+                    b64_data = url.split(",", 1)[1]
+                    img = Image.open(io.BytesIO(base64.b64decode(b64_data))).convert(
+                        "RGB"
+                    )
+                    images.append(img)
+                elif url.startswith("file://"):
+                    path = url.replace("file://", "")
+                    images.append(Image.open(path).convert("RGB"))
+    return images
+
+
+def collect_images(sample: Dict, messages: List[Dict]) -> Optional[List[Image.Image]]:
+    """Collect images from HF dataset columns or inline base64 in messages.
+
+    Priority: 'images' column > 'image' column > inline base64 in messages.
+    Returns None if no images are found (text-only sample).
+    """
+    if "images" in sample and sample["images"]:
+        imgs = sample["images"]
+        return imgs if isinstance(imgs, list) else [imgs]
+    if "image" in sample and sample["image"]:
+        img = sample["image"]
+        return [img] if not isinstance(img, list) else img
+    inline = process_vision_info(messages)
+    return inline if inline else None
+
+
+def get_vision_special_token_ids(processor) -> List[int]:
+    """Get token IDs for vision special tokens that should be masked in labels.
+
+    Scans the tokenizer's special tokens for vision-related markers
+    (e.g., <image>, <|vision_start|>, <|image_pad|>) and returns their IDs.
+    """
+    tokenizer = processor.tokenizer if hasattr(processor, "tokenizer") else processor
+    substrings = (
+        "image",
+        "vision",
+        "video",
+        "boi",
+        "eoi",
+        "<image>",
+        "<video>",
+        "image_pad",
+    )
+
+    special_vals = []
+    for v in (tokenizer.special_tokens_map or {}).values():
+        if isinstance(v, str):
+            special_vals.append(v)
+        elif isinstance(v, (list, tuple)):
+            special_vals.extend(s for s in v if isinstance(s, str))
+
+    addl = getattr(tokenizer, "additional_special_tokens", None)
+    if isinstance(addl, (list, tuple)):
+        special_vals.extend(s for s in addl if isinstance(s, str))
+
+    token_ids = []
+    for tok in special_vals:
+        if any(s in tok.lower() for s in substrings):
+            tid = tokenizer.convert_tokens_to_ids(tok)
+            if isinstance(tid, int) and tid >= 0:
+                token_ids.append(tid)
+
+    return list(set(token_ids))
+
+
+def patch_peft_fsdp_auto_wrap_policy():
+    """Patch PEFT's fsdp_auto_wrap_policy for model architectures that PEFT doesn't recognize.
+
+    PEFT's implementation inspects the model to find the transformer layer class but fails
+    on newer architectures (e.g. Qwen3.5). This patch catches the exception and auto-detects
+    the decoder layer class by scanning for modules with 'DecoderLayer' in their class name.
+
+    This is safe to call unconditionally — if PEFT's original function works, the patch
+    is a no-op pass-through.
+    """
+    import functools
+    from torch.distributed.fsdp.wrap import (
+        transformer_auto_wrap_policy,
+        _or_policy,
+        lambda_auto_wrap_policy,
+    )
+    import peft.utils.other
+
+    _original_fsdp_auto_wrap_policy = peft.utils.other.fsdp_auto_wrap_policy
+
+    def _patched_fsdp_auto_wrap_policy(model):
+        try:
+            return _original_fsdp_auto_wrap_policy(model)
+        except Exception:
+            base = model.base_model.model if hasattr(model, "base_model") else model
+            decoder_layer_cls = None
+            for _, module in base.named_modules():
+                cls_name = type(module).__name__
+                if "DecoderLayer" in cls_name:
+                    decoder_layer_cls = type(module)
+                    break
+            if decoder_layer_cls is None:
+                raise
+            logger.info(
+                f"Patched FSDP auto-wrap policy to use {decoder_layer_cls.__name__}"
+            )
+            from peft.tuners import PrefixEncoder, PromptEmbedding, PromptEncoder
+
+            peft_cls = (PrefixEncoder, PromptEmbedding, PromptEncoder)
+            lambda_policy = functools.partial(
+                lambda_auto_wrap_policy,
+                lambda_fn=lambda module: isinstance(module, peft_cls),
+            )
+            transformer_policy = functools.partial(
+                transformer_auto_wrap_policy,
+                transformer_layer_cls={decoder_layer_cls},
+            )
+            return functools.partial(
+                _or_policy, policies=[lambda_policy, transformer_policy]
+            )
+
+    peft.utils.other.fsdp_auto_wrap_policy = _patched_fsdp_auto_wrap_policy
+    logger.info("PEFT FSDP auto-wrap policy patch applied")
+
+
+def cast_parameters_to_uniform_dtype(model, target_dtype: torch.dtype) -> int:
+    """Cast all model parameters to a uniform dtype for FSDP compatibility.
+
+    Some model architectures (e.g. Qwen3.5) have parameters like inv_freq in
+    rotary embeddings that remain float32 even when loaded with torch_dtype=bfloat16.
+    FSDP requires all parameters to have the same dtype, and mixed dtypes also cause
+    gradient checkpointing recomputation mismatches (PyTorch issue #159359).
+
+    Returns the number of parameters that were cast.
+    """
+    cast_count = 0
+    for name, param in model.named_parameters():
+        if param.dtype != target_dtype:
+            param.data = param.data.to(target_dtype)
+            cast_count += 1
+    if cast_count > 0:
+        logger.info(
+            f"Cast {cast_count} parameters from mixed dtypes to {target_dtype} for FSDP"
+        )
+    return cast_count
+
+
+def apply_lora_config(model, script_args: ScriptArguments, is_vlm: bool = False):
+    """Apply LoRA configuration to the model.
+
+    For VLMs with target_modules='all-linear', the vision encoder is excluded
+    to avoid gradient checkpointing recomputation mismatches — LoRA on vision
+    encoder layers causes shape/dtype conflicts during FSDP recomputation
+    (PyTorch issue #159359).
+    """
+    lora_kwargs = dict(
         r=script_args.lora_r,
         lora_alpha=script_args.lora_alpha,
         target_modules=(
@@ -413,7 +631,94 @@ def apply_lora_config(
         bias="none",
         task_type="CAUSAL_LM",
     )
+
+    if is_vlm and script_args.target_modules is None:
+        vision_prefixes = [
+            "visual",
+            "vision_tower",
+            "vision_model",
+            "img_processor",
+            "vpm",
+        ]
+        lora_kwargs["exclude_modules"] = vision_prefixes
+        logger.info(
+            f"VLM detected: excluding vision encoder from LoRA targets ({vision_prefixes})"
+        )
+
+    config = LoraConfig(**lora_kwargs)
     return get_peft_model(model, config)
+
+
+class MultiModalDataCollator:
+    """Data collator for vision-language models.
+
+    Processes raw dataset samples at collation time: applies chat template,
+    collects images, runs the processor to produce input_ids + pixel_values,
+    and builds labels with proper masking for padding and vision special tokens.
+    """
+
+    def __init__(
+        self,
+        processor,
+        script_args: ScriptArguments,
+        vision_token_ids: Optional[List[int]] = None,
+    ):
+        self.processor = processor
+        self.script_args = script_args
+        self.vision_token_ids = set(vision_token_ids or [])
+        self.tokenizer = (
+            processor.tokenizer if hasattr(processor, "tokenizer") else processor
+        )
+
+    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
+        texts = []
+        all_images = []
+
+        for sample in features:
+            messages = sample[self.script_args.messages_field]
+            if isinstance(messages, str):
+                messages = json.loads(messages)
+
+            text = self.processor.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=False
+            )
+            texts.append(text)
+
+            images = collect_images(sample, messages)
+            all_images.append(images)
+
+        has_images = any(imgs is not None for imgs in all_images)
+
+        if has_images:
+            flat_images = []
+            for imgs in all_images:
+                if imgs is not None:
+                    flat_images.extend(imgs)
+            batch = self.processor(
+                text=texts,
+                images=flat_images if flat_images else None,
+                return_tensors="pt",
+                padding=True,
+                truncation=self.script_args.apply_truncation,
+                max_length=self.script_args.max_length,
+            )
+        else:
+            batch = self.processor(
+                text=texts,
+                return_tensors="pt",
+                padding=True,
+                truncation=self.script_args.apply_truncation,
+                max_length=self.script_args.max_length,
+            )
+
+        labels = batch["input_ids"].clone()
+        if self.tokenizer.pad_token_id is not None:
+            labels[labels == self.tokenizer.pad_token_id] = -100
+        for tid in self.vision_token_ids:
+            labels[labels == tid] = -100
+        batch["labels"] = labels
+
+        return batch
 
 
 def setup_trainer(
@@ -423,6 +728,8 @@ def setup_trainer(
     config_builder: ModelConfigBuilder,
     test_ds: Optional[Dataset] = None,
     callbacks: Optional[List] = None,
+    processor=None,
+    script_args: Optional[ScriptArguments] = None,
 ) -> Trainer:
     """Set up the Trainer using centralized configuration."""
     trainer_kwargs = config_builder.build_trainer_kwargs()
@@ -439,30 +746,214 @@ def setup_trainer(
         report_to.append("mlflow")
     config_builder.training_args.report_to = report_to
 
+    if (
+        script_args is not None
+        and script_args.modality_type == "image"
+        and processor is not None
+    ):
+        vision_token_ids = get_vision_special_token_ids(processor)
+        logger.info(
+            f"Using multi-modal data collator (vision tokens to mask: {len(vision_token_ids)})"
+        )
+        data_collator = MultiModalDataCollator(
+            processor=processor,
+            script_args=script_args,
+            vision_token_ids=vision_token_ids,
+        )
+    else:
+        data_collator = transformers.DataCollatorForLanguageModeling(
+            tokenizer, mlm=False
+        )
+
     return Trainer(
         model=model,
         train_dataset=train_ds,
         eval_dataset=test_ds if test_ds is not None else None,
         args=config_builder.training_args,
         callbacks=callbacks,
-        data_collator=transformers.DataCollatorForLanguageModeling(
-            tokenizer, mlm=False
-        ),
+        data_collator=data_collator,
     )
 
 
-def _merge_adapter_in_process(
-    temp_dir: str, final_output_dir: str, torch_dtype: torch.dtype = torch.bfloat16
-) -> AutoModelForCausalLM:
-    """Merge LoRA adapter in the current process (for FSDP/DDP)."""
-    with gpu_memory_manager():
-        model = AutoPeftModelForCausalLM.from_pretrained(
-            temp_dir,
+def _was_trained_as_vlm(adapter_dir: str) -> bool:
+    """Check if the adapter was trained on a VLM by inspecting adapter weight keys.
+
+    When a model is loaded with AutoModelForImageTextToText, the language model
+    layers are nested under 'language_model' (e.g. model.language_model.layers.X).
+    When loaded with AutoModelForCausalLM, they are directly under 'model'
+    (e.g. model.layers.X). We check the saved adapter weights for this prefix.
+    """
+    if AutoModelForImageTextToText is None:
+        return False
+    try:
+        import glob
+
+        # Check safetensors files first
+        safetensor_files = glob.glob(
+            os.path.join(adapter_dir, "adapter_model*.safetensors")
+        )
+        if safetensor_files:
+            from safetensors import safe_open
+
+            with safe_open(safetensor_files[0], framework="pt") as sf:
+                for key in sf.keys():
+                    if "language_model" in key:
+                        return True
+                return False
+
+        # Fall back to pytorch bin files
+        bin_files = glob.glob(os.path.join(adapter_dir, "adapter_model*.bin"))
+        if bin_files:
+            state_dict = torch.load(bin_files[0], map_location="cpu", weights_only=True)
+            for key in state_dict.keys():
+                if "language_model" in key:
+                    return True
+            return False
+    except Exception as e:
+        logger.warning(f"Could not inspect adapter weights: {e}")
+    return False
+
+
+def _is_vlm_from_config(model_id: str) -> bool:
+    """Check if a model is a VLM by inspecting its config."""
+    if AutoModelForImageTextToText is None:
+        return False
+    try:
+        from transformers import AutoConfig
+        from transformers.models.auto.modeling_auto import (
+            MODEL_FOR_IMAGE_TEXT_TO_TEXT_MAPPING_NAMES,
+        )
+
+        config = AutoConfig.from_pretrained(model_id, trust_remote_code=True)
+        return config.model_type in MODEL_FOR_IMAGE_TEXT_TO_TEXT_MAPPING_NAMES
+    except Exception:
+        return False
+
+
+def _transplant_into_vlm(
+    merged_causal_state: dict,
+    base_model_id: str,
+    torch_dtype: torch.dtype,
+):
+    """Transplant merged CausalLM weights into a full VLM to preserve vision encoder.
+
+    When an adapter is trained with AutoModelForCausalLM on a VLM base, the merged
+    language model weights use CausalLM key paths (model.layers.X...). This function
+    loads the full VLM and replaces the language model weights with the merged ones,
+    keeping the vision encoder and projector intact.
+    """
+    logger.info(
+        "Transplanting merged CausalLM weights into full VLM to preserve vision encoder"
+    )
+    vlm_model = AutoModelForImageTextToText.from_pretrained(
+        base_model_id,
+        torch_dtype=torch_dtype,
+        low_cpu_mem_usage=True,
+        trust_remote_code=True,
+    )
+    vlm_state = vlm_model.state_dict()
+
+    # Find the key prefix mapping between CausalLM and VLM structures.
+    # CausalLM: model.layers.0... / VLM: model.language_model.layers.0...
+    # We detect the VLM prefix by finding a known layer key.
+    causal_layer_key = next((k for k in merged_causal_state if ".layers.0." in k), None)
+    if causal_layer_key is None:
+        logger.warning(
+            "Could not find layer keys in merged state dict, skipping transplant"
+        )
+        return vlm_model
+
+    causal_prefix = causal_layer_key.split("layers.0.")[0]  # e.g. "model."
+    vlm_layer_key = next(
+        (k for k in vlm_state if ".layers.0." in k and "language_model" in k), None
+    )
+    if vlm_layer_key is None:
+        logger.warning(
+            "Could not find language_model layer keys in VLM, skipping transplant"
+        )
+        return vlm_model
+
+    vlm_prefix = vlm_layer_key.split("layers.0.")[0]  # e.g. "model.language_model."
+    logger.info(f"Key mapping: CausalLM '{causal_prefix}*' -> VLM '{vlm_prefix}*'")
+
+    # Replace VLM language model weights with merged CausalLM weights
+    updated = 0
+    for causal_key, value in merged_causal_state.items():
+        if causal_key.startswith(causal_prefix):
+            vlm_key = vlm_prefix + causal_key[len(causal_prefix) :]
+        else:
+            # Keys outside the main prefix (e.g. lm_head.weight)
+            # Search for matching suffix in VLM state dict
+            vlm_key = next((vk for vk in vlm_state if vk.endswith(causal_key)), None)
+        if vlm_key and vlm_key in vlm_state:
+            vlm_state[vlm_key] = value
+            updated += 1
+
+    logger.info(
+        f"Transplanted {updated}/{len(merged_causal_state)} language model weights into VLM"
+    )
+    vlm_model.load_state_dict(vlm_state)
+    return vlm_model
+
+
+def _load_and_merge_adapter(adapter_dir: str, torch_dtype: torch.dtype):
+    """Load, merge, and return the final model ready for saving.
+
+    Handles three cases:
+    1. Adapter trained on VLM (modality_type=image) → merge directly on VLM
+    2. Adapter trained on CausalLM, base is VLM → merge CausalLM, transplant into VLM
+    3. Adapter trained on CausalLM, base is text-only → merge directly on CausalLM
+    """
+    from peft import PeftConfig, PeftModel
+
+    peft_config = PeftConfig.from_pretrained(adapter_dir)
+    base_model_id = peft_config.base_model_name_or_path
+    trained_as_vlm = _was_trained_as_vlm(adapter_dir)
+    base_is_vlm = _is_vlm_from_config(base_model_id)
+
+    if trained_as_vlm:
+        # Case 1: direct VLM merge
+        logger.info(
+            f"Adapter trained on VLM: loading with {AutoModelForImageTextToText.__name__}"
+        )
+        base_model = AutoModelForImageTextToText.from_pretrained(
+            base_model_id,
             torch_dtype=torch_dtype,
             low_cpu_mem_usage=True,
             trust_remote_code=True,
         )
-        model = model.merge_and_unload()
+        model = PeftModel.from_pretrained(base_model, adapter_dir)
+        return model.merge_and_unload()
+
+    # Merge adapter as CausalLM first
+    logger.info("Adapter trained on CausalLM: merging with AutoPeftModelForCausalLM")
+    causal_model = AutoPeftModelForCausalLM.from_pretrained(
+        adapter_dir,
+        torch_dtype=torch_dtype,
+        low_cpu_mem_usage=True,
+        trust_remote_code=True,
+    )
+    merged_causal = causal_model.merge_and_unload()
+
+    if base_is_vlm:
+        # Case 2: transplant merged LM weights into full VLM
+        merged_state = merged_causal.state_dict()
+        del causal_model, merged_causal
+        torch.cuda.empty_cache()
+        return _transplant_into_vlm(merged_state, base_model_id, torch_dtype)
+
+    # Case 3: text-only model, return merged CausalLM directly
+    return merged_causal
+
+
+def _merge_adapter_in_process(
+    temp_dir: str,
+    final_output_dir: str,
+    torch_dtype: torch.dtype = torch.bfloat16,
+):
+    """Merge LoRA adapter in the current process (for FSDP/DDP)."""
+    with gpu_memory_manager():
+        model = _load_and_merge_adapter(temp_dir, torch_dtype)
         model.save_pretrained(
             final_output_dir, safe_serialization=True, max_shard_size="2GB"
         )
@@ -470,28 +961,118 @@ def _merge_adapter_in_process(
 
 
 def _merge_adapter_via_subprocess(
-    temp_dir: str, final_output_dir: str, torch_dtype_str: str = "bfloat16"
+    temp_dir: str,
+    final_output_dir: str,
+    torch_dtype_str: str = "bfloat16",
 ) -> None:
-    """Merge LoRA adapter in a clean subprocess to avoid DeepSpeed env conflicts."""
+    """Merge LoRA adapter in a clean subprocess to avoid DeepSpeed env conflicts.
+
+    Auto-detects whether the base model is a VLM from the adapter config and
+    loads with the correct auto class to preserve vision encoder weights.
+    """
     merge_script = textwrap.dedent(
         f"""\
+        import glob
+        import os
         import torch
-        from peft import AutoPeftModelForCausalLM
+        from peft import PeftConfig, PeftModel, AutoPeftModelForCausalLM
+        from transformers import AutoConfig
 
-        print("Loading adapter for merging...")
-        model = AutoPeftModelForCausalLM.from_pretrained(
-            "{temp_dir}",
-            torch_dtype=getattr(torch, "{torch_dtype_str}"),
-            low_cpu_mem_usage=True,
-            trust_remote_code=True,
-        )
+        adapter_dir = "{temp_dir}"
+        output_dir = "{final_output_dir}"
+        dtype = getattr(torch, "{torch_dtype_str}")
 
-        print("Merging LoRA weights...")
-        model = model.merge_and_unload()
+        peft_config = PeftConfig.from_pretrained(adapter_dir)
+        base_model_id = peft_config.base_model_name_or_path
+
+        # Check if adapter was trained on a VLM by inspecting weight keys
+        trained_as_vlm = False
+        try:
+            sf_files = glob.glob(os.path.join(adapter_dir, "adapter_model*.safetensors"))
+            if sf_files:
+                from safetensors import safe_open
+                with safe_open(sf_files[0], framework="pt") as sf:
+                    trained_as_vlm = any("language_model" in k for k in sf.keys())
+            else:
+                bin_files = glob.glob(os.path.join(adapter_dir, "adapter_model*.bin"))
+                if bin_files:
+                    sd = torch.load(bin_files[0], map_location="cpu", weights_only=True)
+                    trained_as_vlm = any("language_model" in k for k in sd.keys())
+        except Exception as e:
+            print(f"Warning: could not inspect adapter weights: {{e}}")
+
+        # Check if base model is a VLM
+        base_is_vlm = False
+        try:
+            from transformers.models.auto.modeling_auto import MODEL_FOR_IMAGE_TEXT_TO_TEXT_MAPPING_NAMES
+            config = AutoConfig.from_pretrained(base_model_id, trust_remote_code=True)
+            base_is_vlm = config.model_type in MODEL_FOR_IMAGE_TEXT_TO_TEXT_MAPPING_NAMES
+        except Exception:
+            pass
+
+        try:
+            from transformers import AutoModelForImageTextToText
+            vlm_auto_cls = AutoModelForImageTextToText
+        except ImportError:
+            try:
+                from transformers import AutoModelForVision2Seq as vlm_auto_cls
+            except ImportError:
+                vlm_auto_cls = None
+
+        if trained_as_vlm and vlm_auto_cls:
+            # Case 1: adapter trained on VLM -> merge directly
+            print(f"Adapter trained on VLM: loading with {{vlm_auto_cls.__name__}}")
+            base_model = vlm_auto_cls.from_pretrained(
+                base_model_id, torch_dtype=dtype,
+                low_cpu_mem_usage=True, trust_remote_code=True,
+            )
+            model = PeftModel.from_pretrained(base_model, adapter_dir)
+            model = model.merge_and_unload()
+        else:
+            # Merge as CausalLM first
+            print("Merging adapter as CausalLM...")
+            causal_model = AutoPeftModelForCausalLM.from_pretrained(
+                adapter_dir, torch_dtype=dtype,
+                low_cpu_mem_usage=True, trust_remote_code=True,
+            )
+            model = causal_model.merge_and_unload()
+
+            if base_is_vlm and vlm_auto_cls:
+                # Case 2: CausalLM adapter on VLM base -> transplant into full VLM
+                print("Base is VLM: transplanting merged weights into full VLM...")
+                merged_state = model.state_dict()
+                del causal_model, model
+                torch.cuda.empty_cache()
+
+                vlm_model = vlm_auto_cls.from_pretrained(
+                    base_model_id, torch_dtype=dtype,
+                    low_cpu_mem_usage=True, trust_remote_code=True,
+                )
+                vlm_state = vlm_model.state_dict()
+
+                # Find key prefix mapping: CausalLM "model." -> VLM "model.language_model."
+                causal_lk = next((k for k in merged_state if ".layers.0." in k), None)
+                vlm_lk = next((k for k in vlm_state if ".layers.0." in k and "language_model" in k), None)
+                if causal_lk and vlm_lk:
+                    c_prefix = causal_lk.split("layers.0.")[0]
+                    v_prefix = vlm_lk.split("layers.0.")[0]
+                    print(f"Key mapping: '{{c_prefix}}*' -> '{{v_prefix}}*'")
+                    updated = 0
+                    for ck, val in merged_state.items():
+                        if ck.startswith(c_prefix):
+                            vk = v_prefix + ck[len(c_prefix):]
+                        else:
+                            vk = next((x for x in vlm_state if x.endswith(ck)), None)
+                        if vk and vk in vlm_state:
+                            vlm_state[vk] = val
+                            updated += 1
+                    print(f"Transplanted {{updated}}/{{len(merged_state)}} weights")
+                    vlm_model.load_state_dict(vlm_state)
+                model = vlm_model
 
         print("Saving merged model...")
         model.save_pretrained(
-            "{final_output_dir}",
+            output_dir,
             safe_serialization=True,
             max_shard_size="2GB",
         )
@@ -534,11 +1115,51 @@ def _save_artifacts_on_main(
     tokenizer: AutoTokenizer,
     processor,
     final_output_dir: str,
+    model_id: str = None,
 ) -> None:
-    """Save tokenizer and processor to the output directory."""
+    """Save tokenizer and processor to the output directory.
+
+    If processor is None but the saved model is a VLM (has a config with a
+    model_type registered for image-text-to-text), loads and saves the processor
+    from the base model so the output is complete for multi-modal inference.
+    """
     tokenizer.save_pretrained(final_output_dir)
     if processor is not None:
         processor.save_pretrained(final_output_dir)
+        if (
+            hasattr(processor, "image_processor")
+            and processor.image_processor is not None
+        ):
+            processor.image_processor.save_pretrained(final_output_dir)
+        if (
+            hasattr(processor, "video_processor")
+            and processor.video_processor is not None
+        ):
+            processor.video_processor.save_pretrained(final_output_dir)
+    elif model_id and _is_vlm_from_config(model_id):
+        # No processor provided but base model is a VLM — load processor from base model
+        try:
+            logger.info(
+                f"No processor provided but base model is a VLM. "
+                f"Loading processor from: {model_id}"
+            )
+            base_processor = AutoProcessor.from_pretrained(
+                model_id, trust_remote_code=True
+            )
+            base_processor.save_pretrained(final_output_dir)
+            # Also save sub-processors as separate files for compatibility (e.g. Ollama)
+            if (
+                hasattr(base_processor, "image_processor")
+                and base_processor.image_processor is not None
+            ):
+                base_processor.image_processor.save_pretrained(final_output_dir)
+            if (
+                hasattr(base_processor, "video_processor")
+                and base_processor.video_processor is not None
+            ):
+                base_processor.video_processor.save_pretrained(final_output_dir)
+        except Exception as e:
+            logger.warning(f"Could not auto-save processor for VLM: {e}")
 
 
 def save_model(
@@ -579,9 +1200,13 @@ def save_model(
                     else "bfloat16"
                 )
                 _merge_adapter_via_subprocess(
-                    temp_dir, final_output_dir, torch_dtype_str=dtype_str
+                    temp_dir,
+                    final_output_dir,
+                    torch_dtype_str=dtype_str,
                 )
-                _save_artifacts_on_main(tokenizer, processor, final_output_dir)
+                _save_artifacts_on_main(
+                    tokenizer, processor, final_output_dir, script_args.model_id
+                )
                 if mlflow_enabled:
                     logger.info(
                         "Skipping MLflow registration (model merged in subprocess)"
@@ -598,9 +1223,13 @@ def save_model(
                     else torch.bfloat16
                 )
                 merged_model = _merge_adapter_in_process(
-                    temp_dir, final_output_dir, torch_dtype=save_dtype
+                    temp_dir,
+                    final_output_dir,
+                    torch_dtype=save_dtype,
                 )
-                _save_artifacts_on_main(tokenizer, processor, final_output_dir)
+                _save_artifacts_on_main(
+                    tokenizer, processor, final_output_dir, script_args.model_id
+                )
                 if mlflow_enabled:
                     register_model_in_mlflow(merged_model, tokenizer, script_args)
 
@@ -612,7 +1241,9 @@ def save_model(
         accelerator.wait_for_everyone()
 
         if accelerator.is_main_process:
-            _save_artifacts_on_main(tokenizer, processor, final_output_dir)
+            _save_artifacts_on_main(
+                tokenizer, processor, final_output_dir, script_args.model_id
+            )
             if mlflow_enabled:
                 register_model_in_mlflow(trainer.model, tokenizer, script_args)
 
@@ -876,17 +1507,20 @@ def prepare_dataset(
 
     if script_args.apply_truncation:
         if script_args.max_length is None:
-            max_length = calculate_optimal_max_length(
+            script_args.max_length = calculate_optimal_max_length(
                 tokenizer, train_ds, script_args, dataset_format, processor
             )
-        else:
-            max_length = script_args.max_length
-    else:
-        max_length = None
+    max_length = script_args.max_length
 
     logger.info(f"Using max_length: {max_length}")
     logger.info(f"Truncation enabled: {script_args.apply_truncation}")
     logger.info(f"Dataset format: {dataset_format}")
+
+    if script_args.modality_type == "image":
+        logger.info(
+            "Image modality: skipping pre-tokenization (processing happens in data collator)"
+        )
+        return train_ds, test_ds
 
     if dataset_format == "messages":
         lm_train_dataset = _tokenize_messages_dataset(
@@ -941,25 +1575,48 @@ def train(script_args, training_args, train_ds, test_ds):
     model = load_model(config_builder, script_args)
     tokenizer = load_tokenizer(script_args)
     processor = load_processor(script_args)
+    is_vlm = script_args.modality_type == "image"
 
     train_ds, test_ds = prepare_dataset(
         tokenizer, script_args, train_ds, test_ds, processor
     )
 
     if script_args.use_peft:
-        model = apply_lora_config(model, script_args)
+        model = apply_lora_config(model, script_args, is_vlm=is_vlm)
+
+    if (
+        script_args.patch_peft_fsdp_auto_wrap_policy
+        and script_args.use_peft
+        and training_args.fsdp
+        and training_args.fsdp != ""
+    ):
+
+        patch_peft_fsdp_auto_wrap_policy()
+    if script_args.cast_parameters_to_uniform_dtype:
+        cast_parameters_to_uniform_dtype(model, config_builder.torch_dtype)
 
     callbacks = setup_wandb(script_args)
     if script_args.early_stopping:
         if callbacks is None:
             callbacks = []
-        callbacks.append(EarlyStoppingCallback(early_stopping_patience=3))
+        callbacks.append(
+            EarlyStoppingCallback(
+                early_stopping_patience=3, early_stopping_threshold=0.01
+            )
+        )
 
         training_args.load_best_model_at_end = True
         training_args.metric_for_best_model = "eval_loss"
         training_args.greater_is_better = False
     trainer = setup_trainer(
-        model, tokenizer, train_ds, config_builder, test_ds, callbacks
+        model,
+        tokenizer,
+        train_ds,
+        config_builder,
+        test_ds,
+        callbacks,
+        processor=processor,
+        script_args=script_args,
     )
 
     if trainer.accelerator.is_main_process:

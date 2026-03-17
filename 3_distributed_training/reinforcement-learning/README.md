@@ -21,16 +21,20 @@ Reinforcement Learning (RL) has become a critical component in aligning Large La
 ### Group Relative Policy Optimization (GRPO)
 
 - [**GRPO with TRL**](grpo/trl/README.md): Implementation of GRPO using Hugging Face's TRL library with different distributed training approaches:
-
   - Accelerate-based implementation for simplified distributed training
   - Torchrun-based implementation with FSDP support
   - Comprehensive monitoring and experiment tracking
 
 - [**GRPO with Unsloth**](grpo/unsloth/README.md): GRPO implementation using the Unsloth framework for efficient training.
-
   - 4-bit quantization support
   - Single-GPU training focus
   - Optimized for memory efficiency
+
+- [**GRPO with NeMo RL**](grpo/nemo-rl/README.md): GRPO implementation using NVIDIA NeMo RL framework.
+  - Ray-based distributed orchestration
+  - vLLM for generation, DTensor for policy training
+  - Custom Docker container with EFA and AWS OFI NCCL support
+  - TensorBoard logging and Ray Dashboard monitoring
 
 - [**GRPO with veRL**](grpo/veRL/README.md): Advanced GRPO implementation using the veRL framework.
   - Ray-based distribution for scalable training

@@ -156,3 +156,5 @@ dmypy.json
 */**/.terraform*
 
 # Base data exclude
+./.claude
+./**/.claude
