@@ -9,7 +9,7 @@ huggingface_hub[hf_transfer]
 kernels>=0.12.1
 mlflow
 safetensors>=0.7.0
-sagemaker==2.257.0
+sagemaker==2.257.1
 sagemaker-mlflow==0.2.0
 sentencepiece==0.2.1
 scikit-learn==1.8.0
