@@ -21,8 +21,10 @@ import signal
 import subprocess
 import sys
 import time
+import re
 import tarfile
 from typing import Dict, List, Optional, Any, Tuple
+import yaml
 import ray
 
 
@@ -268,8 +270,8 @@ def _parse_args():
     parser.add_argument(
         "--launch-prometheus",
         type=bool,
-        default=False,
-        help="Number of seconds to wait before shutting down Ray server",
+        default=True,
+        help="Launch local Prometheus on the head node for metrics collection",
     )
 
     parser.add_argument(
@@ -528,6 +530,108 @@ def _copy_prometheus_binary(prometheus_path: str) -> str:
         raise
 
 
+def _is_remote_prometheus_host(url: str) -> bool:
+    """Check if the Prometheus host URL points to a remote server (not localhost)."""
+    return not ("127.0.0.1" in url or "localhost" in url)
+
+
+def _extract_amp_region(url: str) -> Optional[str]:
+    """Extract AWS region from an Amazon Managed Prometheus URL.
+
+    Args:
+        url: AMP workspace URL (e.g., https://aps-workspaces.us-east-1.amazonaws.com/workspaces/ws-xxx)
+
+    Returns:
+        AWS region string if URL matches AMP pattern, None otherwise
+    """
+    match = re.search(r"aps-workspaces\.([a-z0-9-]+)\.amazonaws\.com", url)
+    return match.group(1) if match else None
+
+
+def _get_prometheus_config_path(use_ray_template: bool = False) -> str:
+    """Get the Prometheus config file path.
+
+    Args:
+        use_ray_template: If True, return the Ray package template config path
+            (used by `ray metrics launch-prometheus`). If False, return the
+            session-specific config path (used by custom Prometheus binaries).
+
+    Returns:
+        Path to the Prometheus config file
+    """
+    if use_ray_template:
+        from ray.dashboard.consts import PROMETHEUS_CONFIG_INPUT_PATH
+
+        return PROMETHEUS_CONFIG_INPUT_PATH
+    return "/tmp/ray/session_latest/metrics/prometheus/prometheus.yml"
+
+
+def _inject_remote_write_config(
+    remote_write_url: str,
+    region: Optional[str] = None,
+    config_path: Optional[str] = None,
+    basic_auth: Optional[Dict[str, str]] = None,
+) -> None:
+    """Inject remote_write configuration into a prometheus.yml config file.
+
+    Args:
+        remote_write_url: Full remote write endpoint URL
+        region: AWS region for SigV4 authentication (only for AMP endpoints)
+        config_path: Path to the prometheus.yml file to modify
+        basic_auth: Optional dict with 'username' and 'password' keys for basic auth
+    """
+    if config_path is None:
+        config_path = "/tmp/ray/session_latest/metrics/prometheus/prometheus.yml"
+
+    if not os.path.exists(config_path):
+        logger.warning(
+            "Prometheus config not found at %s, skipping remote_write injection",
+            config_path,
+        )
+        return
+
+    try:
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+
+        remote_write_entry = {
+            "url": remote_write_url,
+            "queue_config": {
+                "max_samples_per_send": 1000,
+                "max_shards": 200,
+                "capacity": 2500,
+            },
+        }
+
+        if region:
+            remote_write_entry["sigv4"] = {"region": region}
+
+        if basic_auth:
+            remote_write_entry["basic_auth"] = {
+                "username": basic_auth["username"],
+                "password": basic_auth["password"],
+            }
+
+        if "remote_write" not in config:
+            config["remote_write"] = []
+
+        config["remote_write"].append(remote_write_entry)
+
+        with open(config_path, "w") as f:
+            yaml.dump(config, f, default_flow_style=False)
+
+        logger.info(
+            "Injected remote_write config into %s (url: %s, sigv4: %s)",
+            config_path,
+            remote_write_url,
+            region is not None,
+        )
+
+    except Exception as e:
+        logger.error("Failed to inject remote_write config: %s", e)
+        raise
+
+
 def _create_runtime_environment(args: argparse.Namespace, env: Any) -> Dict[str, Any]:
     """
     Create the Ray runtime environment configuration based on instance type.
@@ -575,8 +679,26 @@ def _create_runtime_environment(args: argparse.Namespace, env: Any) -> Dict[str,
         runtime_env["RDMAV_FORK_SAFE"] = "1"
 
     if args.launch_prometheus:
-        # Configure Prometheus host - Ray Dashboard connects to Prometheus via this URL
+        # Configure Prometheus host - Ray Dashboard connects to local Prometheus
         runtime_env["RAY_PROMETHEUS_HOST"] = "http://127.0.0.1:9090"
+
+        # If a remote Prometheus host is provided, store it for remote_write
+        env_prometheus_host = os.environ.get("RAY_PROMETHEUS_HOST")
+        if env_prometheus_host and _is_remote_prometheus_host(env_prometheus_host):
+            # Store the remote URL for remote_write, Dashboard still uses localhost
+            runtime_env["RAY_REMOTE_WRITE_PROMETHEUS_HOST"] = (
+                env_prometheus_host.rstrip("/")
+            )
+            # Pass through basic auth credentials if provided
+            rw_username = os.environ.get("RAY_PROMETHEUS_REMOTE_WRITE_USERNAME")
+            rw_password = os.environ.get("RAY_PROMETHEUS_REMOTE_WRITE_PASSWORD")
+            if rw_username and rw_password:
+                runtime_env["RAY_PROMETHEUS_REMOTE_WRITE_USERNAME"] = rw_username
+                runtime_env["RAY_PROMETHEUS_REMOTE_WRITE_PASSWORD"] = rw_password
+            logger.info(
+                "Detected remote Prometheus host: %s. Local Prometheus will remote_write to it.",
+                env_prometheus_host,
+            )
     else:
         if os.environ.get("RAY_PROMETHEUS_HOST") is not None:
             runtime_env["RAY_PROMETHEUS_HOST"] = os.environ.get("RAY_PROMETHEUS_HOST")
@@ -1165,9 +1287,36 @@ def _setup_head_node(
         ray.init(**ray_init_kwargs)
 
         if args.include_dashboard and args.launch_prometheus:
+            # Determine config path and whether we use custom or Ray-managed Prometheus
+            use_custom_prometheus = args.prometheus_path and prometheus_folder_name
+            remote_host = runtime_env.get("RAY_REMOTE_WRITE_PROMETHEUS_HOST")
+
+            # Inject remote_write config BEFORE launching Prometheus so the
+            # process starts with the correct configuration already in place.
+            if remote_host:
+                remote_write_url = f"{remote_host}/api/v1/remote_write"
+                region = _extract_amp_region(remote_host)
+                # ray metrics launch-prometheus reads the Ray package template;
+                # custom Prometheus uses the session config.
+                config_path = _get_prometheus_config_path(
+                    use_ray_template=not use_custom_prometheus
+                )
+                rw_user = runtime_env.get("RAY_PROMETHEUS_REMOTE_WRITE_USERNAME")
+                rw_pass = runtime_env.get("RAY_PROMETHEUS_REMOTE_WRITE_PASSWORD")
+                basic_auth = (
+                    {"username": rw_user, "password": rw_pass}
+                    if rw_user and rw_pass
+                    else None
+                )
+                _inject_remote_write_config(
+                    remote_write_url,
+                    region,
+                    config_path=config_path,
+                    basic_auth=basic_auth,
+                )
+
             logger.info("Launching prometheus")
-            if args.prometheus_path and prometheus_folder_name:
-                # Launch custom Prometheus binary with output capture
+            if use_custom_prometheus:
                 prometheus_cmd = _build_prometheus_command(prometheus_folder_name)
                 logger.info(
                     "Starting custom Prometheus with command: %s", prometheus_cmd
@@ -1179,7 +1328,6 @@ def _setup_head_node(
                     stderr_file="/tmp/prometheus_stderr.log",
                 )
             else:
-                # Launch Prometheus with output capture
                 _run_subprocess_command_async(
                     "ray metrics launch-prometheus",
                     wait_in_seconds=0,
@@ -1212,10 +1360,8 @@ def _setup_head_node(
                         break
                 except Exception as e:
                     logger.warning(str(e))
-                    # Prometheus not ready yet, continue polling
                     pass
 
-                # Wait 2 seconds before next check
                 time.sleep(2)
 
             if not prometheus_ready:
@@ -1224,7 +1370,7 @@ def _setup_head_node(
                     PROMETHEUS_WAIT_SECONDS,
                 )
 
-            # _read_and_log_prometheus_logs("/tmp/prometheus_stdout.log")
+            _read_and_log_prometheus_logs("/tmp/prometheus_stderr.log")
 
         ray_initialized = True
 
@@ -1434,9 +1580,31 @@ def _setup_single_node_ray(
         ray.init(**ray_init_kwargs)
 
         if args.include_dashboard and args.launch_prometheus:
+            use_custom_prometheus = args.prometheus_path and prometheus_folder_name
+            remote_host = runtime_env.get("RAY_REMOTE_WRITE_PROMETHEUS_HOST")
+
+            if remote_host:
+                remote_write_url = f"{remote_host}/api/v1/remote_write"
+                region = _extract_amp_region(remote_host)
+                config_path = _get_prometheus_config_path(
+                    use_ray_template=not use_custom_prometheus
+                )
+                rw_user = runtime_env.get("RAY_PROMETHEUS_REMOTE_WRITE_USERNAME")
+                rw_pass = runtime_env.get("RAY_PROMETHEUS_REMOTE_WRITE_PASSWORD")
+                basic_auth = (
+                    {"username": rw_user, "password": rw_pass}
+                    if rw_user and rw_pass
+                    else None
+                )
+                _inject_remote_write_config(
+                    remote_write_url,
+                    region,
+                    config_path=config_path,
+                    basic_auth=basic_auth,
+                )
+
             logger.info("Launching prometheus")
-            if args.prometheus_path and prometheus_folder_name:
-                # Launch custom Prometheus binary with output capture
+            if use_custom_prometheus:
                 prometheus_cmd = _build_prometheus_command(prometheus_folder_name)
                 logger.info(
                     "Starting custom Prometheus with command: %s", prometheus_cmd
@@ -1448,7 +1616,6 @@ def _setup_single_node_ray(
                     stderr_file="/tmp/prometheus_stderr.log",
                 )
             else:
-                # Launch Prometheus with output capture
                 _run_subprocess_command_async(
                     "ray metrics launch-prometheus",
                     wait_in_seconds=0,
@@ -1481,10 +1648,8 @@ def _setup_single_node_ray(
                         break
                 except Exception as e:
                     logger.warning(str(e))
-                    # Prometheus not ready yet, continue polling
                     pass
 
-                # Wait 2 seconds before next check
                 time.sleep(2)
 
             if not prometheus_ready:
@@ -1493,7 +1658,7 @@ def _setup_single_node_ray(
                     PROMETHEUS_WAIT_SECONDS,
                 )
 
-            # _read_and_log_prometheus_logs("/tmp/prometheus_stdout.log")
+            _read_and_log_prometheus_logs("/tmp/prometheus_stderr.log")
 
         ray_initialized = True
         _run_script(runtime_env)
