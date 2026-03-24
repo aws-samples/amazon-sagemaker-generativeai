@@ -262,14 +262,14 @@ def _parse_args():
 
     parser.add_argument(
         "--include-dashboard",
-        type=bool,
+        type=lambda v: v.lower() in ("true", "1", "yes", "on"),
         default=True,
         help="Include ray dashboard",
     )
 
     parser.add_argument(
         "--launch-prometheus",
-        type=bool,
+        type=lambda v: v.lower() in ("true", "1", "yes", "on"),
         default=True,
         help="Launch local Prometheus on the head node for metrics collection",
     )
@@ -1321,14 +1321,14 @@ def _setup_head_node(
                 logger.info(
                     "Starting custom Prometheus with command: %s", prometheus_cmd
                 )
-                _run_subprocess_command_async(
+                prometheus_process = _run_subprocess_command_async(
                     prometheus_cmd,
                     wait_in_seconds=0,
                     stdout_file="/tmp/prometheus_stdout.log",
                     stderr_file="/tmp/prometheus_stderr.log",
                 )
             else:
-                _run_subprocess_command_async(
+                prometheus_process = _run_subprocess_command_async(
                     "ray metrics launch-prometheus",
                     wait_in_seconds=0,
                     stdout_file="/tmp/prometheus_stdout.log",
@@ -1345,6 +1345,16 @@ def _setup_head_node(
             )
 
             while time.time() - start_time < PROMETHEUS_WAIT_SECONDS:
+                # Fail fast if the Prometheus process has already exited
+                if prometheus_process.poll() is not None:
+                    logger.warning(
+                        "Prometheus process exited with code %s. "
+                        "This may indicate missing internet access for downloading the binary. "
+                        "Use --prometheus-path to provide a pre-downloaded binary.",
+                        prometheus_process.returncode,
+                    )
+                    break
+
                 try:
                     response = requests.get(
                         f"{runtime_env['RAY_PROMETHEUS_HOST']}/-/healthy",
@@ -1609,14 +1619,14 @@ def _setup_single_node_ray(
                 logger.info(
                     "Starting custom Prometheus with command: %s", prometheus_cmd
                 )
-                _run_subprocess_command_async(
+                prometheus_process = _run_subprocess_command_async(
                     prometheus_cmd,
                     wait_in_seconds=0,
                     stdout_file="/tmp/prometheus_stdout.log",
                     stderr_file="/tmp/prometheus_stderr.log",
                 )
             else:
-                _run_subprocess_command_async(
+                prometheus_process = _run_subprocess_command_async(
                     "ray metrics launch-prometheus",
                     wait_in_seconds=0,
                     stdout_file="/tmp/prometheus_stdout.log",
@@ -1633,6 +1643,15 @@ def _setup_single_node_ray(
             )
 
             while time.time() - start_time < PROMETHEUS_WAIT_SECONDS:
+                if prometheus_process.poll() is not None:
+                    logger.warning(
+                        "Prometheus process exited with code %s. "
+                        "This may indicate missing internet access for downloading the binary. "
+                        "Use --prometheus-path to provide a pre-downloaded binary.",
+                        prometheus_process.returncode,
+                    )
+                    break
+
                 try:
                     response = requests.get(
                         f"{runtime_env['RAY_PROMETHEUS_HOST']}/-/healthy",
