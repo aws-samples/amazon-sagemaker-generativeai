@@ -139,7 +139,7 @@ class ScriptArguments:
     )
     use_peft: bool = field(default=True, metadata={"help": "Use PEFT for training"})
     use_snapshot_download: bool = field(
-        default=True,
+        default=False,
         metadata={"help": "Use snapshot download instead of Hugging Face Hub"},
     )
     val_dataset_path: Optional[str] = field(
