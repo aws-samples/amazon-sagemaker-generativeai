@@ -548,6 +548,22 @@ def _extract_amp_region(url: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
+def _build_remote_write_url(remote_host: str, region: Optional[str] = None) -> str:
+    """Build the full remote write URL from a host and optional region.
+
+    AMP endpoints use /api/v1/remote_write, self-hosted Prometheus uses /api/v1/write.
+    Handles hosts that may already include a subpath (e.g., https://example.com/prometheus).
+    """
+    from urllib.parse import urlparse, urlunparse
+
+    parsed = urlparse(remote_host)
+    rw_path = "/api/v1/remote_write" if region else "/api/v1/write"
+    # Append the write path to the existing path, avoiding double slashes
+    base_path = parsed.path.rstrip("/")
+    new_path = f"{base_path}{rw_path}"
+    return urlunparse(parsed._replace(path=new_path))
+
+
 def _get_prometheus_config_path(use_ray_template: bool = False) -> str:
     """Get the Prometheus config file path.
 
@@ -690,11 +706,11 @@ def _create_runtime_environment(args: argparse.Namespace, env: Any) -> Dict[str,
                 env_prometheus_host.rstrip("/")
             )
             # Pass through basic auth credentials if provided
-            rw_username = os.environ.get("RAY_PROMETHEUS_REMOTE_WRITE_USERNAME")
-            rw_password = os.environ.get("RAY_PROMETHEUS_REMOTE_WRITE_PASSWORD")
+            rw_username = os.environ.get("RAY_PROMETHEUS_USERNAME")
+            rw_password = os.environ.get("RAY_PROMETHEUS_PASSWORD")
             if rw_username and rw_password:
-                runtime_env["RAY_PROMETHEUS_REMOTE_WRITE_USERNAME"] = rw_username
-                runtime_env["RAY_PROMETHEUS_REMOTE_WRITE_PASSWORD"] = rw_password
+                runtime_env["RAY_PROMETHEUS_USERNAME"] = rw_username
+                runtime_env["RAY_PROMETHEUS_PASSWORD"] = rw_password
             logger.info(
                 "Detected remote Prometheus host: %s. Local Prometheus will remote_write to it.",
                 env_prometheus_host,
@@ -1294,15 +1310,15 @@ def _setup_head_node(
             # Inject remote_write config BEFORE launching Prometheus so the
             # process starts with the correct configuration already in place.
             if remote_host:
-                remote_write_url = f"{remote_host}/api/v1/remote_write"
                 region = _extract_amp_region(remote_host)
+                remote_write_url = _build_remote_write_url(remote_host, region)
                 # ray metrics launch-prometheus reads the Ray package template;
                 # custom Prometheus uses the session config.
                 config_path = _get_prometheus_config_path(
                     use_ray_template=not use_custom_prometheus
                 )
-                rw_user = runtime_env.get("RAY_PROMETHEUS_REMOTE_WRITE_USERNAME")
-                rw_pass = runtime_env.get("RAY_PROMETHEUS_REMOTE_WRITE_PASSWORD")
+                rw_user = runtime_env.get("RAY_PROMETHEUS_USERNAME")
+                rw_pass = runtime_env.get("RAY_PROMETHEUS_PASSWORD")
                 basic_auth = (
                     {"username": rw_user, "password": rw_pass}
                     if rw_user and rw_pass
@@ -1594,13 +1610,13 @@ def _setup_single_node_ray(
             remote_host = runtime_env.get("RAY_REMOTE_WRITE_PROMETHEUS_HOST")
 
             if remote_host:
-                remote_write_url = f"{remote_host}/api/v1/remote_write"
                 region = _extract_amp_region(remote_host)
+                remote_write_url = _build_remote_write_url(remote_host, region)
                 config_path = _get_prometheus_config_path(
                     use_ray_template=not use_custom_prometheus
                 )
-                rw_user = runtime_env.get("RAY_PROMETHEUS_REMOTE_WRITE_USERNAME")
-                rw_pass = runtime_env.get("RAY_PROMETHEUS_REMOTE_WRITE_PASSWORD")
+                rw_user = runtime_env.get("RAY_PROMETHEUS_USERNAME")
+                rw_pass = runtime_env.get("RAY_PROMETHEUS_PASSWORD")
                 basic_auth = (
                     {"username": rw_user, "password": rw_pass}
                     if rw_user and rw_pass
