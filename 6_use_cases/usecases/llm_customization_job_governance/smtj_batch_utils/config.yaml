@@ -1,0 +1,58 @@
+queues:
+  # FIFO queue - jobs run in submission order
+  - name: team-a-queue
+    type: fifo
+    priority: 2
+    service_environment:
+      name: team-a-service-environment
+      max_capacity: 1
+
+  # Fair-share queue - jobs scheduled by share identifier weights
+  - name: team-b-queue
+    type: fair-share
+    priority: 1
+    service_environment:
+      name: team-b-service-environment
+      max_capacity: 1
+    scheduling_policy:
+      name: team-b-policy
+      share_decay_seconds: 0
+      share_distribution:
+        - identifier: HIGHPRI
+          weight: 1
+        - identifier: MIDPRI
+          weight: 50
+        - identifier: LOWPRI
+          weight: 99
+
+  # Quota management queue - capacity allocation with lending, borrowing, and preemption
+  - name: team-c-queue
+    type: quota-management
+    priority: 1
+    service_environment:
+      name: team-c-service-environment
+      capacity_limits:
+        - capacity_unit: ml.g5.xlarge
+          max_capacity: 3
+    scheduling_policy:
+      name: team-c-policy
+    quota_shares:
+      - name: QS1
+        capacity_limits:
+          - capacity_unit: ml.g5.xlarge
+            max_capacity: 1
+        sharing_strategy: LEND_AND_BORROW
+        borrow_limit: 200
+        in_share_preemption: true
+      - name: QS2
+        capacity_limits:
+          - capacity_unit: ml.g5.xlarge
+            max_capacity: 1
+        sharing_strategy: LEND
+        in_share_preemption: false
+      - name: QS3
+        capacity_limits:
+          - capacity_unit: ml.g5.xlarge
+            max_capacity: 1
+        sharing_strategy: RESERVE
+        in_share_preemption: false
