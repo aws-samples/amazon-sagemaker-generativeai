@@ -14,7 +14,7 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     set_seed,
-    BitsAndBytesConfig,
+    BitsAndBytesConfig, # Quantization configuration for memory-efficient model loading
 )
 from transformers.trainer_utils import get_last_checkpoint
 from trl import GRPOTrainer, TrlParser, ModelConfig, GRPOConfig, get_peft_config, get_kbit_device_map
@@ -81,7 +81,7 @@ def setup_model_for_spectrum(model, spectrum_config_path):
         ):
             param.requires_grad = True
 
-    # COMMENT IN: for sanity check print the trainable parameters
+    # COMMENT IN: for validity check print the trainable parameters
     # for name, param in model.named_parameters():
     #     if param.requires_grad:
     #         print(f"Trainable parameter: {name}")
@@ -174,12 +174,12 @@ def train_function(
         tokenizer.pad_token = tokenizer.eos_token
     
 
-    logger.info(
-        f'Loaded dataset with {len(train_dataset)} samples and the following features: {train_dataset.features}'
-    )
-    logger.info(
-        f'Loaded eval dataset with {len(test_dataset)} samples and the following features: {test_dataset.features}'
-    )
+    # logger.info(
+    #     f'Loaded dataset with {len(train_dataset)} samples and the following features: {train_dataset.features}'
+    # )
+    # logger.info(
+    #     f'Loaded eval dataset with {len(test_dataset)} samples and the following features: {test_dataset.features}'
+    # )
     
 
     
@@ -192,7 +192,7 @@ def train_function(
     # define model kwargs
     model_kwargs = dict(
         revision=model_args.model_revision,  # What revision from Huggingface to use, defaults to main
-        trust_remote_code=model_args.trust_remote_code,  # Whether to trust the remote code, this also you to fine-tune custom architectures
+        trust_remote_code=model_args.trust_remote_code, # Whether to trust the remote code, this also allows you to fine-tune custom architectures
         attn_implementation=model_args.attn_implementation,  # What attention implementation to use, defaults to flash_attention_2
         torch_dtype=(
             model_args.torch_dtype
@@ -205,7 +205,7 @@ def train_function(
         low_cpu_mem_usage=(
             True
             if not strtobool(
-                os.environ.get("ACCELERATE_USE_DEEPSPEED", "false")
+                os.environ.get("ACCELERATE_USE_DEEPSPEED", "false") # DeepSpeed: distributed training optimization library by Microsoft
             )
             else None
         ),  # Reduces memory usage on CPU for loading the model
@@ -216,7 +216,7 @@ def train_function(
         model_kwargs['quantization_config'] = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type='nf4',
+            bnb_4bit_quant_type='nf4', # NormalFloat4 quantization for optimal 4-bit weight representation
             bnb_4bit_compute_dtype=model_kwargs['torch_dtype'],
             bnb_4bit_quant_storage=model_kwargs['torch_dtype'],
         )
@@ -271,7 +271,7 @@ def train_function(
         )
 
     logger.info(
-        f'*** Starting training {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} for {training_args.num_train_epochs} epochs***'
+        f'*** Starting training {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} for {training_args.num_train_epochs} epochs ***'
     )
     train_result = trainer.train(resume_from_checkpoint=last_checkpoint)
     # log metrics
