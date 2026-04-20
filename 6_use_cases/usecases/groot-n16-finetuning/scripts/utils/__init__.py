@@ -1,0 +1,1 @@
+from .bridge_modality_config import bridge_config

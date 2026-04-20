@@ -1,0 +1,19 @@
+# GR00T N1.6 Fine-tuning Dependencies
+# Installed inside the SageMaker training container
+torch==2.7.1
+torchvision==0.22.1
+torchcodec
+deepspeed
+accelerate
+transformers>=4.51.0
+huggingface_hub>=0.30.0,<1.0
+hf_transfer
+datasets
+pyarrow
+opencv-python-headless
+Pillow
+numpy
+tqdm
+lerobot
+av
+sagemaker>=3.4.0
