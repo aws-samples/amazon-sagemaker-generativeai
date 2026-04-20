@@ -1,0 +1,60 @@
+# OpenVLA Fine-tuning Configuration
+# BridgeData V2 — LoRA fine-tuning for robot manipulation
+
+# Model Configuration
+pretrained_model_name_or_path: "openvla/openvla-7b"
+
+# Dataset Configuration
+train_data_dir: "/opt/ml/input/data/train"
+image_column: "observation/image"
+instruction_column: "language_instruction"
+action_column: "action"
+
+# Validation Configuration
+num_validation_samples: 0
+validation_epochs: 20000
+
+# Training Configuration
+output_dir: "/opt/ml/model/openvla-finetuned-lora"
+seed: 42
+resolution: 224
+center_crop: false
+random_flip: true
+train_batch_size: 4
+num_train_epochs: 10
+gradient_accumulation_steps: 1
+gradient_checkpointing: true
+learning_rate: 1.0e-4
+scale_lr: false
+lr_scheduler: "cosine"
+lr_warmup_steps: 500
+use_8bit_adam: false
+allow_tf32: true
+dataloader_num_workers: 4
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_weight_decay: 0.01
+adam_epsilon: 1.0e-8
+max_grad_norm: 1.0
+
+# Logging and Checkpointing
+logging_dir: "logs"
+mixed_precision: "bf16"
+report_to: "wandb"
+local_rank: -1
+checkpointing_steps: 500
+checkpoints_total_limit: 3
+resume_from_checkpoint: null
+
+# Wandb
+wandb_project: "openvla-finetuning"
+wandb_run_name: "bridge-lora-sagemaker"
+
+# LoRA Configuration
+rank: 16
+lora_target_modules: "q_proj,v_proj,k_proj,out_proj"
+
+# Task-specific Configuration
+action_dim: 7
+task_type: "manipulation"
+image_interpolation_mode: "lanczos"
