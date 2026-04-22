@@ -161,16 +161,3 @@ The modality keys here must match the keys in `meta/modality.json` of the LeRobo
 | Training | ml.g6e.48xlarge or ml.p4d.24xlarge | 8× 48GB+ | 3B model + visual/diffusion tuning |
 | Evaluation | g6e.48xlarge or p4d.24xlarge | 8× 48GB+ | Full model inference |
 
-## Key Differences from OpenVLA_SMTJ
-
-| Aspect | GR00T | OpenVLA |
-|---|---|---|
-| Framework | NVIDIA Isaac-GR00T | HuggingFace + Accelerate + PEFT |
-| Model size | 3B | 7B |
-| Fine-tuning method | Visual encoder + projector + diffusion head | LoRA adapters on attention layers |
-| Distributed training | `torch.distributed.run` (built-in) | `accelerate launch` + DeepSpeed/DDP |
-| Config format | CLI flags + env vars | YAML recipe + accelerate YAML |
-| Dataset format | LeRobot V2 (Parquet + MP4 + metadata) | HuggingFace DatasetDict (Arrow) |
-| Data prep time | ~30-45 min (interpolation + ffmpeg) | ~15-20 min (no video encoding) |
-| Evaluation | Open-loop eval (MSE/MAE) via Isaac-GR00T | L1/L2 action error via custom script |
-| Container setup | Clones + installs Isaac-GR00T at runtime | Just installs pip requirements |
