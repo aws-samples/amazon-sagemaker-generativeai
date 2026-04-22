@@ -159,5 +159,5 @@ The modality keys here must match the keys in `meta/modality.json` of the LeRobo
 |---|---|---|---|
 | Data Preparation | Any (CPU ok) | None | Needs ffmpeg installed |
 | Training | ml.g6e.48xlarge or ml.p4d.24xlarge | 8× 48GB+ | 3B model + visual/diffusion tuning |
-| Evaluation | g6e.48xlarge or p4d.24xlarge | 8× 48GB+ | Full model inference |
+| Evaluation | g6e.2xlarge | 1× 48GB+ | Full model inference |
 
