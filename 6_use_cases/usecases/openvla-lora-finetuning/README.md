@@ -147,14 +147,3 @@ OpenVLA_SMTJ/
 | Training | ml.g6e.48xlarge or ml.p4d.24xlarge | 8× 48GB+ | 7B model + LoRA + gradients |
 | Evaluation | g6e.xlarge+ | 1× 48GB+ | Single GPU inference |
 
-## Key Differences from GR00T_SMTJ
-
-| Aspect | OpenVLA | GR00T |
-|---|---|---|
-| Framework | HuggingFace + Accelerate + PEFT | NVIDIA Isaac-GR00T |
-| Distributed training | `accelerate launch` + DeepSpeed/DDP | `torch.distributed.run` (built-in) |
-| Config format | YAML recipe + accelerate YAML | CLI flags + env vars |
-| Dataset format | HuggingFace DatasetDict (Arrow) | LeRobot V2 (Parquet + MP4 + metadata) |
-| Data prep time | ~15-20 min (no video encoding) | ~30-45 min (frame interpolation + ffmpeg) |
-| Fine-tuning method | LoRA (adapter weights only) | Full control of which components to tune |
-| Evaluation metric | L1/L2 action error | MSE/MAE open-loop eval |
