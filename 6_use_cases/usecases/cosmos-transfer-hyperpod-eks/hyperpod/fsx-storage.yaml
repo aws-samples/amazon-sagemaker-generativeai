@@ -1,0 +1,62 @@
+# FSx for Lustre — Shared Storage for Training Data + Checkpoints
+#
+# FSx provides high-throughput POSIX filesystem accessible from all nodes.
+# Training data, model checkpoints, and eval results all live here.
+#
+# Prerequisites:
+#   1. Install FSx CSI driver: kubectl apply -k "github.com/kubernetes-sigs/aws-fsx-csi-driver/deploy/kubernetes/overlays/stable"
+#   2. Create FSx filesystem in the same VPC/subnets as the EKS cluster
+#   3. Update the volumeHandle below with your FSx filesystem ID
+
+---
+# StorageClass for FSx for Lustre
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fsx-lustre
+provisioner: fsx.csi.aws.com
+parameters:
+  subnetId: subnet-XXXXXXXXX           # Same subnet as EKS nodes
+  securityGroupIds: sg-XXXXXXXXX       # Allow Lustre traffic (port 988)
+  deploymentType: PERSISTENT_2
+  perUnitStorageThroughput: "250"       # MB/s per TiB
+  dataCompressionType: LZ4
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+
+---
+# PersistentVolume pointing to existing FSx filesystem
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: fsx-cosmos-pv
+spec:
+  capacity:
+    storage: 2400Gi                     # Match your FSx filesystem size
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany                     # All nodes can read/write
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: fsx-lustre
+  csi:
+    driver: fsx.csi.aws.com
+    volumeHandle: fs-XXXXXXXXXXXXXXXXX  # Your FSx filesystem ID
+    volumeAttributes:
+      dnsname: fs-XXXXXXXXXXXXXXXXX.fsx.us-east-1.amazonaws.com
+      mountname: fsx                    # From FSx console
+
+---
+# PersistentVolumeClaim used by training and eval pods
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: fsx-cosmos-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: fsx-lustre
+  resources:
+    requests:
+      storage: 2400Gi
+  volumeName: fsx-cosmos-pv

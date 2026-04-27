@@ -1,0 +1,98 @@
+apiVersion: "kubeflow.org/v1"
+kind: PyTorchJob
+metadata:
+  name: cosmos-transfer-train
+  namespace: default
+spec:
+  runPolicy:
+    ttlSecondsAfterFinished: 3600
+    cleanPodPolicy: None
+  pytorchReplicaSpecs:
+    Master:
+      replicas: 1
+      restartPolicy: OnFailure
+      template:
+        metadata:
+          labels:
+            app: cosmos-training
+        spec:
+          nodeSelector:
+            sagemaker.amazonaws.com/instance-group-name: training-p5
+          tolerations:
+            - key: nvidia.com/gpu
+              operator: Exists
+              effect: NoSchedule
+          containers:
+            - name: pytorch
+              image: 783764584149.dkr.ecr.us-west-2.amazonaws.com/cosmos-transfer-training:latest
+              imagePullPolicy: Always
+              command: ["/bin/bash"]
+              args:
+                - "-c"
+                - |
+                  set -e
+                  cd /fsx/cosmos-transfer2.5
+                  source .venv/bin/activate
+                  NVIDIA_LIB=$(find .venv -path "*/nvidia/cuda_nvrtc/lib" -type d | head -1)
+                  export LD_LIBRARY_PATH="${NVIDIA_LIB}:${LD_LIBRARY_PATH}"
+                  python3 -c "from huggingface_hub import login; login(token='${HF_TOKEN}')" 2>/dev/null || true
+                  if [ ! -d "${CHECKPOINT_PATH}" ]; then
+                    python3 -c "from huggingface_hub import snapshot_download; snapshot_download('nvidia/Cosmos-Transfer2.5-2B', local_dir='${CHECKPOINT_PATH}')"
+                  fi
+                  ln -sf ${DATASET_PATH} assets/drive_dreams_cosmos_dataset 2>/dev/null || true
+                  ln -snf ${CHECKPOINT_PATH} checkpoints/Cosmos-Transfer2.5-2B 2>/dev/null || true
+                  export IMAGINAIRE_OUTPUT_ROOT=${OUTPUT_PATH}
+                  mkdir -p ${OUTPUT_PATH}
+                  export WANDB_MODE=online
+                  export WANDB_API_KEY=${WANDB_API_KEY}
+                  ln -sf /fsx/.netrc /root/.netrc 2>/dev/null || touch /root/.netrc
+                  echo "Starting training on single node (8x H100)..."
+                  torchrun --nproc_per_node=${NUM_GPUS_PER_NODE} --nnodes=1 --node_rank=0 --master_addr=localhost --master_port=29500 -m scripts.train --config=cosmos_transfer2/_src/transfer2/configs/vid2vid_transfer/config.py -- experiment=transfer2_drive_dreams_hdmap_posttrain
+              env:
+                - name: NUM_GPUS_PER_NODE
+                  value: "8"
+                - name: DATASET_PATH
+                  value: "/fsx/datasets/drive_dreams_cosmos_dataset"
+                - name: CHECKPOINT_PATH
+                  value: "/fsx/checkpoints/Cosmos-Transfer2.5-2B"
+                - name: OUTPUT_PATH
+                  value: "/fsx/output/cosmos_transfer"
+                - name: HF_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: hf-token
+                      key: token
+                - name: NCCL_SOCKET_IFNAME
+                  value: "eth0"
+                - name: NCCL_DEBUG
+                  value: "WARN"
+                - name: NCCL_TIMEOUT
+                  value: "1800"
+                - name: WANDB_MODE
+                  value: "online"
+                - name: WANDB_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: wandb-token
+                      key: token
+              resources:
+                limits:
+                  nvidia.com/gpu: 8
+                  vpc.amazonaws.com/efa: 4
+                requests:
+                  nvidia.com/gpu: 8
+                  cpu: "90"
+                  memory: "700Gi"
+              volumeMounts:
+                - name: fsx-volume
+                  mountPath: /fsx
+                - name: dshm
+                  mountPath: /dev/shm
+          volumes:
+            - name: fsx-volume
+              persistentVolumeClaim:
+                claimName: fsx-claim
+            - name: dshm
+              emptyDir:
+                medium: Memory
+                sizeLimit: "128Gi"

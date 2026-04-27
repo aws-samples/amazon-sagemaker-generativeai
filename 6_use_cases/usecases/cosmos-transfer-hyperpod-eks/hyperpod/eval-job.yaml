@@ -1,0 +1,67 @@
+# Cosmos Transfer 2.5 — Async Evaluation Job
+#
+# Runs on a separate p4de node (8× A100 80GB). Polls for new training
+# checkpoints, converts them, and runs inference + evaluation without
+# blocking the training job on the p5 nodes.
+#
+# Apply:
+#   kubectl apply -f eval-job.yaml
+#
+# Monitor:
+#   kubectl logs -f cosmos-transfer-eval
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cosmos-transfer-eval
+  namespace: default
+  labels:
+    app: cosmos-eval
+spec:
+  nodeSelector:
+    node-role: evaluation
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+  restartPolicy: OnFailure
+  containers:
+    - name: cosmos-eval
+      image: 783764584149.dkr.ecr.us-west-2.amazonaws.com/cosmos-transfer-training:latest
+      imagePullPolicy: Always
+      command: ["/bin/bash"]
+      args: ["/workspace/scripts/entrypoint_eval.sh"]
+      env:
+        - name: OUTPUT_PATH
+          value: "/fsx/output/cosmos_transfer"
+        - name: DATASET_PATH
+          value: "/fsx/datasets/drive_dreams_multiview_test"
+        - name: EVAL_INTERVAL
+          value: "300"                    # Check every 5 minutes
+        - name: NUM_GPUS
+          value: "8"
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token
+              key: token
+      resources:
+        limits:
+          nvidia.com/gpu: 8
+        requests:
+          nvidia.com/gpu: 8
+          cpu: "48"
+          memory: "350Gi"
+      volumeMounts:
+        - name: fsx-volume
+          mountPath: /fsx
+        - name: dshm
+          mountPath: /dev/shm
+  volumes:
+    - name: fsx-volume
+      persistentVolumeClaim:
+        claimName: fsx-claim
+    - name: dshm
+      emptyDir:
+        medium: Memory
+        sizeLimit: "64Gi"

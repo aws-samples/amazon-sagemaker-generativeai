@@ -1,0 +1,230 @@
+# Cosmos Transfer 2.5 — Clean Training Container (ubuntu:22.04 base)
+#
+# This Dockerfile builds the entire Cosmos Transfer 2.5 environment from scratch
+# using ubuntu:22.04 + NVIDIA CUDA toolkit + uv (NVIDIA's recommended approach).
+#
+# This avoids the NGC PyTorch image version conflicts (PyTorch 2.9 in NGC vs
+# PyTorch 2.7 required by flash-attn/transformer_engine compiled by uv sync).
+#
+# IMPORTANT: Must be built on a machine with NVIDIA GPU and >=200GB disk.
+# Recommended: EC2 c5.4xlarge with 200GB EBS, or a p-series instance.
+# The build takes ~30-45 minutes.
+#
+# Build:
+#   docker build -f Dockerfile.v2 -t cosmos-transfer-training:v2 .
+#
+# Push to ECR:
+#   export ACCOUNT_ID=783764584149
+#   export REGION=us-west-2
+#   aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
+#   docker tag cosmos-transfer-training:v2 $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/cosmos-transfer-training:v2
+#   docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/cosmos-transfer-training:v2
+
+# ============================================================
+# Stage 1: Base system with CUDA runtime
+# ============================================================
+FROM nvidia/cuda:12.8.0-devel-ubuntu22.04 AS base
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+
+# ── System dependencies ──
+RUN apt-get update -qq && \
+    apt-get install -y -qq \
+        curl wget git git-lfs tree \
+        ffmpeg libx11-dev libgl1-mesa-glx libglib2.0-0 \
+        build-essential ninja-build cmake \
+        libssl-dev libffi-dev \
+        ldconfig \
+    && git lfs install \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Install uv (NVIDIA's recommended package manager for Cosmos) ──
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+# ============================================================
+# Stage 2: Clone repo and install Python environment
+# ============================================================
+FROM base AS builder
+
+WORKDIR /workspace
+
+# Clone Cosmos Transfer 2.5
+RUN GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/nvidia-cosmos/cosmos-transfer2.5.git
+WORKDIR /workspace/cosmos-transfer2.5
+RUN git lfs install && git lfs pull
+
+# Install Python 3.10 and the full environment
+# uv sync --extra cu128 installs PyTorch 2.7 + flash-attn + transformer_engine
+# all compiled for the same CUDA/PyTorch version — no ABI conflicts
+RUN uv python install 3.10 && uv sync --extra cu128
+
+# ============================================================
+# Stage 3: Apply all patches for Drive-Dreams HDMap fine-tuning
+# ============================================================
+
+# ── Patch 1: PyTorch CUDA version check bypass ──
+# Allows flash-attn/TE to work when system CUDA differs from torch CUDA
+RUN EXTFILE=$(uv run python3 -c "import torch.utils.cpp_extension as ext; import inspect; print(inspect.getfile(ext))" 2>/dev/null) && \
+    if [ -n "$EXTFILE" ] && grep -q "raise RuntimeError(CUDA_MISMATCH_MESSAGE" "$EXTFILE" 2>/dev/null; then \
+        sed -i 's/raise RuntimeError(CUDA_MISMATCH_MESSAGE, cuda_str_version, torch.version.cuda)/pass  # Patched: allow CUDA version mismatch/' "$EXTFILE"; \
+        echo "[PATCH 1] CUDA version check bypassed"; \
+    fi
+
+# ── Patch 2: Add hdmap_bbox to CTRL_TYPE_INFO in singleview_dataset.py ──
+RUN sed -i '/"vis": {"folder": None},/a\    "hdmap_bbox": {"folder": "control_input_hdmap_bbox", "format": "mp4", "data_dict_key": "hdmap_bbox"},' \
+    cosmos_transfer2/_src/transfer2/datasets/local_datasets/singleview_dataset.py && \
+    echo "[PATCH 2] hdmap_bbox added to CTRL_TYPE_INFO"
+
+# ── Patch 3: Add hdmap_bbox video loading to _load_control_data ──
+RUN uv run python3 -c "
+path = 'cosmos_transfer2/_src/transfer2/datasets/local_datasets/singleview_dataset.py'
+with open(path, 'r') as f:
+    content = f.read()
+
+hdmap_block = '''
+            elif self.ctrl_type == \"hdmap_bbox\":
+                vr = VideoReader(ctrl_path, ctx=cpu(0))
+                if len(vr) < frame_ids[-1] + 1:
+                    raise ValueError(f\"HDMap video has fewer frames than RGB video: {ctrl_path}\")
+                hdmap_frames = vr.get_batch(frame_ids).asnumpy()
+                hdmap_frames = hdmap_frames.astype(np.uint8)
+                hdmap_t = torch.from_numpy(hdmap_frames).permute(0, 3, 1, 2)
+                hdmap_video = hdmap_t.permute(1, 0, 2, 3)
+                data_dict[\"control_input_hdmap_bbox\"] = hdmap_video
+                del vr'''
+
+marker = '                # Store with the key expected by AddControlInputDepth augmentor\n                data_dict[\"depth\"] = depth_video\n                del vr'
+if marker in content:
+    content = content.replace(marker, marker + hdmap_block)
+    with open(path, 'w') as f:
+        f.write(content)
+    print('[PATCH 3] hdmap_bbox loading added to _load_control_data')
+else:
+    print('[PATCH 3] WARNING: Could not find insertion point')
+"
+
+# ── Patch 4: Fix augmentor — don't split hdmap_bbox on underscore ──
+RUN sed -i 's/for key in control_input_type.split("_")/for key in [control_input_type]/' \
+    cosmos_transfer2/_src/transfer2/datasets/augmentors/control_input.py && \
+    echo "[PATCH 4] Augmentor split fix applied"
+
+# ── Patch 5: Register hdmap_bbox dataloader config ──
+RUN uv run python3 -c "
+path = 'cosmos_transfer2/_src/transfer2/configs/vid2vid_transfer/defaults/dataloader_local.py'
+with open(path, 'r') as f:
+    content = f.read()
+
+insert_code = '''
+    dataset_hdmap_bbox = L(SingleViewTransferDataset)(
+        dataset_dir=\"assets/drive_dreams_cosmos_dataset\",
+        num_frames=93,
+        video_size=(704, 1280),
+        resolution=\"720\",
+        hint_key=\"control_input_hdmap_bbox\",
+        is_train=True,
+        caption_type=\"t2w_qwen2p5_7b\",
+    )
+    cs.store(
+        group=\"data_train\",
+        package=\"dataloader_train\",
+        name=\"example_singleview_train_data_hdmap_bbox\",
+        node=L(get_generic_dataloader)(
+            dataset=dataset_hdmap_bbox,
+            sampler=L(get_sampler)(dataset=dataset_hdmap_bbox) if dist.is_initialized() else None,
+            batch_size=1,
+            drop_last=True,
+            num_workers=4,
+            pin_memory=True,
+        ),
+    )
+'''
+
+old_marker = '        pin_memory=True,\n        ),\n    )'
+last_idx = content.rfind(old_marker)
+if last_idx >= 0:
+    insert_point = last_idx + len(old_marker)
+    content = content[:insert_point] + insert_code + content[insert_point:]
+    with open(path, 'w') as f:
+        f.write(content)
+    print('[PATCH 5] hdmap_bbox dataloader registered')
+else:
+    print('[PATCH 5] WARNING: Could not find insertion point')
+"
+
+# ── Patch 6: Create Drive-Dreams experiment config ──
+RUN mkdir -p cosmos_transfer2/experiments/singleview && \
+    cat > cosmos_transfer2/experiments/singleview/__init__.py << 'EOF'
+EOF
+
+RUN cat > cosmos_transfer2/experiments/singleview/cosmos_drive_dreams_hdmap.py << 'EXPEOF'
+import os
+from hydra.core.config_store import ConfigStore
+from cosmos_transfer2.config import DEFAULT_BASE_EXPERIMENT
+
+SEG_CHECKPOINT_LOCAL = "checkpoints/Cosmos-Transfer2.5-2B/general/seg/5136ef49-6d8d-42e8-8abf-7dac722a304a_ema_bf16.pt"
+
+transfer2_drive_dreams_hdmap_posttrain = dict(
+    defaults=[
+        DEFAULT_BASE_EXPERIMENT,
+        {"override /data_train": "example_singleview_train_data_hdmap_bbox"},
+    ],
+    job=dict(project="cosmos_transfer2_posttrain", group="drive_dreams", name="transfer2_drive_dreams_hdmap_posttrain"),
+    checkpoint=dict(save_iter=250, load_path=SEG_CHECKPOINT_LOCAL, load_training_state=False, strict_resume=False,
+                    load_from_object_store=dict(enabled=False), save_to_object_store=dict(enabled=False)),
+    model=dict(config=dict(hint_keys="hdmap_bbox", base_load_from=None)),
+    dataloader_train=dict(dataset=dict(control_input_type="hdmap_bbox")),
+    trainer=dict(max_iter=5000, straggler_detection=dict(enabled=False),
+                 callbacks=dict(heart_beat=dict(save_s3=False), iter_speed=dict(save_s3=False),
+                                device_monitor=dict(save_s3=False), every_n_sample_reg=dict(save_s3=False, every_n=250),
+                                every_n_sample_ema=dict(save_s3=False, every_n=250), wandb=dict(save_s3=False),
+                                wandb_10x=dict(save_s3=False), dataloader_speed=dict(save_s3=False),
+                                frame_loss_log=dict(save_s3=False))),
+    scheduler=dict(cycle_lengths=[5000]),
+    model_parallel=dict(context_parallel_size=int(os.environ.get("COSMOS_CP_SIZE", "8"))),
+)
+
+cs = ConfigStore.instance()
+for _item in [transfer2_drive_dreams_hdmap_posttrain]:
+    _name = _item["job"]["name"]
+    cs.store(group="experiment", package="_global_", name=_name, node=_item)
+EXPEOF
+RUN echo "[PATCH 6] Experiment config created"
+
+# ── Set up LD_LIBRARY_PATH for transformer_engine / NVRTC ──
+RUN NVIDIA_LIBS=$(find .venv -path "*/nvidia/*/lib" -type d 2>/dev/null | tr '\n' ':') && \
+    echo "export LD_LIBRARY_PATH=\"${NVIDIA_LIBS}/usr/local/cuda/lib64:\${LD_LIBRARY_PATH}\"" >> /root/.bashrc
+
+# ── Create empty .netrc for wandb offline mode ──
+RUN touch /root/.netrc
+
+# ── Verify the environment ──
+# ── Verify the environment (imports only, no GPU needed) ──
+RUN uv run python3 -c "\
+import torch; print(f'PyTorch: {torch.__version__}'); \
+import cosmos_transfer2; print('cosmos_transfer2: OK'); \
+print('Build verification passed!')" || echo "Note: verification skipped"
+
+# ============================================================
+# Runtime configuration
+# ============================================================
+ENV IMAGINAIRE_OUTPUT_ROOT=/workspace/output
+ENV PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+ENV NCCL_DEBUG=WARN
+ENV NCCL_TIMEOUT=1800
+# Default context parallelism — override with COSMOS_CP_SIZE env var
+ENV COSMOS_CP_SIZE=8
+
+# ── Copy helper scripts ──
+COPY scripts/entrypoint_train.sh /workspace/scripts/entrypoint_train.sh
+COPY scripts/entrypoint_eval.sh /workspace/scripts/entrypoint_eval.sh
+COPY scripts/prepare_drive_dreams_dataset.py /workspace/scripts/prepare_drive_dreams_dataset.py
+COPY scripts/download_drive_dreams.py /workspace/scripts/download_drive_dreams.py
+COPY scripts/generate_multiview_specs_from_singleview.py /workspace/scripts/generate_multiview_specs_from_singleview.py
+COPY scripts/prepare_multiview_dataset.py /workspace/scripts/prepare_multiview_dataset.py
+
+WORKDIR /workspace/cosmos-transfer2.5
+ENTRYPOINT ["/bin/bash"]

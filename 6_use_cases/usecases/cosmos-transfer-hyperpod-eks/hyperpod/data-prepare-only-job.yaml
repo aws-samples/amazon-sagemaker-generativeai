@@ -1,0 +1,50 @@
+# Cosmos Transfer 2.5 — Dataset Preparation Only
+# Data is already downloaded to FSx. Just run the prepare script.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cosmos-data-prepare
+  namespace: default
+spec:
+  restartPolicy: Never
+  containers:
+    - name: data-prepare
+      image: python:3.10-slim
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -e
+          apt-get update -qq && apt-get install -y -qq ffmpeg libgl1 libglib2.0-0 2>/dev/null
+          pip install -q opencv-python-headless numpy tqdm
+
+          echo "=== Preparing Dataset ==="
+          echo "Raw data: /fsx/raw_data/extracted"
+          echo "HDMap count: $(ls /fsx/raw_data/extracted/hdmap/ | wc -l)"
+          echo "Generation count: $(ls /fsx/raw_data/extracted/generation/ | wc -l)"
+
+          python /workspace/data-scripts/prepare_drive_dreams_dataset.py \
+              --raw-dir /fsx/raw_data/extracted \
+              --output-dir /fsx/datasets/drive_dreams_cosmos_dataset \
+              --num-clips 500 \
+              --test-clips 50
+
+          echo ""
+          echo "=== Done ==="
+          ls -la /fsx/datasets/
+      resources:
+        requests:
+          cpu: "4"
+          memory: "16Gi"
+      volumeMounts:
+        - name: fsx-volume
+          mountPath: /fsx
+        - name: scripts-volume
+          mountPath: /workspace/data-scripts
+  volumes:
+    - name: fsx-volume
+      persistentVolumeClaim:
+        claimName: fsx-claim
+    - name: scripts-volume
+      configMap:
+        name: data-prep-scripts

@@ -1,0 +1,30 @@
+[
+  {
+    "InstanceGroupName": "training-p5",
+    "InstanceType": "ml.p5.48xlarge",
+    "InstanceCount": 0,
+    "LifeCycleConfig": {"SourceS3Uri": "s3://sagemaker-cosmos-training-cluster-31364dab-bucket", "OnCreate": "on_create.sh"},
+    "ExecutionRole": "arn:aws:iam::783764584149:role/sagemaker-cosmos-training-cluster-31364dabExecRole",
+    "InstanceStorageConfigs": [{"EbsVolumeConfig": {"VolumeSizeInGB": 500}}],
+    "OnStartDeepHealthChecks": ["InstanceStress", "InstanceConnectivity"],
+    "OverrideVpcConfig": {"SecurityGroupIds": ["sg-0f52225954b41149d"], "Subnets": ["subnet-0fb6914b849c7ab10"]}
+  },
+  {
+    "InstanceGroupName": "eval-p4de",
+    "InstanceType": "ml.p4de.24xlarge",
+    "InstanceCount": 1,
+    "LifeCycleConfig": {"SourceS3Uri": "s3://sagemaker-cosmos-training-cluster-31364dab-bucket", "OnCreate": "on_create.sh"},
+    "ExecutionRole": "arn:aws:iam::783764584149:role/sagemaker-cosmos-training-cluster-31364dabExecRole",
+    "InstanceStorageConfigs": [{"EbsVolumeConfig": {"VolumeSizeInGB": 500}}],
+    "OverrideVpcConfig": {"SecurityGroupIds": ["sg-0f52225954b41149d"], "Subnets": ["subnet-0fb6914b849c7ab10"]}
+  },
+  {
+    "InstanceGroupName": "system",
+    "InstanceType": "ml.c5.4xlarge",
+    "InstanceCount": 1,
+    "LifeCycleConfig": {"SourceS3Uri": "s3://sagemaker-cosmos-training-cluster-31364dab-bucket", "OnCreate": "on_create.sh"},
+    "ExecutionRole": "arn:aws:iam::783764584149:role/sagemaker-cosmos-training-cluster-31364dabExecRole",
+    "InstanceStorageConfigs": [{"EbsVolumeConfig": {"VolumeSizeInGB": 500}}],
+    "OverrideVpcConfig": {"SecurityGroupIds": ["sg-0f52225954b41149d"], "Subnets": ["subnet-0fb6914b849c7ab10"]}
+  }
+]

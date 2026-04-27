@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cosmos-docker-build
+  namespace: default
+spec:
+  nodeSelector:
+    sagemaker.amazonaws.com/instance-group-name: system
+  restartPolicy: Never
+  containers:
+    - name: build
+      image: ubuntu:22.04
+      command: ["bash", "-c"]
+      args:
+        - |
+          set -e
+          echo "=== Installing dependencies ==="
+          apt-get update -qq && apt-get install -y -qq curl unzip git git-lfs
+
+          # Install AWS CLI
+          curl -s "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+          unzip -q /tmp/awscliv2.zip -d /tmp
+          /tmp/aws/install
+
+          # Install skopeo for copying images (no Docker needed)
+          # Actually, we'll use buildah which can build OCI images without Docker
+          # But buildah needs privileges... Let's use a different approach.
+
+          # The simplest approach: tar the FSx venv into a container image layer
+          # using import/export with basic tools
+
+          echo "=== Creating container image from FSx environment ==="
+
+          # Create a minimal Dockerfile that just copies the pre-built venv
+          mkdir -p /tmp/build-context
+          cat > /tmp/build-context/Dockerfile << 'DEOF'
+          FROM nvidia/cuda:12.8.0-runtime-ubuntu22.04
+
+          ENV DEBIAN_FRONTEND=noninteractive
+          ENV PYTHONUNBUFFERED=1
+          ENV LANG=C.UTF-8
+
+          RUN apt-get update -qq && \
+              apt-get install -y -qq curl ffmpeg libx11-dev libgl1-mesa-glx libglib2.0-0 git git-lfs tree wget && \
+              rm -rf /var/lib/apt/lists/*
+
+          # Copy the pre-built environment from FSx
+          COPY cosmos-transfer2.5/ /workspace/cosmos-transfer2.5/
+
+          WORKDIR /workspace/cosmos-transfer2.5
+          ENTRYPOINT ["/bin/bash"]
+          DEOF
+
+          echo "This approach won't work without Docker daemon."
+          echo "Use kaniko instead — see instructions below."
+          echo ""
+          echo "=== Alternative: Export FSx venv as tarball for EC2 build ==="
+
+          # Create a tarball of just the essential files (not the full venv — too big)
+          # Instead, create a setup script that can be run on any machine
+          cd /fsx/cosmos-transfer2.5
+
+          echo "=== Creating reproducible setup archive ==="
+          tar czf /fsx/cosmos-docker-build-context.tar.gz \
+            --exclude='.venv' \
+            --exclude='checkpoints' \
+            --exclude='assets' \
+            --exclude='__pycache__' \
+            --exclude='.git' \
+            cosmos_transfer2/experiments/singleview/ \
+            cosmos_transfer2/_src/transfer2/datasets/local_datasets/singleview_dataset.py \
+            cosmos_transfer2/_src/transfer2/datasets/augmentors/control_input.py \
+            cosmos_transfer2/_src/transfer2/configs/vid2vid_transfer/defaults/dataloader_local.py \
+            cosmos_transfer2/_src/imaginaire/utils/wandb_util.py
+
+          ls -lh /fsx/cosmos-docker-build-context.tar.gz
+          echo "=== Done ==="
+      volumeMounts:
+        - name: fsx-volume
+          mountPath: /fsx
+  volumes:
+    - name: fsx-volume
+      persistentVolumeClaim:
+        claimName: fsx-claim

@@ -1,0 +1,54 @@
+# Build Cosmos Transfer Docker image using Kaniko (no Docker daemon needed)
+#
+# Prerequisites:
+#   1. Build context on FSx at /fsx/docker-build/ (Dockerfile.v2 + scripts/)
+#   2. ECR auth secret: kubectl create secret docker-registry ecr-creds ...
+#
+# Usage:
+#   kubectl delete pod cosmos-kaniko-build 2>/dev/null
+#   kubectl apply -f kaniko-build-job.yaml
+#   kubectl logs -f cosmos-kaniko-build
+#
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cosmos-kaniko-build
+  namespace: default
+spec:
+  nodeSelector:
+    sagemaker.amazonaws.com/instance-group-name: system
+  restartPolicy: Never
+  containers:
+    - name: kaniko
+      image: gcr.io/kaniko-project/executor:latest
+      args:
+        - "--dockerfile=/build-context/docker-build/Dockerfile.v2"
+        - "--context=/build-context/docker-build"
+        - "--destination=783764584149.dkr.ecr.us-west-2.amazonaws.com/cosmos-transfer-training:v2"
+        - "--cache=true"
+        - "--cache-repo=783764584149.dkr.ecr.us-west-2.amazonaws.com/cosmos-transfer-training/cache"
+        - "--snapshot-mode=redo"
+        - "--compressed-caching=false"
+      volumeMounts:
+        - name: fsx-volume
+          mountPath: /build-context
+          subPath: ""
+        - name: docker-config
+          mountPath: /kaniko/.docker
+      resources:
+        requests:
+          cpu: "8"
+          memory: "16Gi"
+        limits:
+          cpu: "16"
+          memory: "30Gi"
+  volumes:
+    - name: fsx-volume
+      persistentVolumeClaim:
+        claimName: fsx-claim
+    - name: docker-config
+      secret:
+        secretName: ecr-creds
+        items:
+          - key: .dockerconfigjson
+            path: config.json

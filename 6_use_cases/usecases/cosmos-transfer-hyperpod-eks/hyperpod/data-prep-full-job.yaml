@@ -1,0 +1,69 @@
+# Cosmos Transfer 2.5 — Full Dataset Preparation
+# Downloads ALL 17 generation parts (~700 GB) and prepares the full dataset.
+# Run this overnight — it takes several hours to download and prepare.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cosmos-data-prep-full
+  namespace: default
+spec:
+  restartPolicy: Never
+  containers:
+    - name: data-prep-full
+      image: python:3.10-slim
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -e
+          apt-get update -qq && apt-get install -y -qq ffmpeg libgl1 libglib2.0-0 2>/dev/null
+
+          echo "=== HuggingFace Login ==="
+          pip install -q "huggingface_hub<1.0" tqdm opencv-python-headless numpy
+          python -c "from huggingface_hub import login; login(token='${HF_TOKEN}')"
+
+          echo "=== Step 1: Download ALL generation parts (0-16, ~700 GB) ==="
+          echo "This will take several hours..."
+          python /workspace/data-scripts/download_drive_dreams.py \
+              --odir /fsx/raw_data \
+              --components generation \
+              --extract
+
+          echo "=== Step 2: Verify data ==="
+          echo "HDMap count: $(ls /fsx/raw_data/extracted/hdmap/ 2>/dev/null | wc -l)"
+          echo "Generation count: $(ls /fsx/raw_data/extracted/generation/ 2>/dev/null | wc -l)"
+          echo "Caption count: $(ls /fsx/raw_data/extracted/caption/ 2>/dev/null | wc -l)"
+
+          echo "=== Step 3: Prepare full dataset ==="
+          python /workspace/data-scripts/prepare_drive_dreams_dataset.py \
+              --raw-dir /fsx/raw_data/extracted \
+              --output-dir /fsx/datasets/drive_dreams_full \
+              --test-clips 200
+
+          echo ""
+          echo "=== Done ==="
+          echo "Full dataset: /fsx/datasets/drive_dreams_full"
+          echo "Test dataset: /fsx/datasets/drive_dreams_full_test"
+          ls -la /fsx/datasets/
+      env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token
+              key: token
+      resources:
+        requests:
+          cpu: "4"
+          memory: "16Gi"
+      volumeMounts:
+        - name: fsx-volume
+          mountPath: /fsx
+        - name: scripts-volume
+          mountPath: /workspace/data-scripts
+  volumes:
+    - name: fsx-volume
+      persistentVolumeClaim:
+        claimName: fsx-claim
+    - name: scripts-volume
+      configMap:
+        name: data-prep-scripts

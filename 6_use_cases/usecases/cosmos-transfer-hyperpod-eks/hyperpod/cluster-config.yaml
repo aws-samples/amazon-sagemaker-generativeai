@@ -1,0 +1,89 @@
+# HyperPod EKS Cluster Configuration
+# Reference: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-hyperpod-eks-create-cluster.html
+#
+# This is a reference config — actual cluster creation is done via
+# AWS Console, CLI, or eksctl. This documents the target setup.
+#
+# Node groups (all scale to 0 when idle except system):
+#   system      — c5.4xlarge   — always on, cluster services + Docker builds
+#   training    — p5.48xlarge  — FSDP training, 0-4 nodes
+#   evaluation  — p4de.24xlarge — async inference/eval during training, 0-1 nodes
+
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: cosmos-training-cluster
+  region: us-east-1
+  version: "1.31"
+
+# VPC with EFA-enabled subnets
+vpc:
+  clusterEndpoints:
+    publicAccess: true
+    privateAccess: true
+
+managedNodeGroups:
+  # ── System node: c5.4xlarge (no GPU) ──
+  # Always on. Runs cluster services (CoreDNS, metrics, autoscaler).
+  # Also usable for Docker builds, data prep, kubectl operations.
+  # Cost: ~$0.68/hr
+  - name: system
+    instanceType: c5.4xlarge
+    desiredCapacity: 1
+    minSize: 1
+    maxSize: 2
+    volumeSize: 150             # Enough for Docker builds
+    volumeType: gp3
+    labels:
+      node-role: system
+    tags:
+      k8s.io/cluster-autoscaler/enabled: "true"
+
+  # ── Training nodes: p5.48xlarge (8× H100 80GB) ──
+  # Distributed FSDP training. Scales to 0 when no training job is running.
+  # Cost: ~$98/hr per node
+  - name: training-p5
+    instanceType: p5.48xlarge
+    desiredCapacity: 0          # Scales up when PyTorchJob is submitted
+    minSize: 0
+    maxSize: 4
+    volumeSize: 500
+    volumeType: gp3
+    labels:
+      node-role: training
+      gpu-type: h100-80gb
+    tags:
+      k8s.io/cluster-autoscaler/enabled: "true"
+    # EFA for high-bandwidth inter-node communication
+    efaEnabled: true
+    # Placement group for low-latency networking
+    placement:
+      groupName: cosmos-training-pg
+
+  # ── Eval node: p4de.24xlarge (8× A100 80GB) ──
+  # Async evaluation/inference while training runs on p5 nodes.
+  # Cosmos Transfer inference needs ~70 GB VRAM — L40S (46GB) OOMs.
+  # p4de is cheaper than p5 and has enough VRAM for inference.
+  # Scales to 0 when no eval job is running.
+  # Cost: ~$40/hr
+  - name: eval-p4de
+    instanceType: p4de.24xlarge
+    desiredCapacity: 0          # Scales up when eval pod is submitted
+    minSize: 0
+    maxSize: 1
+    volumeSize: 500
+    volumeType: gp3
+    labels:
+      node-role: evaluation
+      gpu-type: a100-80gb
+    tags:
+      k8s.io/cluster-autoscaler/enabled: "true"
+
+# Addons
+addons:
+  - name: vpc-cni
+  - name: coredns
+  - name: kube-proxy
+  - name: aws-ebs-csi-driver
+  - name: aws-efs-csi-driver

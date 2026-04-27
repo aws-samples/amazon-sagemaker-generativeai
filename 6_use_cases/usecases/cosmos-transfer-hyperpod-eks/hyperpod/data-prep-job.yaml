@@ -1,0 +1,87 @@
+# Cosmos Transfer 2.5 — Data Preparation Job
+#
+# Uses the training container + ConfigMap for data prep scripts.
+# Downloads raw Drive-Dreams data from HuggingFace, prepares it,
+# and writes directly to FSx.
+#
+# Before running:
+#   kubectl create secret generic hf-token --from-literal=token=hf_XXXXX
+#   kubectl create configmap data-prep-scripts \
+#       --from-file=download_drive_dreams.py=cosmos_transfer_example/fine-tune-drive-dreams/download_drive_dreams.py \
+#       --from-file=prepare_drive_dreams_dataset.py=cosmos_transfer_example/fine-tune-drive-dreams/prepare_drive_dreams_dataset.py
+#
+# Apply:
+#   kubectl apply -f data-prep-job.yaml
+#
+# Monitor:
+#   kubectl logs -f cosmos-data-prep
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cosmos-data-prep
+  namespace: default
+spec:
+  restartPolicy: Never
+  containers:
+    - name: data-prep
+      image: python:3.10-slim
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -e
+          apt-get update -qq && apt-get install -y -qq git git-lfs ffmpeg libgl1 libglib2.0-0 2>/dev/null
+          pip install -q huggingface_hub tqdm opencv-python-headless numpy
+
+          echo "=== HuggingFace Login ==="
+          if command -v hf &>/dev/null; then
+              hf auth login --token ${HF_TOKEN}
+          else
+              huggingface-cli login --token ${HF_TOKEN} --add-to-git-credential
+          fi
+
+          echo "=== Step 1: Download HDMap + Captions (~2 GB) ==="
+          python /workspace/data-scripts/download_drive_dreams.py \
+              --odir /fsx/raw_data \
+              --components hdmap,caption \
+              --extract
+
+          echo "=== Step 2: Download Generation Parts 0-2 (~120 GB) ==="
+          python /workspace/data-scripts/download_drive_dreams.py \
+              --odir /fsx/raw_data \
+              --components generation \
+              --gen-parts 0,1,2 \
+              --extract
+
+          echo "=== Step 3: Prepare Dataset ==="
+          python /workspace/data-scripts/prepare_drive_dreams_dataset.py \
+              --raw-dir /fsx/raw_data/extracted \
+              --output-dir /fsx/datasets/drive_dreams_cosmos_dataset \
+              --num-clips 500 \
+              --test-clips 50
+
+          echo ""
+          echo "=== Done ==="
+          ls -la /fsx/datasets/
+      env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token
+              key: token
+      resources:
+        requests:
+          cpu: "4"
+          memory: "16Gi"
+      volumeMounts:
+        - name: fsx-volume
+          mountPath: /fsx
+        - name: scripts-volume
+          mountPath: /workspace/data-scripts
+  volumes:
+    - name: fsx-volume
+      persistentVolumeClaim:
+        claimName: fsx-claim
+    - name: scripts-volume
+      configMap:
+        name: data-prep-scripts

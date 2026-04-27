@@ -1,0 +1,183 @@
+# Cosmos Transfer 2.5 — Single-View Inference Job (Stage 1)
+#
+# Runs inference with the fine-tuned Drive-Dreams model on test clips.
+# Outputs are used as input for Stage 2 (multiview extension).
+#
+# Prerequisites:
+#   - Training completed, checkpoint on FSx
+#   - Test dataset on FSx at /fsx/datasets/drive_dreams_cosmos_dataset_test/
+#
+# Apply:
+#   kubectl apply -f singleview-inference-job.yaml
+#
+# Monitor:
+#   kubectl logs -f cosmos-singleview-inference
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cosmos-singleview-inference
+  namespace: default
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    node.kubernetes.io/instance-type: ml.p5.48xlarge
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+  containers:
+    - name: singleview-inference
+      image: 783764584149.dkr.ecr.us-west-2.amazonaws.com/cosmos-transfer-training:latest
+      imagePullPolicy: Always
+      command: ["/bin/bash", "-c"]
+      args:
+        - |
+          set -e
+          cd /workspace/cosmos-transfer2.5
+          export PATH="$(pwd)/.venv/bin:$PATH"
+          source .venv/bin/activate
+
+          # Set LD_LIBRARY_PATH
+          NVIDIA_CUBLAS_LIB=$(find .venv -path "*/nvidia/cublas/lib" -type d 2>/dev/null | head -1)
+          NVIDIA_CUDNN_LIB=$(find .venv -path "*/nvidia/cudnn/lib" -type d 2>/dev/null | head -1)
+          export LD_LIBRARY_PATH="${NVIDIA_CUBLAS_LIB:+$NVIDIA_CUBLAS_LIB:}${NVIDIA_CUDNN_LIB:+$NVIDIA_CUDNN_LIB:}/usr/local/cuda/lib64"
+
+          if [ -n "${HF_TOKEN}" ]; then
+              huggingface-cli login --token ${HF_TOKEN} --add-to-git-credential
+          fi
+
+          echo "============================================"
+          echo " Stage 1: Single-View Inference"
+          echo " Fine-tuned Drive-Dreams HDMap model"
+          echo "============================================"
+
+          # Find the latest checkpoint
+          CKPT_BASE=$(find /fsx/output/cosmos_transfer -type f -name "latest_checkpoint.txt" 2>/dev/null | head -1)
+          if [ -z "$CKPT_BASE" ]; then
+              echo "ERROR: No checkpoint found on FSx"
+              exit 1
+          fi
+
+          CKPT_DIR=$(dirname $CKPT_BASE)
+          LATEST_ITER=$(cat $CKPT_BASE)
+          CKPT_PT="$CKPT_DIR/$LATEST_ITER/model_ema_bf16.pt"
+
+          # Convert if needed
+          if [ ! -f "$CKPT_PT" ]; then
+              echo "=== Converting DCP checkpoint ==="
+              python scripts/convert_distcp_to_pt.py "$CKPT_DIR/$LATEST_ITER/model" "$CKPT_DIR/$LATEST_ITER"
+          fi
+
+          echo "Using checkpoint: $CKPT_PT"
+
+          # Generate inference specs from test dataset
+          echo "=== Generating inference specs ==="
+          TEST_DIR="/fsx/datasets/drive_dreams_cosmos_dataset_test"
+          SPEC_DIR="/fsx/output/singleview_specs"
+          mkdir -p $SPEC_DIR
+
+          python3 -c "
+          import json, os
+          from pathlib import Path
+
+          test_dir = Path('$TEST_DIR')
+          spec_dir = Path('$SPEC_DIR')
+          video_dir = test_dir / 'videos'
+          control_dir = test_dir / 'control_input_hdmap_bbox'
+          caption_dir = test_dir / 'captions'
+
+          # Handle flat or nested structure
+          videos = sorted(video_dir.rglob('*.mp4'))
+          print(f'Found {len(videos)} test videos')
+
+          for video_path in videos:
+              clip_name = video_path.stem
+              control_path = control_dir / f'{clip_name}.mp4'
+              if not control_path.exists():
+                  control_path = control_dir / 'front_wide' / f'{clip_name}.mp4'
+              if not control_path.exists():
+                  continue
+
+              caption = 'Driving scene with HD map overlay.'
+              cap_path = caption_dir / f'{clip_name}.json'
+              if not cap_path.exists():
+                  cap_path = caption_dir / 'front_wide' / f'{clip_name}.json'
+              if cap_path.exists():
+                  with open(cap_path) as f:
+                      caption = json.load(f).get('caption', caption)
+
+              spec = {
+                  'name': clip_name,
+                  'prompt': caption,
+                  'video_path': str(video_path.resolve()),
+                  'guidance': 3,
+                  'seg': {
+                      'control_path': str(control_path.resolve()),
+                      'control_weight': 1.0
+                  }
+              }
+              spec_path = spec_dir / f'{clip_name}.json'
+              with open(spec_path, 'w') as f:
+                  json.dump(spec, f, indent=2)
+
+          print(f'Generated specs in {spec_dir}')
+          "
+
+          # Run inference on each spec
+          echo "=== Running single-view inference ==="
+          OUTPUT_DIR="/fsx/output/singleview_inference"
+          mkdir -p $OUTPUT_DIR
+
+          for spec in $SPEC_DIR/*.json; do
+              CLIP_NAME=$(basename $spec .json)
+              echo "Processing $CLIP_NAME..."
+
+              torchrun --nproc_per_node=8 --master_port=12341 \
+                  -m examples.inference \
+                  -i "$spec" \
+                  -o "$OUTPUT_DIR" \
+                  --checkpoint-path "$CKPT_PT" \
+                  --experiment transfer2_drive_dreams_hdmap_posttrain \
+                  --disable-guardrails \
+                  2>&1 || echo "[WARN] Failed for $CLIP_NAME"
+          done
+
+          echo ""
+          echo "=== Single-view inference complete ==="
+          echo "Output: $OUTPUT_DIR"
+          echo "Next: run multiview extension (Stage 2)"
+      env:
+        - name: HF_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token
+              key: token
+        - name: PYTORCH_CUDA_ALLOC_CONF
+          value: "expandable_segments:True"
+        - name: NCCL_DEBUG
+          value: "WARN"
+        - name: WANDB_MODE
+          value: "disabled"
+        - name: IMAGINAIRE_OUTPUT_ROOT
+          value: "/fsx/output/cosmos_transfer"
+      resources:
+        limits:
+          nvidia.com/gpu: 8
+        requests:
+          nvidia.com/gpu: 8
+          cpu: "90"
+          memory: "700Gi"
+      volumeMounts:
+        - name: fsx-volume
+          mountPath: /fsx
+        - name: dshm
+          mountPath: /dev/shm
+  volumes:
+    - name: fsx-volume
+      persistentVolumeClaim:
+        claimName: fsx-claim
+    - name: dshm
+      emptyDir:
+        medium: Memory
+        sizeLimit: "128Gi"
