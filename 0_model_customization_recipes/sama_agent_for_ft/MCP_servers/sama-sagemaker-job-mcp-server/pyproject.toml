@@ -1,0 +1,23 @@
+[project]
+name = "sama-sagemaker-job-mcp-server"
+version = "0.1.0"
+description = "SAMA SageMaker Job MCP Server - Launch and monitor SageMaker training jobs"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=2.9.2",
+    "pydantic>=2.10.6",
+    "boto3>=1.26.0",
+    "sagemaker>=2.200.0",
+    "mcp[cli]>=1.6.0"
+]
+
+[project.scripts]
+"sama-sagemaker-job-mcp-server" = "sama_sagemaker_job_mcp_server.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sama_sagemaker_job_mcp_server"]

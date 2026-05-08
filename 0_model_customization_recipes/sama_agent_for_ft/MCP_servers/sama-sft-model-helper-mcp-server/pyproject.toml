@@ -1,0 +1,23 @@
+[project]
+name = "sama-sft-model-helper-mcp-server"
+version = "0.1.0"
+description = "SAMA Model Helper MCP Server - HuggingFace Hub model discovery and selection for SFT workflows"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=2.9.2",
+    "pydantic>=2.10.6",
+    "huggingface-hub>=0.16.0",
+    "mcp[cli]>=1.6.0",
+    "requests>=2.25.0"
+]
+
+[project.scripts]
+"sama-sft-model-helper-mcp-server" = "sama_sft_model_helper_mcp_server.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sama_sft_model_helper_mcp_server"]

@@ -1,0 +1,12 @@
+# SAMA Science Agents - MCP Server Dependencies
+# Install: pip install -r requirements.txt
+
+fastmcp>=2.9.2
+mcp[cli]>=1.6.0
+pydantic>=2.10.6
+huggingface-hub>=0.16.0
+datasets>=2.14.0
+boto3>=1.26.0
+sagemaker==2.253.1
+requests>=2.25.0
+pyyaml>=6.0

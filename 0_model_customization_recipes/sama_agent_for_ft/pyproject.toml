@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sama-rl"
+version = "0.1.0"
+description = "SageMaker AI Model Agents - Reinforcement Learning Library"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "SAMA Team", email = "team@sama.ai"}
+]
+keywords = ["reinforcement-learning", "llm", "sagemaker", "grpo", "ppo", "dpo"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "torch>=2.0.0",
+    "transformers>=4.30.0",
+    "trl>=0.7.0",
+    "datasets>=2.12.0",
+    "sagemaker>=2.200.0,<3.0.0",
+    "boto3>=1.26.0",
+    "pyyaml>=6.0",
+    "accelerate>=0.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+
+mcp = [
+    "fastmcp>=2.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/sama"
+Documentation = "https://sama.readthedocs.io"
+Repository = "https://github.com/your-org/sama"
+Issues = "https://github.com/your-org/sama/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sama_rl", "user"]

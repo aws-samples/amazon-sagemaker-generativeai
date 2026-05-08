@@ -1,0 +1,72 @@
+{
+  "mcpServers": {
+    "sft_model_helper": {
+      "command": "/opt/conda/bin/python3",
+      "args": ["-m", "sama_sft_model_helper_mcp_server.server"],
+      "env": { "FASTMCP_LOG_LEVEL": "ERROR" },
+      "disabled": false,
+      "autoApprove": [
+        "search_models_by_family",
+        "search_models_by_keyword",
+        "filter_models_by_size",
+        "get_model_details"
+      ]
+    },
+    "sft_recipe_generator": {
+      "command": "/opt/conda/bin/python3",
+      "args": ["-m", "sama_sft_recipe_generator_mcp_server.server"],
+      "env": { "FASTMCP_LOG_LEVEL": "ERROR" },
+      "disabled": false,
+      "autoApprove": [
+        "generate_sft_recipe",
+        "list_existing_recipes"
+      ]
+    },
+    "sft_training_workflow": {
+      "command": "/opt/conda/bin/python3",
+      "args": ["-m", "sama_sft_training_workflow_mcp_server.server"],
+      "env": { "FASTMCP_LOG_LEVEL": "ERROR" },
+      "disabled": false,
+      "autoApprove": [
+        "generate_training_script",
+        "get_instance_recommendation"
+      ]
+    },
+    "dataset_prep": {
+      "command": "/opt/conda/bin/python3",
+      "args": ["-m", "sama_dataset_prep_mcp_server.server"],
+      "env": { "FASTMCP_LOG_LEVEL": "ERROR" },
+      "disabled": false,
+      "autoApprove": [
+        "validate_byod_dataset",
+        "prepare_finance_instruct_500k",
+        "prepare_hermes_reasoning_tool_use",
+        "prepare_visual_tableqa",
+        "prepare_audioset_instructions",
+        "upload_to_s3"
+      ]
+    },
+    "grpo_recipe_generator": {
+      "command": "/opt/conda/bin/python3",
+      "args": ["-m", "sama_grpo_recipe_generator_mcp_server.server"],
+      "env": { "FASTMCP_LOG_LEVEL": "ERROR" },
+      "disabled": false,
+      "autoApprove": [
+        "generate_grpo_recipe",
+        "list_grpo_recipes"
+      ]
+    },
+    "sagemaker_jobs": {
+      "command": "/opt/conda/bin/python3",
+      "args": ["-m", "sama_sagemaker_job_mcp_server.server"],
+      "env": { "FASTMCP_LOG_LEVEL": "ERROR" },
+      "disabled": false,
+      "autoApprove": [
+        "launch_sft_training_job",
+        "launch_grpo_training_job",
+        "monitor_training_job",
+        "list_recent_training_jobs"
+      ]
+    }
+  }
+}
