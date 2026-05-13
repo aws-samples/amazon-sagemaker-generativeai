@@ -1,4 +1,4 @@
-# GR00T N1.6 Fine-tuning Dependencies
+# GR00T N1.7 Fine-tuning Dependencies
 # Installed inside the SageMaker training container
 torch==2.7.1
 torchvision==0.22.1

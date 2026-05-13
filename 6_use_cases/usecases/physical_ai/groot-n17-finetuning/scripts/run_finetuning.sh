@@ -1,5 +1,5 @@
 #!/bin/bash
-# GR00T N1.6 — SageMaker Training Job Entry Point
+# GR00T N1.7 — SageMaker Training Job Entry Point
 # This script runs inside the SageMaker training container.
 #
 # SageMaker provides:
@@ -12,7 +12,7 @@
 set -e
 
 echo "============================================"
-echo " GR00T N1.6 — SageMaker Training Job"
+echo " GR00T N1.7 — SageMaker Training Job"
 echo "============================================"
 
 # Debug: show what SageMaker uploaded to /opt/ml/code
@@ -49,10 +49,10 @@ fi
 echo "[INFO] ffmpeg: $(which ffmpeg 2>/dev/null || echo 'NOT FOUND')"
 
 # --- Clone and install Isaac-GR00T ---
-echo "=== Cloning Isaac-GR00T (n1.6-release) ==="
+echo "=== Cloning Isaac-GR00T (n1.7-release) ==="
 GROOT_DIR="/opt/ml/code/Isaac-GR00T"
 if [ ! -d "$GROOT_DIR" ]; then
-    git clone --recurse-submodules --branch n1.6-release https://github.com/NVIDIA/Isaac-GR00T.git "$GROOT_DIR"
+    git clone --recurse-submodules --branch n1.7-release https://github.com/NVIDIA/Isaac-GR00T.git "$GROOT_DIR"
 fi
 cd "$GROOT_DIR"
 git submodule update --init --recursive
@@ -99,10 +99,10 @@ if [ "$TORCHCODEC_OK" -eq 0 ]; then
 fi
 
 # --- Download base model ---
-echo "=== Downloading GR00T N1.6-3B ==="
+echo "=== Downloading GR00T N1.7-3B ==="
 python3 -c "
 from huggingface_hub import snapshot_download
-path = snapshot_download('nvidia/GR00T-N1.6-3B')
+path = snapshot_download('nvidia/GR00T-N1.7-3B')
 print(f'Model downloaded to: {path}')
 "
 
@@ -155,7 +155,7 @@ NUM_GPUS=${SM_NUM_GPUS:-8}
 MAX_STEPS=${MAX_STEPS:-2000}
 BATCH_SIZE=${BATCH_SIZE:-32}
 SAVE_STEPS=${SAVE_STEPS:-2000}
-MODEL_PATH=${MODEL_PATH:-"nvidia/GR00T-N1.6-3B"}
+MODEL_PATH=${MODEL_PATH:-"nvidia/GR00T-N1.7-3B"}
 
 echo ""
 echo "Training config:"
@@ -165,6 +165,12 @@ echo "  Batch size: $BATCH_SIZE"
 echo "  Dataset: $DATASET_PATH"
 echo "  Output: $OUTPUT_DIR"
 echo ""
+
+# --- Fix: Move HF dataset cache to shared memory to avoid NCCL timeout at step 250 ---
+# Without this, cache writes to disk cause I/O contention between GPU ranks
+export HF_DATASETS_CACHE="/dev/shm/hf_cache"
+mkdir -p /dev/shm/hf_cache
+echo "[INFO] Dataset cache location: $HF_DATASETS_CACHE"
 
 # --- Launch training ---
 if [ "$NUM_GPUS" -gt 1 ]; then
@@ -191,7 +197,7 @@ eval $TRAIN_CMD \
     --tune-projector \
     --tune-diffusion-model \
     --color-jitter-params brightness 0.3 contrast 0.4 saturation 0.5 hue 0.08 \
-    --dataloader-num-workers 0
+    --dataloader-num-workers 4
 
 echo ""
 echo "=== Training complete! ==="

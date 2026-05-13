@@ -1,6 +1,6 @@
 """
 Modality configuration for BridgeData V2 embodiment.
-Used by GR00T N1.6 fine-tuning to define how data columns map to model inputs.
+Used by GR00T N1.7 fine-tuning to define how data columns map to model inputs.
 
 This config tells GR00T:
 - Which camera views to use (front only)
