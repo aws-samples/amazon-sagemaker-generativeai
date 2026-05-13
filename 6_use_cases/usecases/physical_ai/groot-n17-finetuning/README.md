@@ -1,10 +1,10 @@
-# GR00T N1.6 Fine-Tuning on SageMaker
+# GR00T N1.7 Fine-Tuning on SageMaker
 
-Fine-tune [NVIDIA GR00T N1.6-3B](https://huggingface.co/nvidia/GR00T-N1.6-3B) on BridgeData V2 using Amazon SageMaker.
+Fine-tune [NVIDIA GR00T N1.7-3B](https://huggingface.co/nvidia/GR00T-N1.7-3B) on BridgeData V2 using Amazon SageMaker.
 
 ## Model Overview
 
-GR00T N1.6 is NVIDIA's 3B-parameter foundation model for humanoid robot control. It uses a diffusion-based action head with a vision-language backbone, designed for multi-modal robot learning. The model expects data in LeRobot V2 format (parquet tables + MP4 videos + JSON metadata) and uses NVIDIA's Isaac-GR00T framework for training and evaluation.
+GR00T N1.7 is NVIDIA's 3B-parameter foundation model for humanoid robot control. It uses a diffusion-based action head with a vision-language backbone, designed for multi-modal robot learning. The model expects data in LeRobot V2 format (parquet tables + MP4 videos + JSON metadata) and uses NVIDIA's Isaac-GR00T framework for training and evaluation.
 
 This pipeline fine-tunes the visual encoder, projector, and diffusion model while keeping the LLM backbone frozen (`--no-tune-llm`).
 
@@ -80,7 +80,7 @@ GR00T_SMTJ/
 4. **Installs flash-attention** — Tries a prebuilt wheel from HuggingFace first, falls back to building from source
 5. **Patches Isaac-GR00T's `pyproject.toml`** — Removes `tensorrt` and `onnx` dependencies (not needed for training, cause install failures)
 6. **Installs Isaac-GR00T** as an editable package (`pip install -e .`)
-7. **Downloads GR00T N1.6-3B** base model from HuggingFace
+7. **Downloads GR00T N1.7-3B** base model from HuggingFace
 8. **Copies `bridge_modality_config.py`** into the Isaac-GR00T directory
 9. **Launches distributed training** via `torch.distributed.run` with `gr00t/experiment/launch_finetune.py`
 
@@ -88,7 +88,7 @@ GR00T_SMTJ/
 
 | Parameter | Value |
 |---|---|
-| Base model | `nvidia/GR00T-N1.6-3B` |
+| Base model | `nvidia/GR00T-N1.7-3B` |
 | Embodiment tag | `NEW_EMBODIMENT` |
 | Max steps | 2,000 |
 | Global batch size | 32 |
@@ -113,7 +113,7 @@ GR00T_SMTJ/
 
 1. **Sets up Isaac-GR00T locally** — Clones the repo, installs flash-attn, patches and installs GR00T (same process as the training container).
 
-2. **Downloads the base model** from HuggingFace (`nvidia/GR00T-N1.6-3B`).
+2. **Downloads the base model** from HuggingFace (`nvidia/GR00T-N1.7-3B`).
 
 3. **Evaluates the fine-tuned model on training data** — Runs `gr00t/eval/open_loop_eval.py` with the fine-tuned checkpoint on 5 trajectories from the training set.
 
