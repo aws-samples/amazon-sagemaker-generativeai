@@ -154,7 +154,7 @@ sympy==1.13.1
 tensorboardx==2.6.4
 tiktoken==0.11.0
 tokenizers==0.21.4
-torch==2.5.1
+torch==2.8.0
 torchvision==0.20.1
 tornado==6.5.2
 tqdm==4.67.1
