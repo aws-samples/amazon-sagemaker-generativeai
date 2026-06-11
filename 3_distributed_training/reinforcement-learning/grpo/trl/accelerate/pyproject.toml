@@ -15,7 +15,7 @@ dependencies = [
     "ipywidgets>=8.1.6",
     "python-dotenv>=1.1.0",
     "sagemaker>=2.243.2",
-    "torch>=2.6.0",
+    "torch>=2.12.0",
     "trl>=0.16.1",
     "verl>=0.3.0.post1",
 ]
