@@ -1,0 +1,62 @@
+---
+train_job_name: ~
+training_instance: 'ml.g5.8xlarge'
+train_script: training_thread.py
+    
+model_id: 'google/flan-t5-large'        
+training_type: ia3
+
+label_pad_token_id: -100
+
+data_params:
+    max_ip_len: 600
+    max_op_len: 400
+    train_data_frac: 1
+    tr_batch_size: 2
+    eval_batch_size: 2
+
+task_prefix: | 
+             Generate the text:
+             
+common_peft_params:
+    task_type: SEQ_2_SEQ_LM
+    inference_mode: False
+    
+ia3:
+    target_modules: ["q", "v", "k", "o", "wi_1", "wi_0", "wo"]
+    
+lora:
+    r: 4
+    lora_alpha: 32
+    lora_dropout: 0.1
+    target_modules: ["q"]
+    bias: none
+    
+p_tune:
+    num_virtual_tokens: 20
+    encoder_hidden_size: 512
+    
+prompt_tuning:
+    num_virtual_tokens: 10
+    prompt_tuning_init: TEXT
+    tokenizer_name_or_path: 'google/flan-t5-xxl'
+    prompt_tuning_init_text: | 
+                             Summarize this info:
+
+load_in_8bit:
+    True: False
+    False: True
+
+package_versions:
+    transformers_version: "4.28"
+    pytorch_version: "2.0"
+    py_version: "py310"
+# Model training parameters
+training_params:
+    num_epochs: 1
+    lr: 1.0e-2
+    wt_decay: 1.0e-8
+    
+metric_type: 'lexical'
+
+device: 'cuda:0'

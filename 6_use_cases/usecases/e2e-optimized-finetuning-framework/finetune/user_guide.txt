@@ -1,0 +1,9 @@
+(optional) export BNB_CUDA_VERSION=121
+
+pip install triton==2.0.0
+
+Attache the AmazonS3FullAccess and AmazonSageMakerFullAccessthe policy to jupyter notebook role 
+
+python main.py --train
+
+python main.py --deploy --model_name flan-t5-large-ia3-2025-11-23-04-43-01-374 --endpoint_name flan-t5-large-ia3-2025-11-23-04-43-01-374-endpoint

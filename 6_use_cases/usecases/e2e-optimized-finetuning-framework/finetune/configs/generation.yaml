@@ -1,0 +1,5 @@
+max_new_tokens: 400
+do_sample: True 
+top_k: 50
+top_p: 0.97
+num_return_sequences: 1

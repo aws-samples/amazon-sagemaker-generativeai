@@ -1,0 +1,13 @@
+nltk==3.8.1
+transformers==4.34.1
+accelerate==0.24.1
+bitsandbytes==0.43.0
+datasets==2.14.6
+evaluate==0.4.1
+rouge-score==0.1.2
+bert-score==0.3.13
+peft==0.5.0
+tqdm
+structlog
+numpy<2  # pyarrow<15 / pandas here are built against NumPy 1.x
+pyarrow<15  # datasets 2.14.6 uses pyarrow.PyExtensionType, removed in pyarrow>=15

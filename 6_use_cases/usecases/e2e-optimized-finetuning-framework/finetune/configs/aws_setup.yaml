@@ -1,0 +1,11 @@
+# AWS Configuration
+# See AWS_SETUP.md for detailed setup instructions
+
+region_name: us-east-1
+default_bucket: finetune-blog
+
+# role: arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME
+# NOTE: Do NOT add role here to avoid exposing AWS account ID in version control.
+# Instead, pass role via CLI: --role arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME
+# Or set environment variable: export SAGEMAKER_ROLE=arn:aws:iam::ACCOUNT_ID:role/ROLE_NAME
+# When running inside SageMaker, role is auto-detected (no configuration needed).
