@@ -1,0 +1,21 @@
+fasttransformer: True
+image_uri: "763104351884.dkr.ecr.us-west-2.amazonaws.com/djl-inference:0.23.0-fastertransformer5.3.0-cu118"
+faster_transformer_file: "fastertransformer-t5.tar.gz"
+s3_faster_transformer_bucket: 'finetune-blog-deployment' # must be in us-west-2
+deployment: True
+
+# training
+training_job_name: ~
+tensor_parallel_degree: 1
+
+# deployment
+aws_region: "us-west-2"
+deployment_instance: "ml.g5.4xlarge"
+initial_instance_count: 1
+model_name: ~
+endpoint_name: ~
+
+# prediction
+input_text: ["net_usage_actual_revenue_latest_month | +12.4B && net_usage_actual_revenue_mom | 165.4K && net_usage_actual_revenue_mom_pct | 0.9% && net_usage_top_n_movers | Moaybe Inc. (+$22.9K or 19.3%), Udbnjybyg Inc. (+$96.5K or 51.9%), M (+$48.3K or 27.1%) && net_usage_bottom_n_movers | Nspkrtvl Ocinpjle (-$21.3K or 21.5%), Ayeuwzkwa Inc. (-$15.7K or 73.5%), Ffiywi Gosl (-$7174 or 77.7%)"]
+temperature: 0.8
+max_seq_len: 512

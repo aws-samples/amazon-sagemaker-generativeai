@@ -1,0 +1,4 @@
+update_input_data: True
+s3_input_data_folder: 'data'
+s3_input_data_file: 'synthetic_XBR_training_set.csv'
+test_size: 0.15
