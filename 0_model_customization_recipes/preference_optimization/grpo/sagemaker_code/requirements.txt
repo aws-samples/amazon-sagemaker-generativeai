@@ -176,7 +176,7 @@ websockets==15.0.1
 widgetsnbextension==4.0.14
 wrapt==1.17.3
 xformers==0.0.28.post3
-xgrammar==0.1.24
+xgrammar==0.1.32
 xxhash==3.5.0
 yarl==1.20.1
 zipp==3.23.0
