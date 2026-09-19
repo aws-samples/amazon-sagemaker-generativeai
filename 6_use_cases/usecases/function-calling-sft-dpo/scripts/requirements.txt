@@ -6,7 +6,7 @@ deepspeed==0.18.7
 hf_transfer==0.1.9
 huggingface_hub==0.36.2
 liger-kernel==0.7.0
-mlflow==3.10.1
+mlflow==3.11.0rc1
 mlflow-skinny==3.10.1
 mlflow-tracing==3.10.1
 peft==0.18.1
