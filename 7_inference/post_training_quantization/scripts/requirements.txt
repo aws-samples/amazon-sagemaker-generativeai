@@ -1,4 +1,4 @@
-transformers==4.51.3
+transformers==5.0.0rc3
 llmcompressor==0.6.0
 qwen-vl-utils[decord]==0.0.11
 accelerate==1.8.1
