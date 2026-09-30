@@ -26,7 +26,7 @@ much larger one — the ReAct-completion discipline is what carries over.
 
 ```bash
 # In distill-tool-call--Qwen--Qwen3.5-4B-shopping.ipynb: encode trajectories, upload to S3, then
-cd sagemaker_code
+cd scripts
 bash sm_train.sh --max-length 4096 --lora-r 64 --lr 2e-5 --epochs 2 --batch-size 1 --grad-accum 2 --fft false
 ```
 
@@ -38,11 +38,11 @@ The notebook wraps this in a SageMaker `ModelTrainer` job (8-GPU `ml.p5.48xlarge
 |---|---|
 | `distill-tool-call--Qwen--Qwen3.5-4B-shopping.ipynb` | End-to-end: data prep → SeqKD training → merge → eval. |
 | `evaluate-tool-call-accuracy.ipynb` | Base-vs-student tool-use ASR + MMLU/IFEval portfolio, with charts. |
-| `sagemaker_code/train_seqkd.py` | TRL SFT entry point (LoRA/FFT, Qwen3.5 VLM class, kernel bootstrap). |
-| `sagemaker_code/sm_train.sh` | Launcher: installs deps, resolves GPUs, runs `torchrun train_seqkd.py`. |
-| `sagemaker_code/requirements_verl.txt` | trl/peft/datasets/einops (the kernel pair installs `--no-deps` at runtime). |
-| `sagemaker_code/eval_lmeval.sh` | Offline lm-eval portfolio: MMLU + non-thinking IFEval. |
-| `sagemaker_code/shopping_asr_eval.sh` | Tool-use ASR wiring: vLLM serve → ShoppingBench ReAct rollout → ORM scoring (needs the ShoppingBench repo + search server). |
+| `scripts/train_seqkd.py` | TRL SFT entry point (LoRA/FFT, Qwen3.5 VLM class, kernel bootstrap). |
+| `scripts/sm_train.sh` | Launcher: installs deps, resolves GPUs, runs `torchrun train_seqkd.py`. |
+| `scripts/requirements_verl.txt` | trl/peft/datasets/einops (the kernel pair installs `--no-deps` at runtime). |
+| `scripts/eval_lmeval.sh` | Offline lm-eval portfolio: MMLU + non-thinking IFEval. |
+| `scripts/shopping_asr_eval.sh` | Tool-use ASR wiring: vLLM serve → ShoppingBench ReAct rollout → ORM scoring (needs the ShoppingBench repo + search server). |
 
 ## Notes on the model
 
