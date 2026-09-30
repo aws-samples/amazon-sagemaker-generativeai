@@ -1,0 +1,15 @@
+# Deps that pip CAN resolve against the verl image's baked stack (torch 2.10 + transformers 5.3 + vllm).
+# These have loose deps that the baked versions already satisfy, so `pip install -r` adds them WITHOUT
+# touching torch/transformers.
+#
+# The kernel stack (triton 3.8 + flash-linear-attention 0.5.2) is DELIBERATELY NOT here: fla 0.5.2 needs
+# triton>=3.7.1, but torch 2.10 pins triton==3.6 -> a normal resolve is ResolutionImpossible (and leaving
+# torch unpinned makes pip bump torch->2.14, which breaks transformers `set_seed`). Instead train_seqkd.py
+# force-installs them with `pip install --no-deps triton==3.8.0 flash-linear-attention==0.5.2` at job start
+# (--install-kernels, default on) — the resolver can't touch torch, and triton 3.8 is runtime-compatible
+# with torch 2.10 (exactly what the pod's trlenv2 does). einops is fla's only non-torch runtime dep that
+# --no-deps would skip, so we pin it here.
+trl==1.13.0
+peft==0.19.1
+datasets>=3.0.0
+einops>=0.8.0
