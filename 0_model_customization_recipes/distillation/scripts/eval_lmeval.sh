@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
-# Portfolio lm-eval for a merged Qwen3.5-4B on a HyperPod pod: MMLU + non-thinking IFEval -> summary.
-# Runs the two correctly (one Qwen3.5 vLLM at a time): MMLU offline (loglikelihood, no server) first,
-# reap, then serve non-thinking for IFEval. Usage:
+# Non-thinking IFEval for a merged Qwen3.5-4B on a GPU box (HyperPod pod layout by default).
+#
+# Qwen3.5 thinks by default: its chat template opens a <think> block at add_generation_prompt, and strict
+# IFEval scores the ENTIRE response string -- no reasoning stripped, no answer extracted -- so the
+# reasoning preamble is graded against the prompt's format constraints and fails by construction. Serving
+# with nonthink_template.jinja (the model's own template with the line that OPENS <think> replaced by a
+# closed-empty <think></think>) is the only reliable fix; enable_thinking=false in model args and a
+# /no_think instruction do NOT thread through (lm-eval issue #3161). --apply_chat_template is required or
+# the template never takes effect.
+#
+# Usage:
 #   eval_lmeval.sh <MERGED_DIR> <IFACE> <GPU> <TAG>
 #   e.g. eval_lmeval.sh /data/agankta/mt/out/lora-r32-16k-merged enp74s0 0 lora-r32-16k
 set -uo pipefail
@@ -21,12 +29,6 @@ for f in preprocessor_config.json processor_config.json; do
 done
 reap(){ for p in $(nvidia-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null); do kill -9 "$p" 2>/dev/null || true; done; sleep 3; }
 
-echo "=== MMLU (offline vLLM, 5-shot; batch_size=auto DEADLOCKS the hybrid -> fixed 8 + enforce_eager) ==="
-"$LMENV/lm_eval" --model vllm \
-  --model_args pretrained=$M,tokenizer=$M,dtype=bfloat16,gpu_memory_utilization=0.85,max_model_len=4096,enforce_eager=True,max_num_seqs=8,trust_remote_code=True \
-  --tasks mmlu --num_fewshot 5 --batch_size 8 --output_path "$OUT/mmlu" 2>&1 | tail -4
-reap
-
 echo "=== IFEval (NON-THINKING: nonthink_template forces closed-empty <think></think>) ==="
 CUDA_VISIBLE_DEVICES=$GPU "$LMENV/vllm" serve "$M" --port 8000 --served-model-name student \
   --chat-template "$NONTHINK" --enforce-eager --max-num-seqs 8 --max-model-len 16384 \
@@ -38,7 +40,12 @@ for i in $(seq 1 90); do curl -sf localhost:8000/v1/models >/dev/null 2>&1 && br
   --apply_chat_template --tasks ifeval --output_path "$OUT/ifeval" 2>&1 | tail -4
 kill -9 $SP 2>/dev/null || true; reap
 
-echo "=== SUMMARY ($TAG) — base gate: IFEval pp-strict ~82.6 (NOT ~28); MMLU ~0.697 ==="
+# VALIDITY GATE: a real non-thinking run has ZERO <think> in its predictions. If this prints a nonzero
+# count, the template did not take effect and the score below is the thinking-mode artifact, not a result.
+echo "=== validity gate: <think> occurrences in predictions (expect 0) ==="
+grep -ho '<think>' "$OUT"/ifeval/**/samples_*.jsonl 2>/dev/null | wc -l
+
+echo "=== SUMMARY ($TAG) — sanity: base Qwen3.5-4B scores IFEval pp-strict ~0.83 non-thinking, ~0.26 thinking-ON ==="
 "$LMENV/python" - "$OUT" << 'PY'
 import json, glob, sys
 out = sys.argv[1]
@@ -48,7 +55,6 @@ def grab(task, metric):
     r = json.load(open(sorted(fs)[-1]))["results"]
     keys = [k for k in r if task in k] or list(r)
     return r[keys[0]].get(metric)
-print("MMLU acc            :", grab("mmlu",  "acc,none"))
 print("IFEval prompt-strict:", grab("ifeval","prompt_level_strict_acc,none"))
 print("IFEval inst-strict  :", grab("ifeval","inst_level_strict_acc,none"))
 print("IFEval prompt-loose :", grab("ifeval","prompt_level_loose_acc,none"))
