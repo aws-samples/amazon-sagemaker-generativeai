@@ -17,13 +17,39 @@ The recipe:
    non-thinking chat template (so training text is byte-identical to inference).
 3. **Fine-tune** the student (LoRA or full) on those pairs with the serverless `SFTTrainer` from the
    SageMaker Python SDK v3.
-4. **Evaluate** the registered Model Package the job emits — task success rate (ASR) plus non-thinking
-   IFEval to guard against instruction-following regression.
+4. **Evaluate** the registered Model Package the job emits. Three axes, on the compute each needs:
+   the headline **ASR** plus non-thinking **IFEval**, which need a GPU host because ASR drives a live
+   ReAct loop against the benchmark's Lucene search server; managed serverless **MMLU**; and a
+   **per-trajectory reasoning judge** that re-reads the saved rollouts and needs no GPU at all.
 
-Reference results (Qwen3.5-4B student, thinking-off, 250-case ShoppingBench test set): **ASR 0.432 (base)
-→ 0.636 (LoRA r16 / alpha 128)**, with IFEval 0.826 → 0.782 — agent skill rises sharply while general
-instruction-following holds. A mid-size teacher transfers as well as a much larger one; the
-ReAct-completion discipline is what carries over.
+Reference results (Qwen3.5-4B student, thinking-off, LoRA r16 / alpha 128), measured on the
+**decontaminated 103-case** subset of ShoppingBench's product test split: **ASR 0.379 (base) → 0.495
+(student)**, with IFEval 0.826 → 0.782 and MMLU 0.697 → 0.700 — agent skill rises substantially while
+general instruction-following and knowledge hold. A mid-size teacher transfers as well as a much larger
+one; the ReAct-completion discipline is what carries over.
+
+A per-trajectory LLM reasoning judge (pairwise, blind, order-randomized over the same 103 cases) shows
+*which* part of the process improved, and it is narrower than the ASR gain suggests: `efficiency` +1.18
+(p<0.001) and `search_strategy` +0.37 (p=0.037) move, while `verification` +0.10 and
+`constraint_tracking` +0.09 do not. The base model never issues `recommend_product` at all on 36 of 103
+cases, and on exactly those `efficiency` goes 1.89 → 3.86 — SeqKD taught the agent to **finish the
+rollout** (completion rate 0.650 → 0.864) rather than to pick better products. The judge is validated
+against ground truth: where the two arms' ASR differs and the judge is not tied, it prefers the arm that
+actually succeeded in 19 of 22 cases (86.4%).
+
+> **The eval set is contaminated out of the box — decontaminate before you quote a number.** The public
+> teacher set `oro-ai/sn15-shoppingbench-sft-15k` has only 469 unique queries, and **147 of the 250 eval
+> queries appear in it verbatim**; for 110 of those, a training trajectory recommends the eval case's
+> exact gold `product_id`. Scoring the same rollouts three ways:
+>
+> | split | base | student | lift |
+> |---|---|---|---|
+> | all 250 | 0.432 | 0.636 | +20.4 |
+> | **clean 103** | **0.379** | **0.495** | **+11.6** |
+> | contaminated 147 | 0.469 | 0.735 | +26.6 |
+>
+> Contamination nearly doubles the apparent lift. Step 01 of the notebook builds the clean split and
+> drops the 5,679 contaminated trajectories from training.
 
 ## Quick Start
 
@@ -60,6 +86,7 @@ managed recipe and emits an already-merged, registered Model Package.
 | `evaluate-tool-call-accuracy.ipynb` | Base-vs-student tool-use ASR + IFEval portfolio, with charts. |
 | `scripts/eval_lmeval.sh` | Non-thinking IFEval via lm-eval on a local vLLM (includes a `<think>` validity gate). |
 | `scripts/shopping_asr_eval.sh` | Tool-use ASR wiring: vLLM serve → ShoppingBench ReAct rollout → ORM scoring (needs the ShoppingBench repo + search server). |
+| 04c cell (in the notebook) | Per-trajectory LLM reasoning judge over 04b's saved rollouts — pairwise, blind, five process axes. No GPU, no new inference. |
 
 ## Notes on the model
 

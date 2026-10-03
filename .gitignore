@@ -158,3 +158,6 @@ dmypy.json
 # Base data exclude
 ./.claude
 ./**/.claude
+# SeqKD distillation: locally generated training data (570 MB), rebuilt by notebook step 02
+0_model_customization_recipes/distillation/seqkd_train.jsonl
+0_model_customization_recipes/distillation/seqkd_val.jsonl
