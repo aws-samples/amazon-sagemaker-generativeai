@@ -13,8 +13,7 @@ v3) and evaluated as an agent on [ShoppingBench](https://github.com/yjwjy/Shoppi
 2. **Training** (step 02): serverless `SFTTrainer`, LoRA; the job registers a ready-to-deploy Model Package.
 3. **Evaluation** (`evaluate-tool-call-accuracy.ipynb`): base and student on SageMaker real-time endpoints, run
    through ShoppingBench's agent loop on **held-out** test problems (queries absent from the training corpus), scored
-   with the benchmark's rules (ASR), plus optional IFEval. Step 04 of the training notebook adds a managed
-   LLM-as-a-judge on held-out steps.
+   with the benchmark's rules (ASR), plus optional IFEval.
 
 Reference results (LoRA r64, held-out problems, thinking on), base → student ASR:
 
@@ -30,7 +29,7 @@ Reference results (LoRA r64, held-out problems, thinking on), base → student A
 
 | File | Purpose |
 |---|---|
-| `distill-tool-call--Qwen--Qwen3.5-4B-shopping.ipynb` | Data prep, serverless SFT, Model Package, managed LLM-as-a-judge |
+| `distill-tool-call--Qwen--Qwen3.5-4B-shopping.ipynb` | Data prep, serverless SFT, Model Package |
 | `evaluate-tool-call-accuracy.ipynb` | ShoppingBench ASR (and IFEval) for base, student and an optional Bedrock reference model |
 | `scripts/setup_shopbench.sh` | Install the ShoppingBench harness, catalog and search index (`--code-only` for data prep) |
 | `scripts/make_clean_split.py` | Write the held-out test problems |
