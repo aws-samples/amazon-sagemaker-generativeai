@@ -1,0 +1,6 @@
+# local artifacts created by the notebooks
+ShoppingBench/
+seqkd_*.jsonl
+llmaj_*.jsonl
+synthesize_*_test_clean.jsonl
+scripts/__pycache__/
