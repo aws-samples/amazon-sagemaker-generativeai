@@ -1,0 +1,16 @@
+# Training-image deps. Qwen3.5 uses a hybrid (Gated DeltaNet + Attention) arch and
+# needs a recent transformers; bump these if Qwen3.5 fails to load.
+transformers>=4.57.0
+trl>=0.21.0
+peft>=0.14.0
+accelerate>=1.2.0
+datasets>=3.2.0
+bitsandbytes>=0.45.0
+matplotlib>=3.8.0
+pandas>=2.0.0
+huggingface_hub>=0.27.0
+hf_transfer>=0.1.8
+boto3
+# Optional but recommended for fast GRPO rollouts (set --use-vllm 1):
+# vllm>=0.6.0
+# flash-attn>=2.7.0

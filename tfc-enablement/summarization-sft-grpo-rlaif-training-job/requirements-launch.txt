@@ -1,0 +1,19 @@
+# Client-side — for launching jobs AND running the launcher notebooks.
+# The training image installs src/requirements.txt itself; these are what the
+# NOTEBOOKS need locally (00_setup launches jobs; 01_prepare builds data in-notebook
+# via transformers + datasets, so those must be present and version-compatible here).
+
+sagemaker>=3.4.1
+boto3
+
+# Keep these aligned with src/requirements.txt and mutually compatible:
+# transformers>=4.57 requires huggingface-hub<1.0 (an unbounded range resolves hub 2.x
+# and crashes at import), and datasets>=3.2 avoids the old-datasets/new-pyarrow
+# "module 'pyarrow' has no attribute 'PyExtensionType'" clash.
+huggingface_hub>=0.34.0,<1.0
+transformers>=4.57.0
+datasets>=3.2.0
+# pyarrow>=18 requires NumPy 2.0; cap <18 to stay on the base image's NumPy 1.26
+# (avoids forcing a NumPy 2 upgrade that can break torch and other prebuilt wheels).
+pyarrow>=15.0.0,<18.0.0
+numpy>=1.26,<2.0

@@ -1,0 +1,5 @@
+# Client-side only — for launching jobs and running the launcher notebooks.
+# The training image installs src/requirements.txt itself.
+sagemaker>=3.4.1
+boto3
+huggingface_hub>=0.27.0

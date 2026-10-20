@@ -1,0 +1,19 @@
+# --- secrets / run config (contain HF tokens, resolved role/bucket) ---
+**/notebooks/*_config.json
+*_config.json
+
+# --- run outputs / local scratch ---
+**/job_out/
+**/notebooks/results/
+
+# --- data + human-labeling artifacts (Reddit content + the blind-labeling key) ---
+**/samples.json
+**/human_labeling_sheet*.csv
+**/human_labeling_key.json
+**/grpo_baselines.jsonl
+
+# --- python / OS cruft ---
+__pycache__/
+*.pyc
+.DS_Store
+.ipynb_checkpoints/

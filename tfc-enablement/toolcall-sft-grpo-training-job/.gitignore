@@ -1,0 +1,7 @@
+# Holds your HF token + resolved role/bucket — do not commit.
+notebooks/toolcall_config.json
+notebooks/results/
+job_out/
+__pycache__/
+*.pyc
+.DS_Store
