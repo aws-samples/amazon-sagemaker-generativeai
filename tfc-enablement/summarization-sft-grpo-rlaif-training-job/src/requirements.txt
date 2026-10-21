@@ -1,0 +1,22 @@
+# Training-image deps — PINNED to the exact set from the last successful run
+# (2026-10-15 Nova eval). Unbounded ranges kept drifting into torch-incompatible
+# transformers (e.g. 'No module named torch.distributed.checkpoint.hf_storage'),
+# so these are frozen. Bump deliberately, together, and re-test.
+transformers==5.19.0
+tokenizers==0.23.3
+trl==1.15.0
+peft==0.21.2
+accelerate>=1.2.0
+datasets==5.1.0
+bitsandbytes==0.50.2
+matplotlib>=3.8.0
+pandas>=2.0.0
+# hub 2.2.0 is what transformers 5.19.0 needs (and what the successful run used).
+# The <1.0 cap belongs ONLY in requirements-launch.txt (the older notebook env).
+huggingface_hub==2.2.0
+hf_transfer==0.1.9
+# boto3 is used for both S3 sync and the Bedrock judge (RLAIF reward).
+boto3>=1.34.0
+# Optional but recommended for fast GRPO rollouts (set --use-vllm 1 if wired in):
+# vllm>=0.6.0
+# flash-attn>=2.7.0
