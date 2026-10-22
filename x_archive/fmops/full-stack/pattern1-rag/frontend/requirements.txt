@@ -1,4 +1,4 @@
-streamlit==1.27.2
+streamlit==1.54.0
 langchain==0.0.317
 opensearch-py==2.4.2
 boto3==1.28.17
