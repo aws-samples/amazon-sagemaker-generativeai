@@ -1,4 +1,4 @@
-mcp[cli]
+mcp[cli]<2
 bedrock-agentcore-starter-toolkit
 numpy
 strands-agents
